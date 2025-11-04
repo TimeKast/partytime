@@ -1,7 +1,20 @@
 import * as admin from 'firebase-admin'
 
 // Validar que las variables de entorno estén configuradas
-if (!process.env.GOOGLE_CLOUD_PROJECT_ID || !process.env.GOOGLE_CLOUD_PRIVATE_KEY || !process.env.GOOGLE_CLOUD_CLIENT_EMAIL) {
+const hasProjectId = !!process.env.GOOGLE_CLOUD_PROJECT_ID
+const hasPrivateKey = !!process.env.GOOGLE_CLOUD_PRIVATE_KEY
+const hasClientEmail = !!process.env.GOOGLE_CLOUD_CLIENT_EMAIL
+
+console.log('🔍 Firestore Environment Check:', {
+  hasProjectId,
+  hasPrivateKey,
+  hasClientEmail,
+  projectId: hasProjectId ? process.env.GOOGLE_CLOUD_PROJECT_ID : 'MISSING',
+  clientEmail: hasClientEmail ? process.env.GOOGLE_CLOUD_CLIENT_EMAIL : 'MISSING',
+  privateKeyLength: hasPrivateKey ? process.env.GOOGLE_CLOUD_PRIVATE_KEY?.length : 0
+})
+
+if (!hasProjectId || !hasPrivateKey || !hasClientEmail) {
   console.warn('⚠️  Google Cloud Firestore no configurado. Usando modo demo.')
   throw new Error(
     'GOOGLE_CLOUD_PROJECT_ID, GOOGLE_CLOUD_PRIVATE_KEY y GOOGLE_CLOUD_CLIENT_EMAIL no configurados. La app funcionará en modo demo.'
