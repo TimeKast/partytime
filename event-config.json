@@ -1,0 +1,27 @@
+{
+  "event": {
+    "id": "rooftop-party-andras-oct2024",
+    "title": "ROOFTOP PARTY",
+    "subtitle": "ANDRREAS",
+    "date": "SÁBADO, 26 OCT",
+    "time": "DESDE LAS 5:00 PM",
+    "location": "HAMBURGO 108, ZONA ROSA",
+    "details": "🍺 💧 Chelas y Aguas Incluidas!",
+    "rsvpRequired": true,
+    "rsvpUrl": "https://go.timekast.mx/andrreas",
+    "backgroundImage": "/background.jpg",
+    "flyerImage": "/flyer.jpg"
+  },
+  "theme": {
+    "primaryColor": "#FF1493",
+    "secondaryColor": "#00FFFF",
+    "accentColor": "#FFD700",
+    "backgroundColor": "#1a0033",
+    "textColor": "#ffffff"
+  },
+  "contact": {
+    "hostName": "Andrreas",
+    "hostEmail": "contact@example.com",
+    "hostPhone": "+52-xxx-xxx-xxxx"
+  }
+}

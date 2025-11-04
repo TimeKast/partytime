@@ -1,0 +1,243 @@
+.main {
+  min-height: 100vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 20px;
+}
+
+/* Fondo con imagen */
+.backgroundWrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+.background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: blur(0px);
+}
+
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    180deg,
+    rgba(26, 0, 51, 0.4) 0%,
+    rgba(26, 0, 51, 0.8) 100%
+  );
+}
+
+/* Contenido principal */
+.content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+  padding: 20px;
+}
+
+/* Hero section */
+.hero {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 20px;
+}
+
+.titleLine1,
+.titleLine2 {
+  font-size: clamp(3rem, 15vw, 5rem);
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  line-height: 0.9;
+  color: #FF1493;
+  text-transform: uppercase;
+  text-shadow: 
+    0 0 10px rgba(255, 20, 147, 0.8),
+    0 0 20px rgba(255, 20, 147, 0.6),
+    0 0 30px rgba(255, 20, 147, 0.4),
+    3px 3px 0 rgba(0, 255, 255, 0.3);
+  -webkit-text-stroke: 2px rgba(255, 255, 255, 0.3);
+  paint-order: stroke fill;
+}
+
+.subtitle {
+  font-size: clamp(2rem, 8vw, 3rem);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #00FFFF;
+  text-shadow: 
+    0 0 10px rgba(0, 255, 255, 0.8),
+    0 0 20px rgba(0, 255, 255, 0.5),
+    2px 2px 0 rgba(255, 215, 0, 0.3);
+}
+
+/* Event info */
+.eventInfo {
+  background: rgba(26, 0, 51, 0.8);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 20, 147, 0.3);
+  border-radius: 20px;
+  padding: 30px 25px;
+  width: 100%;
+  box-shadow: 
+    0 0 30px rgba(255, 20, 147, 0.3),
+    0 0 60px rgba(0, 255, 255, 0.2);
+}
+
+.infoItem {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+  font-size: 1.1rem;
+}
+
+.infoItem:last-child {
+  margin-bottom: 0;
+  justify-content: center;
+  margin-top: 10px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 20, 147, 0.3);
+}
+
+.icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.infoText {
+  color: #ffffff;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+
+/* RSVP Section */
+.rsvpSection {
+  text-align: center;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.rsvpTitle {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  margin-bottom: 20px;
+  text-shadow: 
+    0 0 10px rgba(255, 215, 0, 0.6),
+    0 0 20px rgba(255, 215, 0, 0.4);
+}
+
+.rsvpButton {
+  padding: 18px 50px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ffffff;
+  background: linear-gradient(135deg, #FF1493, #00FFFF);
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 
+    0 0 20px rgba(255, 20, 147, 0.5),
+    0 0 40px rgba(0, 255, 255, 0.3),
+    0 4px 15px rgba(0, 0, 0, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.rsvpButton::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s ease;
+}
+
+.rsvpButton:hover::before {
+  left: 100%;
+}
+
+.rsvpButton:active {
+  transform: scale(0.95);
+}
+
+/* Sparkles decoration */
+.sparkles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.sparkle {
+  position: absolute;
+  font-size: 1.5rem;
+  filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.8));
+}
+
+/* Tablet adjustments */
+@media (min-width: 768px) {
+  .content {
+    max-width: 600px;
+    gap: 40px;
+  }
+
+  .eventInfo {
+    padding: 40px 35px;
+  }
+
+  .infoItem {
+    font-size: 1.2rem;
+  }
+
+  .rsvpButton {
+    padding: 20px 60px;
+    font-size: 1.3rem;
+  }
+}
+
+/* Desktop adjustments */
+@media (min-width: 1024px) {
+  .content {
+    max-width: 700px;
+  }
+}
