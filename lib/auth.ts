@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+// Validación de autenticación HTTP Basic para endpoints admin
 export function validateAdminAuth(request: NextRequest): boolean {
   const authHeader = request.headers.get('authorization')
   
