@@ -127,6 +127,8 @@ export default function AdminDashboard() {
     
     try {
       const authHeader = sessionStorage.getItem('admin_auth')
+      console.log('🔐 Auth header existe:', !!authHeader)
+      console.log('🔐 Auth header (primeros 20 chars):', authHeader?.substring(0, 20))
       
       const response = await fetch('/api/admin/send-email', {
         method: 'POST',
@@ -142,7 +144,9 @@ export default function AdminDashboard() {
         })
       })
 
+      console.log('📬 Response status:', response.status)
       const data = await response.json()
+      console.log('📬 Response data:', data)
 
       if (data.success) {
         setMessage(`✅ Email enviado a ${rsvp.name}`)
