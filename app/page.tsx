@@ -12,6 +12,11 @@ export default function Home() {
 
   return (
     <main className={styles.main}>
+      {/* Ícono secreto para admin */}
+      <a href="/admin" className={styles.adminIcon} title="Admin">
+        ⚙️
+      </a>
+
       {/* Fondo con imagen */}
       <div className={styles.backgroundWrapper}>
         <div 

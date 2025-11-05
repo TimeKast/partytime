@@ -9,6 +9,27 @@
   padding: 20px;
 }
 
+/* Ícono secreto de admin */
+.adminIcon {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 999;
+  font-size: 20px;
+  opacity: 0.15;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  text-decoration: none;
+  filter: grayscale(100%);
+  transform: rotate(0deg);
+}
+
+.adminIcon:hover {
+  opacity: 0.8;
+  filter: grayscale(0%);
+  transform: rotate(90deg) scale(1.2);
+}
+
 /* Fondo con imagen */
 .backgroundWrapper {
   position: fixed;
