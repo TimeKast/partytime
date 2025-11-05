@@ -64,12 +64,12 @@ export function generateConfirmationEmail({ name, plusOne, cancelUrl }: EmailTem
                     </p>
                     ${event.price ? `
                     <p style="margin: 0 0 15px 0; font-size: 16px; color: #333;">
-                      <strong style="color: ${theme.accentColor};">${event.price}</strong>
+                      <strong style="color: #dc2626;">${event.price}</strong>
                     </p>
                     ` : ''}
                     ${plusOne ? `
                     <p style="margin: 0 0 15px 0; font-size: 16px; color: #333;">
-                      <strong style="color: ${theme.secondaryColor};">👥 +1:</strong> Confirmado
+                      <strong style="color: #059669;">👥 +1:</strong> Confirmado
                     </p>
                     ` : ''}
                     <p style="margin: 0; font-size: 16px; color: #333;">

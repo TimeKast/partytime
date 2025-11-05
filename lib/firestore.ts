@@ -130,7 +130,27 @@ export async function getRSVPsByEvent(eventId: string) {
 
     return rsvps
   } catch (error) {
-    console.error('Error al obtener RSVPs:', error)
+    console.error('Error obteniendo RSVPs por evento:', error)
+    throw error
+  }
+}
+
+// Función para obtener un RSVP por ID
+export async function getRSVPById(rsvpId: string): Promise<RSVP | null> {
+  try {
+    const docRef = db.collection(collectionName).doc(rsvpId)
+    const doc = await docRef.get()
+
+    if (!doc.exists) {
+      return null
+    }
+
+    return {
+      id: doc.id,
+      ...doc.data()
+    } as RSVP
+  } catch (error) {
+    console.error('Error obteniendo RSVP por ID:', error)
     throw error
   }
 }
@@ -236,6 +256,29 @@ export async function cancelRSVP(rsvpId: string, token: string) {
     }
   } catch (error) {
     console.error('Error al cancelar RSVP:', error)
+    throw error
+  }
+}
+
+// Función para actualizar un RSVP
+export async function updateRSVP(rsvpId: string, data: Partial<Pick<RSVP, 'name' | 'email' | 'phone' | 'plusOne'>>) {
+  try {
+    const docRef = db.collection(collectionName).doc(rsvpId)
+    const doc = await docRef.get()
+    
+    if (!doc.exists) {
+      throw new Error('RSVP no encontrado')
+    }
+
+    await docRef.update(data)
+
+    const updatedDoc = await docRef.get()
+    return {
+      id: rsvpId,
+      ...updatedDoc.data()
+    } as RSVP
+  } catch (error) {
+    console.error('Error al actualizar RSVP:', error)
     throw error
   }
 }
