@@ -45,6 +45,8 @@ export default function AdminDashboard() {
   const loadRSVPs = async () => {
     setLoading(true)
     try {
+      console.log('🔄 Cargando RSVPs...')
+      
       // Cargar RSVPs desde la API
       const response = await fetch('/api/rsvp')
 
@@ -54,12 +56,20 @@ export default function AdminDashboard() {
 
       const data = await response.json()
       
-      if (data.success) {
+      console.log('✅ RSVPs recibidos:', data)
+      console.log('📊 data.success:', data.success)
+      console.log('📊 data.rsvps:', data.rsvps)
+      console.log('📊 data.rsvps length:', data.rsvps?.length)
+      
+      if (data.success && data.rsvps) {
         setRsvps(data.rsvps)
         setFilteredRsvps(data.rsvps)
+        console.log('✅ RSVPs guardados en estado:', data.rsvps.length)
+      } else {
+        console.log('⚠️ No hay RSVPs o success es false')
       }
     } catch (error) {
-      console.error('Error cargando RSVPs:', error)
+      console.error('❌ Error cargando RSVPs:', error)
       setMessage('Error al cargar datos')
     } finally {
       setLoading(false)
@@ -68,10 +78,16 @@ export default function AdminDashboard() {
 
   // Cargar RSVPs al montar si hay sesión
   useEffect(() => {
+    console.log('🔍 Verificando sesión...')
     const authHeader = sessionStorage.getItem('admin_auth')
+    console.log('🔑 Auth header:', authHeader ? 'Existe' : 'No existe')
+    
     if (authHeader) {
       setIsAuthenticated(true)
+      console.log('✅ Usuario autenticado, cargando RSVPs...')
       loadRSVPs()
+    } else {
+      console.log('❌ Usuario no autenticado')
     }
   }, [])
 
