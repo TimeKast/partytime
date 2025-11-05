@@ -14,6 +14,7 @@ export default function RSVPModal({ isOpen, onClose }: RSVPModalProps) {
     name: '',
     email: '',
     phone: '',
+    plusOne: false,
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle')
@@ -40,7 +41,7 @@ export default function RSVPModal({ isOpen, onClose }: RSVPModalProps) {
         setSubmitStatus('success')
         setTimeout(() => {
           onClose()
-          setFormData({ name: '', email: '', phone: '' })
+          setFormData({ name: '', email: '', phone: '', plusOne: false })
           setSubmitStatus('idle')
         }, 2500)
       } else {
@@ -56,9 +57,10 @@ export default function RSVPModal({ isOpen, onClose }: RSVPModalProps) {
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: type === 'checkbox' ? checked : value,
     })
   }
 
@@ -150,6 +152,20 @@ export default function RSVPModal({ isOpen, onClose }: RSVPModalProps) {
                 placeholder="+52 xxx xxx xxxx"
                 disabled={isSubmitting}
               />
+            </div>
+
+            <div className={styles.formGroup}>
+              <label className={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  name="plusOne"
+                  checked={formData.plusOne}
+                  onChange={handleChange}
+                  className={styles.checkbox}
+                  disabled={isSubmitting}
+                />
+                <span className={styles.checkboxText}>¿Vienes con +1?</span>
+              </label>
             </div>
 
             {submitStatus === 'error' && (

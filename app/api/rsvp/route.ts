@@ -7,7 +7,7 @@ const mockRsvps: any[] = []
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, email, phone } = body
+    const { name, email, phone, plusOne = false } = body
 
     // Validar campos requeridos
     if (!name || !email || !phone) {
@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
         name,
         email,
         phone,
+        plusOne,
         eventId: eventConfig.event.id,
       })
 
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
         name,
         email,
         phone,
+        plusOne,
         eventId: eventConfig.event.id,
         createdAt: new Date().toISOString(),
         status: 'confirmed'

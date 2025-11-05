@@ -120,6 +120,38 @@
   cursor: not-allowed;
 }
 
+/* Checkbox styles */
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 20, 147, 0.3);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.checkboxLabel:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 20, 147, 0.5);
+}
+
+.checkbox {
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  accent-color: #FF1493;
+}
+
+.checkboxText {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+}
+
 .submitButton {
   padding: 18px 30px;
   font-size: 1.1rem;

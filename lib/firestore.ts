@@ -53,6 +53,7 @@ export interface RSVP {
   name: string
   email: string
   phone: string
+  plusOne: boolean
   eventId: string
   createdAt: string
   status: 'confirmed' | 'cancelled'
