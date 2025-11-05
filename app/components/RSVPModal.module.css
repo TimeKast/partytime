@@ -120,6 +120,62 @@
   cursor: not-allowed;
 }
 
+/* Phone Input styles */
+.phoneInput {
+  width: 100%;
+}
+
+.phoneInput :global(.PhoneInputInput) {
+  width: 100%;
+  padding: 14px 18px;
+  font-size: 1rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 20, 147, 0.3);
+  border-radius: 12px;
+  color: #ffffff;
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+.phoneInput :global(.PhoneInputInput)::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.phoneInput :global(.PhoneInputInput):focus {
+  border-color: #FF1493;
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 
+    0 0 0 3px rgba(255, 20, 147, 0.2),
+    0 0 20px rgba(255, 20, 147, 0.3);
+}
+
+.phoneInput :global(.PhoneInputCountry) {
+  margin-right: 12px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 20, 147, 0.3);
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.phoneInput :global(.PhoneInputCountrySelect) {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.phoneInput :global(.PhoneInputCountrySelect):focus {
+  outline: none;
+}
+
+.phoneInput :global(.PhoneInputCountryIcon) {
+  width: 24px;
+  height: 18px;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+}
+
 /* Checkbox styles */
 .checkboxLabel {
   display: flex;

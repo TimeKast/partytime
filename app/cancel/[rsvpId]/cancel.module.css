@@ -113,6 +113,56 @@
   cursor: not-allowed;
 }
 
+/* Phone Input styles */
+.phoneInput {
+  width: 100%;
+}
+
+.phoneInput :global(.PhoneInputInput) {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 16px;
+  transition: border-color 0.3s;
+  box-sizing: border-box;
+}
+
+.phoneInput :global(.PhoneInputInput):focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.phoneInput :global(.PhoneInputInput):disabled {
+  background: #f3f4f6;
+  cursor: not-allowed;
+}
+
+.phoneInput :global(.PhoneInputCountry) {
+  margin-right: 8px;
+  padding: 4px;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f9fafb;
+}
+
+.phoneInput :global(.PhoneInputCountrySelect) {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.phoneInput :global(.PhoneInputCountrySelect):focus {
+  outline: none;
+}
+
+.phoneInput :global(.PhoneInputCountryIcon) {
+  width: 24px;
+  height: 18px;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);
+}
+
 .checkboxLabel {
   display: flex;
   align-items: center;
