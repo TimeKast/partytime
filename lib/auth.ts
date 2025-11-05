@@ -28,12 +28,13 @@ export function validateAdminAuth(request: NextRequest): boolean {
 }
 
 export function getUnauthorizedResponse() {
+  // NO incluimos WWW-Authenticate para evitar que el navegador
+  // muestre el popup de autenticación cuando se hace fetch desde JS
   return new Response(
     JSON.stringify({ error: 'No autorizado' }),
     {
       status: 401,
       headers: {
-        'WWW-Authenticate': 'Basic realm="Admin Area"',
         'Content-Type': 'application/json'
       }
     }
