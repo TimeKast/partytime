@@ -115,52 +115,74 @@
 
 /* Phone Input styles */
 .phoneInput {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
   width: 100%;
 }
 
-.phoneInput :global(.PhoneInputInput) {
-  width: 100%;
-  padding: 12px;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 16px;
+.countrySelector {
+  background: #f9fafb !important;
+  border: 2px solid #e5e7eb !important;
+  border-right: none !important;
+  border-radius: 8px 0 0 8px !important;
+  padding: 12px !important;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 85px;
+}
+
+.countrySelector:hover {
+  background: #f3f4f6 !important;
+  border-color: #667eea !important;
+}
+
+.phoneInputField {
+  flex: 1;
+  padding: 12px !important;
+  font-size: 16px !important;
+  border: 2px solid #e5e7eb !important;
+  border-left: none !important;
+  border-radius: 0 8px 8px 0 !important;
   transition: border-color 0.3s;
   box-sizing: border-box;
+  outline: none !important;
 }
 
-.phoneInput :global(.PhoneInputInput):focus {
-  outline: none;
-  border-color: #667eea;
+.phoneInputField:focus {
+  border-color: #667eea !important;
 }
 
-.phoneInput :global(.PhoneInputInput):disabled {
-  background: #f3f4f6;
+.phoneInputField:disabled {
+  background: #f3f4f6 !important;
   cursor: not-allowed;
 }
 
-.phoneInput :global(.PhoneInputCountry) {
-  margin-right: 8px;
-  padding: 4px;
-  border: 2px solid #e5e7eb;
-  border-radius: 6px;
-  background: #f9fafb;
+.phoneInput :global(.react-international-phone-country-selector-dropdown) {
+  background: white !important;
+  border: 2px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1) !important;
 }
 
-.phoneInput :global(.PhoneInputCountrySelect) {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 16px;
+.phoneInput :global(.react-international-phone-country-selector-dropdown__list-item) {
+  padding: 10px 16px !important;
 }
 
-.phoneInput :global(.PhoneInputCountrySelect):focus {
-  outline: none;
+.phoneInput :global(.react-international-phone-country-selector-dropdown__list-item:hover) {
+  background: #f3f4f6 !important;
 }
 
-.phoneInput :global(.PhoneInputCountryIcon) {
-  width: 24px;
-  height: 18px;
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);
+.phoneInput :global(.react-international-phone-country-selector-dropdown__list-item--selected) {
+  background: #ede9fe !important;
+  color: #667eea !important;
+}
+
+.phoneInput :global(.react-international-phone-country-selector-dropdown__list-item--focused) {
+  background: #f3f4f6 !important;
 }
 
 .checkboxLabel {

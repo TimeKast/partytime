@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
-import PhoneInput from 'react-phone-number-input'
-import 'react-phone-number-input/style.css'
+import { PhoneInput } from 'react-international-phone'
+import 'react-international-phone/style.css'
 import eventConfig from '@/event-config.json'
 import styles from './cancel.module.css'
 
@@ -259,13 +259,15 @@ export default function CancelPage() {
           <div className={styles.formGroup}>
             <label htmlFor="phone">Teléfono</label>
             <PhoneInput
-              international
-              defaultCountry="MX"
+              defaultCountry="mx"
               value={phone}
-              onChange={(value) => setPhone(value || '')}
+              onChange={(phone) => setPhone(phone)}
               className={styles.phoneInput}
               disabled={saving}
-              placeholder="Ingresa tu número"
+              inputClassName={styles.phoneInputField}
+              countrySelectorStyleProps={{
+                buttonClassName: styles.countrySelector
+              }}
             />
           </div>
 

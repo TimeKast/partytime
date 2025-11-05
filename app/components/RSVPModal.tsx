@@ -2,8 +2,8 @@
 
 import { useState, FormEvent } from 'react'
 import { motion } from 'framer-motion'
-import PhoneInput from 'react-phone-number-input'
-import 'react-phone-number-input/style.css'
+import { PhoneInput } from 'react-international-phone'
+import 'react-international-phone/style.css'
 import styles from './RSVPModal.module.css'
 
 interface RSVPModalProps {
@@ -144,13 +144,15 @@ export default function RSVPModal({ isOpen, onClose }: RSVPModalProps) {
                 Teléfono
               </label>
               <PhoneInput
-                international
-                defaultCountry="MX"
+                defaultCountry="mx"
                 value={formData.phone}
-                onChange={(value) => setFormData({ ...formData, phone: value || '' })}
+                onChange={(phone) => setFormData({ ...formData, phone })}
                 className={styles.phoneInput}
                 disabled={isSubmitting}
-                placeholder="Ingresa tu número"
+                inputClassName={styles.phoneInputField}
+                countrySelectorStyleProps={{
+                  buttonClassName: styles.countrySelector
+                }}
               />
             </div>
 
