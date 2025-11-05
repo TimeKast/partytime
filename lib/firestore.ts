@@ -261,7 +261,7 @@ export async function cancelRSVP(rsvpId: string, token: string) {
 }
 
 // Función para actualizar un RSVP
-export async function updateRSVP(rsvpId: string, data: Partial<Pick<RSVP, 'name' | 'email' | 'phone' | 'plusOne'>>) {
+export async function updateRSVP(rsvpId: string, data: Partial<Pick<RSVP, 'name' | 'email' | 'phone' | 'plusOne' | 'status'>>) {
   try {
     const docRef = db.collection(collectionName).doc(rsvpId)
     const doc = await docRef.get()

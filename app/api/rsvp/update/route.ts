@@ -4,7 +4,7 @@ import { updateRSVP, validateCancelToken, getRSVPById } from '@/lib/firestore'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { rsvpId, token, name, email, phone, plusOne } = body
+    const { rsvpId, token, name, email, phone, plusOne, reconfirm } = body
 
     if (!rsvpId || !token || !name || !email || !phone) {
       return NextResponse.json(
@@ -33,17 +33,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Actualizar RSVP
-    const updatedRSVP = await updateRSVP(rsvpId, {
+    // Preparar datos a actualizar
+    const updateData: any = {
       name,
       email,
       phone,
       plusOne: plusOne || false
-    })
+    }
+
+    // Si se está reconfirmando, cambiar status a 'confirmed'
+    if (reconfirm && currentRSVP.status === 'cancelled') {
+      updateData.status = 'confirmed'
+    }
+
+    // Actualizar RSVP
+    const updatedRSVP = await updateRSVP(rsvpId, updateData)
 
     return NextResponse.json({
       success: true,
-      message: 'RSVP actualizado exitosamente',
+      message: reconfirm ? 'Asistencia reconfirmada exitosamente' : 'RSVP actualizado exitosamente',
       rsvp: updatedRSVP
     })
 

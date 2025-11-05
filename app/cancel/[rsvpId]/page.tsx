@@ -89,15 +89,22 @@ export default function CancelPage() {
           name,
           email,
           phone,
-          plusOne
+          plusOne,
+          reconfirm: rsvpData?.status === 'cancelled' // Si está cancelado, reconfirmar
         })
       })
 
       const data = await response.json()
 
       if (data.success) {
+        const wasReconfirmed = rsvpData?.status === 'cancelled'
         setUpdated(true)
         setRsvpData(data.rsvp)
+        
+        // Mostrar mensaje apropiado
+        if (wasReconfirmed) {
+          setError('') // Limpiar errores
+        }
       } else {
         setError(data.error || 'Error al actualizar')
       }
@@ -202,6 +209,12 @@ export default function CancelPage() {
           <p>{eventConfig.event.location}</p>
         </div>
 
+        {rsvpData?.status === 'cancelled' && !updated && (
+          <div className={styles.warning}>
+            ⚠️ Tu asistencia está cancelada. Puedes actualizarla para reconfirmar.
+          </div>
+        )}
+
         {error && (
           <div className={styles.error}>
             ❌ {error}
@@ -210,7 +223,9 @@ export default function CancelPage() {
 
         {updated && (
           <div className={styles.success}>
-            ✅ Información actualizada correctamente
+            {rsvpData?.status === 'confirmed' 
+              ? '✅ ¡Asistencia reconfirmada! Nos vemos en el evento 🎉'
+              : '✅ Información actualizada correctamente'}
           </div>
         )}
 
@@ -268,19 +283,27 @@ export default function CancelPage() {
             disabled={saving}
             className={styles.updateBtn}
           >
-            {saving ? 'Guardando...' : '💾 Actualizar Información'}
+            {saving 
+              ? 'Guardando...' 
+              : rsvpData?.status === 'cancelled'
+                ? '✅ Reconfirmar Asistencia'
+                : '💾 Actualizar Información'}
           </button>
         </form>
 
-        <div className={styles.divider}>o</div>
+        {rsvpData?.status === 'confirmed' && (
+          <>
+            <div className={styles.divider}>o</div>
 
-        <button
-          onClick={handleCancel}
-          disabled={saving}
-          className={styles.cancelBtn}
-        >
-          {saving ? 'Procesando...' : '❌ Cancelar mi Asistencia'}
-        </button>
+            <button
+              onClick={handleCancel}
+              disabled={saving}
+              className={styles.cancelBtn}
+            >
+              {saving ? 'Procesando...' : '❌ Cancelar mi Asistencia'}
+            </button>
+          </>
+        )}
 
         <a href="/" className={styles.backLink}>
           Volver al inicio
