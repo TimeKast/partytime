@@ -98,14 +98,14 @@ export function generateConfirmationEmail({ name, plusOne, cancelUrl }: EmailTem
                     </table>
 
                     ${event.price ? `
-                    <!-- Aportación -->
+                    <!-- Cuota -->
                     <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 18px;">
                       <tr>
                         <td style="width: 24px; vertical-align: middle; padding-right: 16px; text-align: center;">
                           <span style="font-size: 18px; color: #047857; font-weight: 700;">●</span>
                         </td>
                         <td style="vertical-align: middle; border-bottom: 1px solid #f3f4f6; padding-bottom: 18px;">
-                          <p style="margin: 0 0 4px 0; font-size: 12px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Aportación</p>
+                          <p style="margin: 0 0 4px 0; font-size: 12px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Cuota de Recuperación</p>
                           <p style="margin: 0; font-size: 17px; color: #047857; font-weight: 700;">${event.price}</p>
                         </td>
                       </tr>
@@ -117,11 +117,11 @@ export function generateConfirmationEmail({ name, plusOne, cancelUrl }: EmailTem
                     <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 18px;">
                       <tr>
                         <td style="width: 24px; vertical-align: middle; padding-right: 16px; text-align: center;">
-                          <span style="font-size: 18px; color: #059669; font-weight: 700;">●</span>
+                          <span style="font-size: 18px; color: #667eea; font-weight: 700;">●</span>
                         </td>
                         <td style="vertical-align: middle; border-bottom: 1px solid #f3f4f6; padding-bottom: 18px;">
                           <p style="margin: 0 0 4px 0; font-size: 12px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Acompañante</p>
-                          <p style="margin: 0; font-size: 17px; color: #059669; font-weight: 600;">+1 Confirmado</p>
+                          <p style="margin: 0; font-size: 17px; color: #667eea; font-weight: 600;">+1 Confirmado</p>
                         </td>
                       </tr>
                     </table>
