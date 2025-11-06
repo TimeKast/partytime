@@ -343,11 +343,108 @@
     flex-direction: column;
   }
 
+  /* Mobile card layout - no horizontal scroll */
   .tableContainer {
-    overflow-x: auto;
+    overflow-x: visible;
   }
 
-  .table {
-    min-width: 800px;
+  /* Hide table header on mobile */
+  .table thead {
+    display: none;
+  }
+
+  /* Convert table to block layout */
+  .table,
+  .table tbody,
+  .table tbody tr {
+    display: block;
+    width: 100%;
+  }
+
+  /* Style each row as a card */
+  .table tbody tr {
+    position: relative;
+    padding: 16px 16px 16px 16px;
+    margin-bottom: 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .table tbody tr:hover {
+    background: white;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  }
+
+  /* All cells as block elements */
+  .table tbody tr td {
+    display: block;
+    padding: 0;
+    border: none;
+    text-align: left;
+  }
+
+  /* Action button - top right corner */
+  .actionCell {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+  }
+
+  .actionCell .sendBtn {
+    padding: 8px 12px;
+    font-size: 18px;
+    min-width: auto;
+  }
+
+  /* Name - Line 1 (large, bold) */
+  .nameCell {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 8px;
+    padding-right: 50px; /* Space for action button */
+  }
+
+  /* Email - Line 2 */
+  .emailCell {
+    font-size: 14px;
+    color: #4b5563;
+    margin-bottom: 4px;
+  }
+
+  /* Phone - Line 3 */
+  .phoneCell {
+    font-size: 14px;
+    color: #4b5563;
+    margin-bottom: 8px;
+  }
+
+  /* PlusOne & Status - Line 4 (side by side) */
+  .plusOneCell,
+  .statusCell {
+    display: inline-block;
+    margin-right: 12px;
+    margin-bottom: 6px;
+    font-size: 13px;
+  }
+
+  /* Email Sent & Registration Date - Line 5 (side by side) */
+  .emailSentCell,
+  .dateCell {
+    display: inline-block;
+    margin-right: 12px;
+    font-size: 12px;
+    color: #6b7280;
+  }
+
+  /* Adjust badge sizes for mobile */
+  .confirmedBadge,
+  .cancelledBadge,
+  .emailSentBadge,
+  .emailNotSentBadge {
+    font-size: 12px;
+    padding: 4px 8px;
   }
 }
