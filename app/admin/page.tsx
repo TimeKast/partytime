@@ -449,9 +449,6 @@ export default function AdminDashboard() {
                   <td className={styles.phoneCell}>
                     <a href={`tel:${rsvp.phone}`}>{rsvp.phone}</a>
                   </td>
-                  <td className={styles.statusCell}>
-                    <span className={styles.confirmed}>✅</span>
-                  </td>
                   <td className={styles.dateCell}>
                     Registro: {new Date(rsvp.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
                   </td>
@@ -507,9 +504,6 @@ export default function AdminDashboard() {
                   </td>
                   <td className={styles.phoneCell}>
                     <a href={`tel:${rsvp.phone}`}>{rsvp.phone}</a>
-                  </td>
-                  <td className={styles.statusCell}>
-                    <span className={styles.cancelled}>❌</span>
                   </td>
                   <td className={styles.dateCell}>
                     Registro: {new Date(rsvp.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}

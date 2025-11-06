@@ -481,6 +481,7 @@
     font-size: 13px;
     color: #4b5563;
     text-align: right;
+    padding-right: 50px; /* Space for action button */
   }
 
   .phoneCell a {
