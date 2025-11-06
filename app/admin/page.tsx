@@ -230,11 +230,13 @@ export default function AdminDashboard() {
   }
 
   // Stats
+  const confirmedRsvps = rsvps.filter(r => r.status === 'confirmed')
   const stats = {
     total: rsvps.length,
-    confirmed: rsvps.filter(r => r.status === 'confirmed').length,
+    confirmed: confirmedRsvps.length,
     cancelled: rsvps.filter(r => r.status === 'cancelled').length,
     plusOne: rsvps.filter(r => r.plusOne).length,
+    totalGuests: confirmedRsvps.length + confirmedRsvps.filter(r => r.plusOne).length,
     emailsSent: rsvps.filter(r => r.emailSent).length,
   }
 
@@ -286,24 +288,28 @@ export default function AdminDashboard() {
       {/* Estadísticas */}
       <div className={styles.stats}>
         <div className={styles.statCard}>
+          <h3>{stats.totalGuests}</h3>
+          <p>👥 Invitados</p>
+        </div>
+        <div className={styles.statCard}>
           <h3>{stats.total}</h3>
-          <p>Total RSVPs</p>
+          <p>📋 RSVPs</p>
         </div>
         <div className={styles.statCard}>
           <h3>{stats.confirmed}</h3>
-          <p>Confirmados</p>
+          <p>✅ Confirmados</p>
         </div>
         <div className={styles.statCard}>
           <h3>{stats.cancelled}</h3>
-          <p>Cancelados</p>
+          <p>❌ Cancelados</p>
         </div>
         <div className={styles.statCard}>
           <h3>{stats.plusOne}</h3>
-          <p>Con +1</p>
+          <p>➕ Con +1</p>
         </div>
         <div className={styles.statCard}>
           <h3>{stats.emailsSent}</h3>
-          <p>Emails Enviados</p>
+          <p>✉️ Emails</p>
         </div>
       </div>
 

@@ -116,29 +116,58 @@
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
   margin-bottom: 20px;
 }
 
 .statCard {
   background: white;
-  padding: 24px;
-  border-radius: 12px;
+  padding: 16px 12px;
+  border-radius: 10px;
   text-align: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.statCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
 .statCard h3 {
-  margin: 0 0 8px 0;
-  font-size: 36px;
+  margin: 0 0 6px 0;
+  font-size: 28px;
   color: #667eea;
+  font-weight: 800;
 }
 
 .statCard p {
   margin: 0;
   color: #666;
-  font-size: 14px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+@media (max-width: 640px) {
+  .stats {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  
+  .statCard {
+    padding: 14px 10px;
+  }
+  
+  .statCard h3 {
+    font-size: 24px;
+  }
+  
+  .statCard p {
+    font-size: 10px;
+  }
 }
 
 .controls {
