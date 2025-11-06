@@ -23,11 +23,20 @@ export default function AdminDashboard() {
   const [password, setPassword] = useState('')
   const [rsvps, setRsvps] = useState<RSVP[]>([])
   const [filteredRsvps, setFilteredRsvps] = useState<RSVP[]>([])
+  const [emailTargetRsvps, setEmailTargetRsvps] = useState<RSVP[]>([])
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterStatus, setFilterStatus] = useState<'all' | 'confirmed' | 'cancelled'>('all')
-  const [filterPlusOne, setFilterPlusOne] = useState<'all' | 'yes' | 'no'>('all')
-  const [filterEmail, setFilterEmail] = useState<'all' | 'sent' | 'not-sent'>('all')
+  
+  // Filtros para MOSTRAR en tabla
+  const [displayFilterStatus, setDisplayFilterStatus] = useState<'all' | 'confirmed' | 'cancelled'>('all')
+  const [displayFilterPlusOne, setDisplayFilterPlusOne] = useState<'all' | 'yes' | 'no'>('all')
+  const [displayFilterEmail, setDisplayFilterEmail] = useState<'all' | 'sent' | 'not-sent'>('all')
+  
+  // Filtros para ENVIAR emails
+  const [emailFilterStatus, setEmailFilterStatus] = useState<'all' | 'confirmed' | 'cancelled'>('all')
+  const [emailFilterPlusOne, setEmailFilterPlusOne] = useState<'all' | 'yes' | 'no'>('all')
+  const [emailFilterEmail, setEmailFilterEmail] = useState<'all' | 'sent' | 'not-sent'>('not-sent')
+  
   const [message, setMessage] = useState('')
 
   // Autenticación
@@ -65,6 +74,15 @@ export default function AdminDashboard() {
       if (data.success && data.rsvps) {
         setRsvps(data.rsvps)
         setFilteredRsvps(data.rsvps)
+        
+        // Ajustar filtro de email inteligentemente
+        const notSentCount = data.rsvps.filter((r: RSVP) => !r.emailSent).length
+        if (notSentCount > 0) {
+          setEmailFilterEmail('not-sent') // Hay gente sin email, enviar a ellos
+        } else {
+          setEmailFilterEmail('all') // Todos tienen email, default a todos
+        }
+        
         console.log('✅ RSVPs guardados en estado:', data.rsvps.length)
       } else {
         console.log('⚠️ No hay RSVPs o success es false')
@@ -92,26 +110,26 @@ export default function AdminDashboard() {
     }
   }, [])
 
-  // Filtrar RSVPs
+  // Filtrar RSVPs para MOSTRAR en tabla
   useEffect(() => {
     let filtered = [...rsvps]
 
     // Filtro por status
-    if (filterStatus !== 'all') {
-      filtered = filtered.filter(r => r.status === filterStatus)
+    if (displayFilterStatus !== 'all') {
+      filtered = filtered.filter(r => r.status === displayFilterStatus)
     }
 
     // Filtro por +1
-    if (filterPlusOne === 'yes') {
+    if (displayFilterPlusOne === 'yes') {
       filtered = filtered.filter(r => r.plusOne)
-    } else if (filterPlusOne === 'no') {
+    } else if (displayFilterPlusOne === 'no') {
       filtered = filtered.filter(r => !r.plusOne)
     }
 
     // Filtro por email enviado
-    if (filterEmail === 'sent') {
+    if (displayFilterEmail === 'sent') {
       filtered = filtered.filter(r => r.emailSent)
-    } else if (filterEmail === 'not-sent') {
+    } else if (displayFilterEmail === 'not-sent') {
       filtered = filtered.filter(r => !r.emailSent)
     }
 
@@ -126,7 +144,33 @@ export default function AdminDashboard() {
     }
 
     setFilteredRsvps(filtered)
-  }, [rsvps, filterStatus, filterPlusOne, filterEmail, searchTerm])
+  }, [rsvps, displayFilterStatus, displayFilterPlusOne, displayFilterEmail, searchTerm])
+
+  // Filtrar RSVPs para ENVIAR emails
+  useEffect(() => {
+    let filtered = [...rsvps]
+
+    // Filtro por status
+    if (emailFilterStatus !== 'all') {
+      filtered = filtered.filter(r => r.status === emailFilterStatus)
+    }
+
+    // Filtro por +1
+    if (emailFilterPlusOne === 'yes') {
+      filtered = filtered.filter(r => r.plusOne)
+    } else if (emailFilterPlusOne === 'no') {
+      filtered = filtered.filter(r => !r.plusOne)
+    }
+
+    // Filtro por email enviado
+    if (emailFilterEmail === 'sent') {
+      filtered = filtered.filter(r => r.emailSent)
+    } else if (emailFilterEmail === 'not-sent') {
+      filtered = filtered.filter(r => !r.emailSent)
+    }
+
+    setEmailTargetRsvps(filtered)
+  }, [rsvps, emailFilterStatus, emailFilterPlusOne, emailFilterEmail])
 
   // Enviar email individual
   const sendEmail = async (rsvp: RSVP) => {
@@ -173,13 +217,13 @@ export default function AdminDashboard() {
 
   // Enviar emails masivos
   const sendBulkEmails = async () => {
-    const count = filteredRsvps.length
+    const count = emailTargetRsvps.length
     if (count === 0) {
       setMessage('❌ No hay RSVPs para enviar')
       return
     }
 
-    const notSentCount = filteredRsvps.filter(r => !r.emailSent).length
+    const notSentCount = emailTargetRsvps.filter(r => !r.emailSent).length
     const confirmMessage = notSentCount > 0
       ? `¿Enviar emails a ${count} personas? (${notSentCount} sin email previo)`
       : `¿Enviar emails a ${count} personas? (Todos ya recibieron email antes)`
@@ -194,7 +238,7 @@ export default function AdminDashboard() {
     try {
       const authHeader = sessionStorage.getItem('admin_auth')
       
-      // Enviar lista de IDs específicos de los RSVPs filtrados
+      // Enviar lista de IDs específicos de los RSVPs filtrados para email
       const response = await fetch('/api/admin/send-bulk-email', {
         method: 'POST',
         headers: {
@@ -202,7 +246,7 @@ export default function AdminDashboard() {
           'Authorization': `Basic ${authHeader}`
         },
         body: JSON.stringify({
-          rsvpIds: filteredRsvps.map(r => r.id)
+          rsvpIds: emailTargetRsvps.map(r => r.id)
         })
       })
 
@@ -235,7 +279,7 @@ export default function AdminDashboard() {
     total: rsvps.length,
     confirmed: confirmedRsvps.length,
     cancelled: rsvps.filter(r => r.status === 'cancelled').length,
-    plusOne: rsvps.filter(r => r.plusOne).length,
+    plusOne: confirmedRsvps.filter(r => r.plusOne).length, // Solo +1 confirmados
     totalGuests: confirmedRsvps.length + confirmedRsvps.filter(r => r.plusOne).length,
     emailsSent: rsvps.filter(r => r.emailSent).length,
   }
@@ -300,12 +344,12 @@ export default function AdminDashboard() {
           <p>✅ Confirmados</p>
         </div>
         <div className={styles.statCard}>
-          <h3>{stats.cancelled}</h3>
-          <p>❌ Cancelados</p>
-        </div>
-        <div className={styles.statCard}>
           <h3>{stats.plusOne}</h3>
           <p>➕ Con +1</p>
+        </div>
+        <div className={styles.statCard}>
+          <h3>{stats.cancelled}</h3>
+          <p>❌ Cancelados</p>
         </div>
         <div className={styles.statCard}>
           <h3>{stats.emailsSent}</h3>
@@ -315,39 +359,67 @@ export default function AdminDashboard() {
 
       {/* Controles */}
       <div className={styles.controls}>
-        <input
-          type="text"
-          placeholder="Buscar por nombre, email o teléfono..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className={styles.searchInput}
-        />
+        <div className={styles.filterSection}>
+          <h3>🔍 Filtros de Visualización</h3>
+          <div className={styles.filterRow}>
+            <input
+              type="text"
+              placeholder="Buscar por nombre, email o teléfono..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className={styles.searchInput}
+            />
 
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)}>
-          <option value="all">Todos los estados</option>
-          <option value="confirmed">✅ Confirmados</option>
-          <option value="cancelled">❌ Cancelados</option>
-        </select>
+            <select value={displayFilterStatus} onChange={(e) => setDisplayFilterStatus(e.target.value as any)}>
+              <option value="all">Todos los estados</option>
+              <option value="confirmed">✅ Confirmados</option>
+              <option value="cancelled">❌ Cancelados</option>
+            </select>
 
-        <select value={filterPlusOne} onChange={(e) => setFilterPlusOne(e.target.value as any)}>
-          <option value="all">Todos los +1</option>
-          <option value="yes">👥 Con +1</option>
-          <option value="no">👤 Sin +1</option>
-        </select>
+            <select value={displayFilterPlusOne} onChange={(e) => setDisplayFilterPlusOne(e.target.value as any)}>
+              <option value="all">Todos los +1</option>
+              <option value="yes">👥 Con +1</option>
+              <option value="no">👤 Sin +1</option>
+            </select>
 
-        <select value={filterEmail} onChange={(e) => setFilterEmail(e.target.value as any)} className={styles.emailFilter}>
-          <option value="all">Todos los emails</option>
-          <option value="sent">✉️ Email enviado</option>
-          <option value="not-sent">📭 Sin email</option>
-        </select>
+            <select value={displayFilterEmail} onChange={(e) => setDisplayFilterEmail(e.target.value as any)}>
+              <option value="all">Todos los emails</option>
+              <option value="sent">✉️ Email enviado</option>
+              <option value="not-sent">📭 Sin email</option>
+            </select>
+          </div>
+        </div>
 
-        <button
-          onClick={sendBulkEmails}
-          disabled={loading || filteredRsvps.length === 0}
-          className={styles.bulkBtn}
-        >
-          📧 Enviar a Filtrados ({filteredRsvps.length})
-        </button>
+        <div className={styles.filterSection}>
+          <h3>📧 Envío de Emails</h3>
+          <div className={styles.filterRow}>
+            <select value={emailFilterStatus} onChange={(e) => setEmailFilterStatus(e.target.value as any)}>
+              <option value="all">Todos los estados</option>
+              <option value="confirmed">✅ Confirmados</option>
+              <option value="cancelled">❌ Cancelados</option>
+            </select>
+
+            <select value={emailFilterPlusOne} onChange={(e) => setEmailFilterPlusOne(e.target.value as any)}>
+              <option value="all">Todos los +1</option>
+              <option value="yes">👥 Con +1</option>
+              <option value="no">👤 Sin +1</option>
+            </select>
+
+            <select value={emailFilterEmail} onChange={(e) => setEmailFilterEmail(e.target.value as any)} className={styles.emailFilter}>
+              <option value="all">Todos</option>
+              <option value="sent">✉️ Ya enviados</option>
+              <option value="not-sent">📭 Sin enviar</option>
+            </select>
+
+            <button
+              onClick={sendBulkEmails}
+              disabled={loading || emailTargetRsvps.length === 0}
+              className={styles.bulkBtn}
+            >
+              📧 Enviar Emails ({emailTargetRsvps.length})
+            </button>
+          </div>
+        </div>
       </div>
 
       {message && <div className={styles.message}>{message}</div>}
