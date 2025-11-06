@@ -442,7 +442,6 @@ export default function AdminDashboard() {
                 <th>Acciones</th>
                 <th>Email Enviado</th>
                 <th>Nombre</th>
-                <th>+1</th>
                 <th>Email</th>
                 <th>Teléfono</th>
                 <th>Fecha Registro</th>
@@ -468,10 +467,7 @@ export default function AdminDashboard() {
                     )}
                   </td>
                   <td className={styles.nameCell}>
-                    <span>{rsvp.name}</span>
-                    {rsvp.plusOne && <span className={styles.plusOneBadge}>+1</span>}
-                  </td>
-                  <td className={styles.plusOneCell}>
+                    {rsvp.name}
                     {rsvp.plusOne && <span className={styles.plusOneBadge}>+1</span>}
                   </td>
                   <td className={styles.emailCell}>
@@ -502,7 +498,6 @@ export default function AdminDashboard() {
                 <th>Acciones</th>
                 <th>Email Enviado</th>
                 <th>Nombre</th>
-                <th>+1</th>
                 <th>Email</th>
                 <th>Teléfono</th>
                 <th>Fecha Registro</th>
@@ -528,10 +523,7 @@ export default function AdminDashboard() {
                     )}
                   </td>
                   <td className={styles.nameCell}>
-                    <span>{rsvp.name}</span>
-                    {rsvp.plusOne && <span className={styles.plusOneBadge}>+1</span>}
-                  </td>
-                  <td className={styles.plusOneCell}>
+                    {rsvp.name}
                     {rsvp.plusOne && <span className={styles.plusOneBadge}>+1</span>}
                   </td>
                   <td className={styles.emailCell}>

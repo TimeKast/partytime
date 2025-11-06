@@ -410,11 +410,11 @@
     background: white;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
     grid-template-rows: auto;
-    gap: 6px;
+    gap: 6px 10px;
     grid-template-areas:
-      "name"
+      "name name"
       "phone email"
       "date emailsent";
   }
@@ -447,27 +447,25 @@
     line-height: 1;
   }
 
-  /* Name - left side */
+  /* Name - takes full width in mobile */
   .nameCell {
     grid-area: name;
     font-size: 17px;
     font-weight: 600;
     color: #1f2937;
     padding-right: 40px; /* Space for action button */
-    display: flex;
-    align-items: center;
-    gap: 8px;
   }
 
-  /* PlusOne badge - inline with name, no separate cell in mobile */
+  /* PlusOne badge - hidden as separate cell in mobile */
   .plusOneCell {
-    display: none; /* Hidden in mobile, badge is inside nameCell */
+    display: none;
   }
 
   .plusOneBadge {
     font-size: 13px;
     font-weight: 600;
     color: #3b82f6; /* Blue color */
+    margin-left: 8px;
     white-space: nowrap;
   }
 
