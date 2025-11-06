@@ -14,7 +14,6 @@ export function generateConfirmationEmail({ name, plusOne, cancelUrl, isReminder
   const cleanCancelUrl = cancelUrl.replace(/^=+/, '').trim()
 
   // Textos según tipo de email
-  const headerTitle = isReminder ? '¡RECORDATORIO!' : event.title
   const greeting = isReminder 
     ? `¡Hola <strong>${name}</strong>! 👋` 
     : `¡Hola <strong>${name}</strong>!`
@@ -48,7 +47,7 @@ export function generateConfirmationEmail({ name, plusOne, cancelUrl, isReminder
               </p>
               ` : ''}
               <h1 style="margin: 0; color: #ffffff; font-size: 32px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
-                ${headerTitle}
+                ${event.title}
               </h1>
               <h2 style="margin: 10px 0 0 0; color: ${theme.secondaryColor}; font-size: 24px; font-weight: 700; text-transform: uppercase; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">
                 ${event.subtitle}
