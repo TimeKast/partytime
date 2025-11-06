@@ -131,7 +131,8 @@ export default function AdminDashboard() {
   // Enviar email individual
   const sendEmail = async (rsvp: RSVP) => {
     setLoading(true)
-    setMessage('Enviando email...')
+    const isReminder = !!rsvp.emailSent
+    setMessage(`Enviando ${isReminder ? 'recordatorio' : 'email'}...`)
     
     try {
       const authHeader = sessionStorage.getItem('admin_auth')
@@ -148,7 +149,8 @@ export default function AdminDashboard() {
           rsvpId: rsvp.id,
           name: rsvp.name,
           email: rsvp.email,
-          plusOne: rsvp.plusOne
+          plusOne: rsvp.plusOne,
+          emailSent: rsvp.emailSent
         })
       })
 
@@ -157,7 +159,7 @@ export default function AdminDashboard() {
       console.log('📬 Response data:', data)
 
       if (data.success) {
-        setMessage(`✅ Email enviado a ${rsvp.name}`)
+        setMessage(`✅ ${isReminder ? 'Recordatorio' : 'Email'} enviado a ${rsvp.name}`)
         await loadRSVPs()
       } else {
         setMessage(`❌ Error: ${data.error}`)

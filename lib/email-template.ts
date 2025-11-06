@@ -4,13 +4,26 @@ interface EmailTemplateProps {
   name: string
   plusOne: boolean
   cancelUrl: string
+  isReminder?: boolean // true = recordatorio, false/undefined = confirmación
 }
 
-export function generateConfirmationEmail({ name, plusOne, cancelUrl }: EmailTemplateProps): string {
+export function generateConfirmationEmail({ name, plusOne, cancelUrl, isReminder = false }: EmailTemplateProps): string {
   const { event, theme } = eventConfig
   
   // Limpiar cualquier = al inicio de la URL (bug de encoding)
   const cleanCancelUrl = cancelUrl.replace(/^=+/, '').trim()
+
+  // Textos según tipo de email
+  const headerTitle = isReminder ? '¡RECORDATORIO!' : event.title
+  const greeting = isReminder 
+    ? `¡Hola <strong>${name}</strong>! 👋` 
+    : `¡Hola <strong>${name}</strong>!`
+  const mainText = isReminder
+    ? `Te recordamos que tu asistencia está confirmada para <strong>${event.title}</strong>.`
+    : `Tu asistencia ha sido confirmada para <strong>${event.title}</strong>.`
+  const closingText = isReminder
+    ? `¡Te esperamos! 🎊`
+    : `¡Nos vemos ahí! 🎉`
 
   return `
 <!DOCTYPE html>
@@ -18,7 +31,7 @@ export function generateConfirmationEmail({ name, plusOne, cancelUrl }: EmailTem
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Confirmación RSVP - ${event.title}</title>
+  <title>${isReminder ? 'Recordatorio' : 'Confirmación'} RSVP - ${event.title}</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: 'Arial', sans-serif; background-color: #f4f4f4;">
   <table role="presentation" style="width: 100%; border-collapse: collapse;">
@@ -29,8 +42,13 @@ export function generateConfirmationEmail({ name, plusOne, cancelUrl }: EmailTem
           <!-- Header con colores del evento -->
           <tr>
             <td style="background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.backgroundColor} 100%); padding: 40px 30px; text-align: center;">
+              ${isReminder ? `
+              <p style="margin: 0 0 10px 0; color: #fbbf24; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;">
+                Recordatorio
+              </p>
+              ` : ''}
               <h1 style="margin: 0; color: #ffffff; font-size: 32px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
-                ${event.title}
+                ${headerTitle}
               </h1>
               <h2 style="margin: 10px 0 0 0; color: ${theme.secondaryColor}; font-size: 24px; font-weight: 700; text-transform: uppercase; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">
                 ${event.subtitle}
@@ -42,15 +60,15 @@ export function generateConfirmationEmail({ name, plusOne, cancelUrl }: EmailTem
           <tr>
             <td style="padding: 40px 30px;">
               <p style="margin: 0 0 20px 0; font-size: 18px; color: #333333;">
-                ¡Hola <strong>${name}</strong>!
+                ${greeting}
               </p>
               
               <p style="margin: 0 0 10px 0; font-size: 16px; line-height: 1.6; color: #555555;">
-                Tu asistencia ha sido confirmada para <strong>${event.title}</strong>.
+                ${mainText}
               </p>
               
               <p style="margin: 0 0 30px 0; font-size: 16px; line-height: 1.6; color: #555555;">
-                ¡Nos vemos ahí! 🎉
+                ${closingText}
               </p>
 
               <!-- Detalles del evento -->
@@ -151,10 +169,14 @@ export function generateConfirmationEmail({ name, plusOne, cancelUrl }: EmailTem
                   </td>
                 </tr>
               </table>
+
+              <p style="margin: 0 0 20px 0; font-size: 12px; line-height: 1.5; color: #9ca3af; text-align: center; font-style: italic;">
+                💡 Si cancelas, puedes usar este mismo enlace para reconfirmar tu asistencia más tarde
+              </p>
               
               <p style="margin: 0 0 20px 0; font-size: 12px; line-height: 1.6; color: #999999; text-align: center;">
                 O copia y pega este enlace en tu navegador:<br>
-                <span style="color:#dc2626;word-break:break-all;font-size:11px;">${cleanCancelUrl}</span>
+                <span style="color:#667eea;word-break:break-all;font-size:11px;">${cleanCancelUrl}</span>
               </p>
             </td>
           </tr>

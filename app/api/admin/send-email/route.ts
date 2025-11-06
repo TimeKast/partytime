@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { rsvpId, name, email, plusOne } = body
+    const { rsvpId, name, email, plusOne, emailSent } = body
 
     if (!rsvpId || !name || !email) {
       return NextResponse.json(
@@ -21,6 +21,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Determinar si es recordatorio (ya se envió email antes)
+    const isReminder = !!emailSent
 
     // Generar token de cancelación
     const cancelToken = generateCancelToken(rsvpId, email)
@@ -33,14 +36,20 @@ export async function POST(request: NextRequest) {
     const htmlContent = generateConfirmationEmail({
       name,
       plusOne: plusOne || false,
-      cancelUrl
+      cancelUrl,
+      isReminder
     })
+
+    // Asunto según tipo de email
+    const subject = isReminder 
+      ? `Recordatorio - ${eventConfig.event.title}`
+      : `Confirmación - ${eventConfig.event.title}`
 
     // Enviar email con Resend
     const { data, error } = await resend.emails.send({
       from: `Rooftop Party <${FROM_EMAIL}>`,
       to: email,
-      subject: `Confirmación - ${eventConfig.event.title}`,
+      subject,
       html: htmlContent
     })
 
@@ -53,11 +62,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Registrar envío en Firestore
-    await recordEmailSent(rsvpId, 'confirmation')
+    await recordEmailSent(rsvpId, isReminder ? 'reminder' : 'confirmation')
 
     return NextResponse.json({
       success: true,
-      message: 'Email enviado exitosamente',
+      message: `Email ${isReminder ? 'recordatorio' : 'confirmación'} enviado exitosamente`,
       emailId: data?.id
     })
 

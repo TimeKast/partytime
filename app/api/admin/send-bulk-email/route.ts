@@ -46,19 +46,28 @@ export async function POST(request: NextRequest) {
     // Enviar emails uno por uno
     for (const rsvp of filteredRsvps) {
       try {
+        // Determinar si es recordatorio (ya se envió email antes)
+        const isReminder = !!rsvp.emailSent
+
         const cancelToken = generateCancelToken(rsvp.id!, rsvp.email)
         const cancelUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/cancel/${rsvp.id}?token=${cancelToken}`
 
         const htmlContent = generateConfirmationEmail({
           name: rsvp.name,
           plusOne: rsvp.plusOne || false,
-          cancelUrl
+          cancelUrl,
+          isReminder
         })
+
+        // Asunto según tipo de email
+        const subject = isReminder 
+          ? `Recordatorio - ${eventConfig.event.title}`
+          : `Confirmación - ${eventConfig.event.title}`
 
         const { error } = await resend.emails.send({
           from: FROM_EMAIL,
           to: rsvp.email,
-          subject: `Confirmación - ${eventConfig.event.title}`,
+          subject,
           html: htmlContent
         })
 
@@ -67,7 +76,7 @@ export async function POST(request: NextRequest) {
           results.errors.push(`${rsvp.email}: ${error.message}`)
           console.error(`Error enviando a ${rsvp.email}:`, error)
         } else {
-          await recordEmailSent(rsvp.id!, 'confirmation')
+          await recordEmailSent(rsvp.id!, isReminder ? 'reminder' : 'confirmation')
           results.sent++
         }
 
