@@ -459,11 +459,16 @@
     gap: 8px;
   }
 
-  /* PlusOne - inline with name */
+  /* PlusOne badge - inline with name, no separate cell in mobile */
   .plusOneCell {
-    grid-area: name;
-    font-size: 12px;
-    display: inline;
+    display: none; /* Hidden in mobile, badge is inside nameCell */
+  }
+
+  .plusOneBadge {
+    font-size: 13px;
+    font-weight: 600;
+    color: #3b82f6; /* Blue color */
+    white-space: nowrap;
   }
 
   /* Email - left side, as link */
