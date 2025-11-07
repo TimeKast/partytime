@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { PhoneInput } from 'react-international-phone'
 import 'react-international-phone/style.css'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import eventConfig from '@/event-config.json'
 import styles from './admin.module.css'
 
@@ -409,6 +411,184 @@ export default function AdminDashboard() {
     setPassword('')
   }
 
+  // Exportar lista informativa (elegante con todos los detalles)
+  const exportInformativeList = () => {
+    const doc = new jsPDF()
+    const confirmedRsvps = rsvps.filter(r => r.status === 'confirmed')
+    
+    // Header elegante
+    doc.setFillColor(102, 102, 234) // Color morado del tema
+    doc.rect(0, 0, 210, 40, 'F')
+    
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(24)
+    doc.setFont('helvetica', 'bold')
+    doc.text(eventConfig.event.title, 105, 18, { align: 'center' })
+    
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'normal')
+    doc.text(eventConfig.event.subtitle, 105, 27, { align: 'center' })
+    doc.text(`${eventConfig.event.date} - ${eventConfig.event.time}`, 105, 34, { align: 'center' })
+    
+    // Información del evento
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(10)
+    doc.text(eventConfig.event.location, 105, 48, { align: 'center' })
+    
+    // Stats
+    const totalGuests = confirmedRsvps.length + confirmedRsvps.filter(r => r.plusOne).length
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`Lista de Invitados - ${confirmedRsvps.length} Confirmaciones - ${totalGuests} Personas`, 14, 60)
+    
+    // Tabla con datos
+    const tableData = confirmedRsvps.map((rsvp, index) => [
+      index + 1,
+      rsvp.name,
+      rsvp.email,
+      rsvp.phone,
+      rsvp.plusOne ? 'Sí (+1)' : 'No',
+      rsvp.emailSent ? new Date(rsvp.emailSent).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : 'No enviado'
+    ])
+    
+    autoTable(doc, {
+      startY: 68,
+      head: [['#', 'Nombre', 'Email', 'Teléfono', '+1', 'Email']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [102, 102, 234],
+        textColor: 255,
+        fontSize: 10,
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      bodyStyles: {
+        fontSize: 9,
+        cellPadding: 4
+      },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 10 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 50 },
+        3: { cellWidth: 35 },
+        4: { halign: 'center', cellWidth: 20 },
+        5: { halign: 'center', cellWidth: 25 }
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 250]
+      }
+    })
+    
+    // Footer
+    const pageCount = (doc as any).internal.getNumberOfPages()
+    doc.setFontSize(8)
+    doc.setTextColor(128, 128, 128)
+    doc.text(
+      `Generado el ${new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })} - Página ${pageCount}`,
+      105,
+      doc.internal.pageSize.height - 10,
+      { align: 'center' }
+    )
+    
+    doc.save(`lista-invitados-${eventConfig.event.id}.pdf`)
+  }
+
+  // Exportar lista de check-in (para la entrada del evento)
+  const exportCheckInList = () => {
+    const doc = new jsPDF()
+    const confirmedRsvps = rsvps.filter(r => r.status === 'confirmed')
+    
+    // Header simple y funcional
+    doc.setFillColor(34, 197, 94) // Verde
+    doc.rect(0, 0, 210, 35, 'F')
+    
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(20)
+    doc.setFont('helvetica', 'bold')
+    doc.text('LISTA DE CHECK-IN', 105, 15, { align: 'center' })
+    
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'normal')
+    doc.text(eventConfig.event.title, 105, 23, { align: 'center' })
+    doc.text(`${eventConfig.event.date} - ${eventConfig.event.location}`, 105, 30, { align: 'center' })
+    
+    // Instrucciones
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'italic')
+    doc.text('Marcar con ✓ cuando llegue el invitado', 14, 43)
+    
+    // Stats
+    const totalGuests = confirmedRsvps.length + confirmedRsvps.filter(r => r.plusOne).length
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`Total esperado: ${confirmedRsvps.length} confirmaciones - ${totalGuests} personas`, 14, 52)
+    
+    // Tabla para check-in con checkbox
+    const tableData = confirmedRsvps.map((rsvp, index) => [
+      index + 1,
+      rsvp.name,
+      rsvp.phone,
+      rsvp.plusOne ? 'Sí (+1)' : 'No',
+      '☐', // Checkbox vacío
+      '___________' // Espacio para hora
+    ])
+    
+    autoTable(doc, {
+      startY: 60,
+      head: [['#', 'Nombre', 'Teléfono', '+1', '✓ Llegó', 'Hora']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [34, 197, 94],
+        textColor: 255,
+        fontSize: 10,
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      bodyStyles: {
+        fontSize: 11,
+        cellPadding: 6,
+        minCellHeight: 12
+      },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 12 },
+        1: { cellWidth: 65, fontStyle: 'bold' },
+        2: { cellWidth: 40 },
+        3: { halign: 'center', cellWidth: 20 },
+        4: { halign: 'center', cellWidth: 20, fontSize: 14 },
+        5: { halign: 'center', cellWidth: 30 }
+      },
+      alternateRowStyles: {
+        fillColor: [240, 253, 244]
+      }
+    })
+    
+    // Footer con contador
+    const pageCount = (doc as any).internal.getNumberOfPages()
+    doc.setFontSize(8)
+    doc.setTextColor(128, 128, 128)
+    doc.text(
+      `Check-in list generada el ${new Date().toLocaleDateString('es-MX')} - Página ${pageCount}`,
+      105,
+      doc.internal.pageSize.height - 10,
+      { align: 'center' }
+    )
+    
+    // Contadores en la parte inferior
+    const finalY = (doc as any).lastAutoTable.finalY + 15
+    doc.setFontSize(10)
+    doc.setTextColor(0, 0, 0)
+    doc.setFont('helvetica', 'bold')
+    doc.text('RESUMEN:', 14, finalY)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Llegaron: _____ / ${confirmedRsvps.length}`, 14, finalY + 7)
+    doc.text(`Total personas: _____ / ${totalGuests}`, 14, finalY + 14)
+    
+    doc.save(`checkin-${eventConfig.event.id}.pdf`)
+  }
+
   // Stats
   const confirmedRsvps = rsvps.filter(r => r.status === 'confirmed')
   const stats = {
@@ -490,6 +670,29 @@ export default function AdminDashboard() {
         <div className={styles.statCard}>
           <h3>{stats.emailsSent}</h3>
           <p>✉️ Emails</p>
+        </div>
+      </div>
+
+      {/* Botones de Exportación */}
+      <div className={styles.exportSection}>
+        <h3>📄 Exportar Listas</h3>
+        <div className={styles.exportButtons}>
+          <button 
+            onClick={exportInformativeList} 
+            className={styles.exportBtn}
+            disabled={stats.confirmed === 0}
+          >
+            📋 Lista Informativa
+            <span className={styles.exportBtnDesc}>Detalles completos para compartir</span>
+          </button>
+          <button 
+            onClick={exportCheckInList} 
+            className={styles.exportBtn}
+            disabled={stats.confirmed === 0}
+          >
+            ✅ Lista Check-In
+            <span className={styles.exportBtnDesc}>Para la entrada del evento</span>
+          </button>
         </div>
       </div>
 
