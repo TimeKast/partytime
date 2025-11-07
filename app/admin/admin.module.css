@@ -172,13 +172,23 @@
   .filterRow {
     flex-wrap: nowrap;
     overflow-x: auto;
+    gap: 8px;
   }
 
   .bulkBtn,
   .exportBtn {
     white-space: nowrap;
-    font-size: 13px;
-    padding: 10px 15px;
+    font-size: 12px;
+    padding: 8px 10px;
+    min-width: auto;
+  }
+
+  .bulkBtn {
+    flex-shrink: 0;
+  }
+
+  .exportBtn {
+    flex-shrink: 0;
   }
 }
 

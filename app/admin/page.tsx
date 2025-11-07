@@ -610,6 +610,15 @@ export default function AdminDashboard() {
               <option value="sent">✉️ Email enviado</option>
               <option value="not-sent">📭 Sin email</option>
             </select>
+
+            <button
+              onClick={exportInformativeList}
+              disabled={stats.confirmed === 0}
+              className={styles.exportBtn}
+              title="Exportar lista de invitados en PDF"
+            >
+              📄 Exportar Lista
+            </button>
           </div>
         </div>
 
@@ -634,15 +643,6 @@ export default function AdminDashboard() {
               className={styles.bulkBtn}
             >
               📧 Enviar Emails ({emailTargetRsvps.length})
-            </button>
-
-            <button
-              onClick={exportInformativeList}
-              disabled={stats.confirmed === 0}
-              className={styles.exportBtn}
-              title="Exportar lista de invitados en PDF"
-            >
-              📄 Exportar Lista
             </button>
           </div>
         </div>
