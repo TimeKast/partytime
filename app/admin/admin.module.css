@@ -366,38 +366,39 @@
   .header {
     padding: 12px 12px;
     height: 64px;
+    gap: 8px;
   }
 
   .headerLeft {
     gap: 8px;
-    min-width: 0; /* Permite que el contenido se contraiga */
+    min-width: 0;
+    flex-shrink: 1;
   }
 
   .headerTitle {
-    font-size: 15px;
+    font-size: 14px;
+    white-space: nowrap;
   }
 
   .headerSubtitle {
-    display: none; /* Ocultar subtítulo en móvil para mantener una línea */
+    display: none;
   }
 
   .headerActions {
     gap: 6px;
+    flex-shrink: 0;
   }
 
   .viewSiteBtn {
-    padding: 6px 10px;
-    font-size: 12px;
-  }
-
-  .viewSiteBtn::before {
-    content: '🌐';
-    margin-right: 4px;
+    padding: 6px 8px;
+    font-size: 11px;
+    white-space: nowrap;
   }
 
   .logoutBtn {
-    padding: 6px 10px;
-    font-size: 12px;
+    padding: 6px 8px;
+    font-size: 11px;
+    white-space: nowrap;
   }
 
   .dashboard {
