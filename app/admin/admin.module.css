@@ -364,20 +364,18 @@
 
   /* Header responsive */
   .header {
-    padding: 12px 12px;
+    padding: 12px;
     height: 64px;
-    gap: 8px;
+    flex-wrap: nowrap;
   }
 
   .headerLeft {
-    gap: 8px;
+    gap: 0;
     min-width: 0;
-    flex-shrink: 1;
   }
 
   .headerTitle {
-    font-size: 14px;
-    white-space: nowrap;
+    font-size: 16px;
   }
 
   .headerSubtitle {
@@ -385,20 +383,18 @@
   }
 
   .headerActions {
-    gap: 6px;
+    gap: 8px;
     flex-shrink: 0;
   }
 
   .viewSiteBtn {
-    padding: 6px 8px;
-    font-size: 11px;
-    white-space: nowrap;
+    padding: 6px 12px;
+    font-size: 12px;
   }
 
   .logoutBtn {
-    padding: 6px 8px;
-    font-size: 11px;
-    white-space: nowrap;
+    padding: 6px 12px;
+    font-size: 12px;
   }
 
   .dashboard {
