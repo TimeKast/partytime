@@ -172,7 +172,7 @@ git push -u origin main
 ### Para el Evento Actual
 - [ ] Revisar información en `event-config.json`
 - [ ] Verificar fecha: "SÁBADO, 26 OCT"
-- [ ] Verificar hora: "DESDE LAS 5:00 PM"
+- [ ] Verificar hora: "DESDE LAS 7:00 PM"
 - [ ] Verificar ubicación: "HAMBURGO 108, ZONA ROSA"
 - [ ] Imagen de fondo correcta
 

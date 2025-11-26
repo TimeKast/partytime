@@ -96,7 +96,7 @@ await sgMail.send({
       <div style="background: #1a0033; padding: 20px; margin: 20px 0;">
         <h2 style="color: #00FFFF;">ROOFTOP PARTY</h2>
         <p style="color: #fff;">📅 Sábado, 26 Octubre</p>
-        <p style="color: #fff;">🕔 5:00 PM</p>
+        <p style="color: #fff;">🕔 7:00 PM</p>
         <p style="color: #fff;">📍 Hamburgo 108, Zona Rosa</p>
       </div>
       
@@ -164,7 +164,7 @@ export default async function (context: any) {
       html: `
         <h1>¡Hola ${rsvp.name}!</h1>
         <p>Te recordamos que mañana es el gran día 🎉</p>
-        <p><strong>Sábado 26 Oct - 5:00 PM</strong></p>
+        <p><strong>Sábado 26 Oct - 7:00 PM</strong></p>
         <p>Hamburgo 108, Zona Rosa</p>
         <p>¡No lo olvides! Nos vemos ahí 🎊</p>
       `
@@ -246,7 +246,7 @@ await client.messages.create({
 Tu asistencia al Rooftop Party está confirmada.
 
 📅 Sábado, 26 Oct
-🕔 5:00 PM
+🕔 7:00 PM
 📍 Hamburgo 108, Zona Rosa
 
 ¡Nos vemos ahí!
@@ -313,7 +313,7 @@ Tu asistencia al Rooftop Party está confirmada.
 │     [📷 Cámara activa]              │
 │                                      │
 │  Último check-in:                   │
-│  ✅ Juan Pérez - 5:15 PM            │
+│  ✅ Juan Pérez - 7:15 PM            │
 │                                      │
 │  Total ingresados: 45 / 127         │
 └──────────────────────────────────────┘
