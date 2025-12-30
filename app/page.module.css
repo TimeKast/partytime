@@ -101,16 +101,24 @@
   color: #FF1493;
   text-transform: uppercase;
   text-shadow:
-    /* Borde oscuro para contraste */
-    -2px -2px 0 rgba(0, 0, 0, 0.8),
-    2px -2px 0 rgba(0, 0, 0, 0.8),
-    -2px 2px 0 rgba(0, 0, 0, 0.8),
-    2px 2px 0 rgba(0, 0, 0, 0.8),
+    /* Borde negro grueso - múltiples capas */
+    -3px -3px 0 #000,
+    3px -3px 0 #000,
+    -3px 3px 0 #000,
+    3px 3px 0 #000,
+    -3px 0 0 #000,
+    3px 0 0 #000,
+    0 -3px 0 #000,
+    0 3px 0 #000,
+    /* Capa adicional para más grosor */
+    -4px -4px 0 #000,
+    4px -4px 0 #000,
+    -4px 4px 0 #000,
+    4px 4px 0 #000,
     /* Glow neón */
-    0 0 10px rgba(255, 20, 147, 0.8),
-    0 0 20px rgba(255, 20, 147, 0.6),
-    0 0 30px rgba(255, 20, 147, 0.4);
-  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.5);
+    0 0 15px rgba(255, 20, 147, 0.9),
+    0 0 30px rgba(255, 20, 147, 0.7);
+  -webkit-text-stroke: 2px #000;
   paint-order: stroke fill;
   white-space: nowrap;
   max-width: 100%;
@@ -124,15 +132,24 @@
   text-transform: uppercase;
   color: #00FFFF;
   text-shadow:
-    /* Borde oscuro para contraste */
-    -2px -2px 0 rgba(0, 0, 0, 0.8),
-    2px -2px 0 rgba(0, 0, 0, 0.8),
-    -2px 2px 0 rgba(0, 0, 0, 0.8),
-    2px 2px 0 rgba(0, 0, 0, 0.8),
+    /* Borde negro grueso - múltiples capas */
+    -2px -2px 0 #000,
+    2px -2px 0 #000,
+    -2px 2px 0 #000,
+    2px 2px 0 #000,
+    -2px 0 0 #000,
+    2px 0 0 #000,
+    0 -2px 0 #000,
+    0 2px 0 #000,
+    /* Capa adicional */
+    -3px -3px 0 #000,
+    3px -3px 0 #000,
+    -3px 3px 0 #000,
+    3px 3px 0 #000,
     /* Glow neón */
-    0 0 10px rgba(0, 255, 255, 0.8),
-    0 0 20px rgba(0, 255, 255, 0.5);
-  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.5);
+    0 0 15px rgba(0, 255, 255, 0.9),
+    0 0 25px rgba(0, 255, 255, 0.6);
+  -webkit-text-stroke: 2px #000;
   paint-order: stroke fill;
   white-space: nowrap;
   max-width: 100%;
@@ -194,15 +211,24 @@
   margin-bottom: 20px;
   color: #FFD700;
   text-shadow:
-    /* Borde oscuro para contraste */
-    -2px -2px 0 rgba(0, 0, 0, 0.8),
-    2px -2px 0 rgba(0, 0, 0, 0.8),
-    -2px 2px 0 rgba(0, 0, 0, 0.8),
-    2px 2px 0 rgba(0, 0, 0, 0.8),
+    /* Borde negro grueso - múltiples capas */
+    -3px -3px 0 #000,
+    3px -3px 0 #000,
+    -3px 3px 0 #000,
+    3px 3px 0 #000,
+    -3px 0 0 #000,
+    3px 0 0 #000,
+    0 -3px 0 #000,
+    0 3px 0 #000,
+    /* Capa adicional para más grosor */
+    -4px -4px 0 #000,
+    4px -4px 0 #000,
+    -4px 4px 0 #000,
+    4px 4px 0 #000,
     /* Glow dorado */
-    0 0 10px rgba(255, 215, 0, 0.6),
-    0 0 20px rgba(255, 215, 0, 0.4);
-  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.4);
+    0 0 15px rgba(255, 215, 0, 0.7),
+    0 0 25px rgba(255, 215, 0, 0.5);
+  -webkit-text-stroke: 2px #000;
   paint-order: stroke fill;
 }
 
