@@ -101,11 +101,16 @@
   color: #FF1493;
   text-transform: uppercase;
   text-shadow:
+    /* Borde oscuro para contraste */
+    -2px -2px 0 rgba(0, 0, 0, 0.8),
+    2px -2px 0 rgba(0, 0, 0, 0.8),
+    -2px 2px 0 rgba(0, 0, 0, 0.8),
+    2px 2px 0 rgba(0, 0, 0, 0.8),
+    /* Glow neón */
     0 0 10px rgba(255, 20, 147, 0.8),
     0 0 20px rgba(255, 20, 147, 0.6),
-    0 0 30px rgba(255, 20, 147, 0.4),
-    3px 3px 0 rgba(0, 255, 255, 0.3);
-  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.2);
+    0 0 30px rgba(255, 20, 147, 0.4);
+  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.5);
   paint-order: stroke fill;
   white-space: nowrap;
   max-width: 100%;
@@ -119,9 +124,16 @@
   text-transform: uppercase;
   color: #00FFFF;
   text-shadow:
+    /* Borde oscuro para contraste */
+    -2px -2px 0 rgba(0, 0, 0, 0.8),
+    2px -2px 0 rgba(0, 0, 0, 0.8),
+    -2px 2px 0 rgba(0, 0, 0, 0.8),
+    2px 2px 0 rgba(0, 0, 0, 0.8),
+    /* Glow neón */
     0 0 10px rgba(0, 255, 255, 0.8),
-    0 0 20px rgba(0, 255, 255, 0.5),
-    2px 2px 0 rgba(255, 215, 0, 0.3);
+    0 0 20px rgba(0, 255, 255, 0.5);
+  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.5);
+  paint-order: stroke fill;
   white-space: nowrap;
   max-width: 100%;
   text-align: center;
@@ -180,9 +192,18 @@
   font-weight: 800;
   letter-spacing: 0.1em;
   margin-bottom: 20px;
+  color: #FFD700;
   text-shadow:
+    /* Borde oscuro para contraste */
+    -2px -2px 0 rgba(0, 0, 0, 0.8),
+    2px -2px 0 rgba(0, 0, 0, 0.8),
+    -2px 2px 0 rgba(0, 0, 0, 0.8),
+    2px 2px 0 rgba(0, 0, 0, 0.8),
+    /* Glow dorado */
     0 0 10px rgba(255, 215, 0, 0.6),
     0 0 20px rgba(255, 215, 0, 0.4);
+  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.4);
+  paint-order: stroke fill;
 }
 
 .rsvpButton {
