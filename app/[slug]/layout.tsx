@@ -42,12 +42,14 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
                 title,
                 description,
                 type: 'website',
+                locale: 'es_MX',
                 url: `${baseUrl}/${slug}`,
                 siteName: eventConfig.event.title,
                 images: [
                     {
                         url: imageUrl,
                         secureUrl: imageUrl,
+                        type: 'image/png',
                         width: 1200,
                         height: 630,
                         alt: event.title,

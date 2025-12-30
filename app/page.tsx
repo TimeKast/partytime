@@ -43,10 +43,12 @@ export async function generateMetadata(): Promise<Metadata> {
       url: `${baseUrl}/${event.slug}`,
       siteName: eventConfig.event.title,
       type: 'website',
+      locale: 'es_MX',
       images: [
         {
           url: imageUrl,
           secureUrl: imageUrl,
+          type: 'image/png',
           width: 1200,
           height: 630,
           alt: event.title,
