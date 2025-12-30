@@ -2,9 +2,50 @@ import { redirect } from 'next/navigation'
 import eventConfig from '../event-config.json'
 import { unstable_noStore as noStore } from 'next/cache'
 import { getAppSetting, getEventById } from '@/lib/queries'
+import { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+export async function generateMetadata(): Promise<Metadata> {
+  const homeEventId = await getAppSetting('home_event_id')
+  const eventId = homeEventId || eventConfig.event.id
+  const event = await getEventById(eventId)
+
+  if (!event) {
+    return {
+      title: eventConfig.event.title,
+      description: eventConfig.event.subtitle,
+    }
+  }
+
+  const title = `${event.title} - ${event.subtitle}`
+  const description = `${event.date} ${event.time} - ${event.location}`
+  const imageUrl = event.backgroundImageUrl || '/og-image.png'
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      images: [
+        {
+          url: imageUrl,
+          width: 1200,
+          height: 630,
+          alt: event.title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [imageUrl],
+    },
+  }
+}
 
 /**
  * Home page - redirects to the default event's slug or the configured home event

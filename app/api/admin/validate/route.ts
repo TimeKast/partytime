@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/admin/validate
  * Validates admin credentials

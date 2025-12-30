@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { neon } from '@neondatabase/serverless'
 import eventConfig from '@/event-config.json'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/event-settings?eventId=X
  * Obtiene la configuración de un evento específico desde la base de datos

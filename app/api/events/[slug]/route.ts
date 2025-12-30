@@ -4,6 +4,8 @@ import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
 import { neon } from '@neondatabase/serverless'
 import eventConfig from '@/event-config.json'
 
+export const dynamic = 'force-dynamic'
+
 interface RouteParams {
     params: Promise<{ slug: string }>
 }

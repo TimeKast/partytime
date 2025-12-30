@@ -3,6 +3,8 @@ import eventConfig from '@/event-config.json'
 import { isDatabaseConfigured } from '@/lib/db'
 import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 // Mock storage para modo demo
 const mockRsvps: any[] = []
 

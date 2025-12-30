@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import eventConfig from '@/event-config.json'
 
+export const dynamic = 'force-dynamic'
+
 // Endpoint para obtener estadísticas del evento
 export async function GET(request: NextRequest) {
   try {

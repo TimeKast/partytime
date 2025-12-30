@@ -3,6 +3,8 @@ import { getAppSetting, saveAppSetting } from '@/lib/queries'
 import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 
+export const dynamic = 'force-dynamic'
+
 
 /**
  * GET /api/admin/settings

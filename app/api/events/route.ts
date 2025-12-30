@@ -3,6 +3,8 @@ import { isDatabaseConfigured } from '@/lib/db'
 import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
 import type { Event } from '@/lib/schema'
 
+export const dynamic = 'force-dynamic'
+
 // Mock storage for demo mode
 const mockEvents: Event[] = []
 
