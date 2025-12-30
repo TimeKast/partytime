@@ -11,9 +11,11 @@ export async function generateMetadata(): Promise<Metadata> {
   const homeEventId = await getAppSetting('home_event_id')
   const eventId = homeEventId || eventConfig.event.id
   const event = await getEventById(eventId)
+  const baseUrl = 'https://party.timekast.mx'
 
   if (!event) {
     return {
+      metadataBase: new URL(baseUrl),
       title: eventConfig.event.title,
       description: eventConfig.event.subtitle,
     }
@@ -22,26 +24,25 @@ export async function generateMetadata(): Promise<Metadata> {
   const title = `${event.title} - ${event.subtitle}`
   const description = `${event.date} ${event.time} - ${event.location}`
 
-  // WhatsApp ignora imágenes de > 5MB (background.png pesa 18MB)
-  // Siempre usaremos og-image.png (optimizado de 2MB) si la imagen es pesada o local
-  let imageUrl = event.backgroundImageUrl || 'https://party.timekast.mx/og-image.png'
-  if (imageUrl.includes('background.png') || imageUrl.startsWith('/')) {
-    imageUrl = 'https://party.timekast.mx/og-image.png'
+  // Usar imagen optimizada og-event.png si la imagen es pesada o local
+  let imageUrl = event.backgroundImageUrl || `${baseUrl}/og-event.png`
+  if (imageUrl.includes('background.png') || !imageUrl.startsWith('http')) {
+    imageUrl = `${baseUrl}/og-event.png`
   }
 
   return {
+    metadataBase: new URL(baseUrl),
     title,
     description,
     openGraph: {
       title,
       description,
-      url: 'https://party.timekast.mx',
+      url: baseUrl,
       siteName: eventConfig.event.title,
       type: 'website',
       images: [
         {
           url: imageUrl,
-          secureUrl: imageUrl,
           width: 1200,
           height: 630,
           alt: event.title,

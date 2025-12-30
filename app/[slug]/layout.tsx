@@ -9,12 +9,14 @@ interface LayoutProps {
 
 export async function generateMetadata({ params }: LayoutProps): Promise<Metadata> {
     const { slug } = params
+    const baseUrl = 'https://party.timekast.mx'
 
     try {
         const event = await getEventBySlug(slug)
 
         if (!event) {
             return {
+                metadataBase: new URL(baseUrl),
                 title: 'Evento no encontrado',
                 description: 'La invitación que buscas no existe o no está disponible.',
             }
@@ -23,25 +25,25 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
         const title = `${event.title} - ${event.subtitle}`
         const description = `${event.date} ${event.time} - ${event.location}`
 
-        // Evitar imágenes pesadas para WhatsApp
-        let imageUrl = event.backgroundImageUrl || 'https://party.timekast.mx/og-image.png'
-        if (imageUrl.includes('background.png') || imageUrl.startsWith('/')) {
-            imageUrl = 'https://party.timekast.mx/og-image.png'
+        // Usar imagen optimizada og-event.png si la imagen es pesada o local
+        let imageUrl = event.backgroundImageUrl || `${baseUrl}/og-event.png`
+        if (imageUrl.includes('background.png') || !imageUrl.startsWith('http')) {
+            imageUrl = `${baseUrl}/og-event.png`
         }
 
         return {
+            metadataBase: new URL(baseUrl),
             title,
             description,
             openGraph: {
                 title,
                 description,
                 type: 'website',
-                url: `https://party.timekast.mx/${slug}`,
+                url: `${baseUrl}/${slug}`,
                 siteName: eventConfig.event.title,
                 images: [
                     {
                         url: imageUrl,
-                        secureUrl: imageUrl,
                         width: 1200,
                         height: 630,
                         alt: event.title,
@@ -57,6 +59,7 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
         }
     } catch (error) {
         return {
+            metadataBase: new URL(baseUrl),
             title: eventConfig.event.title,
             description: eventConfig.event.subtitle,
         }
