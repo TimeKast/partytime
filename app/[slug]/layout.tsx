@@ -23,10 +23,10 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
         const title = `${event.title} - ${event.subtitle}`
         const description = `${event.date} ${event.time} - ${event.location}`
 
-        // Asegurar URL absoluta para WhatsApp/Social
+        // Evitar imágenes gigantes (background.png es de 18MB)
         let imageUrl = event.backgroundImageUrl || '/og-image.png'
-        if (imageUrl.startsWith('/')) {
-            imageUrl = `https://party.timekast.mx${imageUrl}`
+        if (imageUrl.includes('background.png')) {
+            imageUrl = '/og-image.png'
         }
 
         return {
@@ -36,6 +36,7 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
                 title,
                 description,
                 type: 'website',
+                siteName: eventConfig.event.title,
                 images: [
                     {
                         url: imageUrl,
