@@ -22,7 +22,12 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
 
         const title = `${event.title} - ${event.subtitle}`
         const description = `${event.date} ${event.time} - ${event.location}`
-        const imageUrl = event.backgroundImageUrl || '/og-image.png'
+
+        // Asegurar URL absoluta para WhatsApp/Social
+        let imageUrl = event.backgroundImageUrl || '/og-image.png'
+        if (imageUrl.startsWith('/')) {
+            imageUrl = `https://party.timekast.mx${imageUrl}`
+        }
 
         return {
             title,
@@ -30,6 +35,7 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
             openGraph: {
                 title,
                 description,
+                type: 'website',
                 images: [
                     {
                         url: imageUrl,
@@ -38,7 +44,6 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
                         alt: event.title,
                     },
                 ],
-                type: 'website',
             },
             twitter: {
                 card: 'summary_large_image',
