@@ -4,8 +4,6 @@ import eventConfig from '../event-config.json'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://party.timekast.mx'),
-  title: eventConfig.event.title,
-  description: eventConfig.event.subtitle,
 }
 
 export const viewport: Viewport = {
