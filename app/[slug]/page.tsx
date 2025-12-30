@@ -144,20 +144,17 @@ export default function EventPage() {
                     transition={{ duration: 0.8, delay: 0.2 }}
                     className={styles.hero}
                 >
-                    {/* Main title with neon effect */}
-                    <h1 className={styles.title}>
-                        {event.title.split(' ').map((word, index) => (
-                            <span
-                                key={index}
-                                className={index === 0 ? styles.titleLine1 : styles.titleLine2}
-                                style={{
-                                    color: theme.primaryColor,
-                                    textShadow: `0 0 10px ${theme.primaryColor}cc, 0 0 20px ${theme.primaryColor}99, 0 0 30px ${theme.primaryColor}66, 3px 3px 0 ${theme.secondaryColor}4d`
-                                }}
-                            >
-                                {word}
-                            </span>
-                        ))}
+                    {/* Main title with neon effect - single line */}
+                    <h1
+                        className={styles.title}
+                        style={{
+                            color: theme.primaryColor,
+                            textShadow: `0 0 10px ${theme.primaryColor}cc, 0 0 20px ${theme.primaryColor}99, 0 0 30px ${theme.primaryColor}66, 3px 3px 0 ${theme.secondaryColor}4d`
+                        }}
+                    >
+                        <span className={styles.titleLine1}>
+                            {event.title}
+                        </span>
                     </h1>
 
                     {/* Subtitle */}
