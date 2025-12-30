@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { PhoneInput } from 'react-international-phone'
 import 'react-international-phone/style.css'
-import eventConfig from '@/event-config.json'
 import styles from './cancel.module.css'
 
 interface RSVPData {
@@ -17,14 +16,25 @@ interface RSVPData {
   eventId: string
 }
 
-interface EventTheme {
-  primaryColor: string
-  secondaryColor: string
-  accentColor: string
+interface EventData {
   title: string
   subtitle: string
+  date: string
+  time: string
+  location: string
+  theme: {
+    primaryColor: string
+    secondaryColor: string
+    accentColor: string
+  }
 }
 
+// H-010 FIX: Default fallback theme (only used if API fails)
+const defaultTheme = {
+  primaryColor: '#FF1493',
+  secondaryColor: '#00FFFF',
+  accentColor: '#FFD700'
+}
 
 export default function CancelPage() {
   const params = useParams()
@@ -38,7 +48,8 @@ export default function CancelPage() {
   const [updated, setUpdated] = useState(false)
   const [error, setError] = useState('')
   const [rsvpData, setRsvpData] = useState<RSVPData | null>(null)
-  const [eventTheme, setEventTheme] = useState<EventTheme | null>(null)
+  // H-010 FIX: Store full event data instead of just theme
+  const [eventData, setEventData] = useState<EventData | null>(null)
 
   // Campos editables
   const [name, setName] = useState('')
@@ -67,21 +78,23 @@ export default function CancelPage() {
           setPhone(data.rsvp.phone)
           setPlusOne(data.rsvp.plusOne)
 
-          // Cargar configuración de la fiesta
+          // H-010 FIX: Load full event data from API
           try {
             const eventRes = await fetch(`/api/events/${data.rsvp.eventId}`)
-            const eventData = await eventRes.json()
-            if (eventData.success && eventData.event) {
-              setEventTheme({
-                primaryColor: eventData.event.theme.primaryColor,
-                secondaryColor: eventData.event.theme.secondaryColor,
-                accentColor: eventData.event.theme.accentColor,
-                title: eventData.event.title,
-                subtitle: eventData.event.subtitle
+            const eventApiData = await eventRes.json()
+            if (eventApiData.success && eventApiData.event) {
+              const event = eventApiData.event
+              setEventData({
+                title: event.title || 'Evento',
+                subtitle: event.subtitle || '',
+                date: event.date || '',
+                time: event.time || '',
+                location: event.location || '',
+                theme: event.theme || defaultTheme
               })
             }
           } catch (e) {
-            console.error('Error loading event theme:', e)
+            console.error('Error loading event data:', e)
           }
         } else {
           setError(data.error || 'No se pudo cargar la información')
@@ -195,6 +208,9 @@ export default function CancelPage() {
     )
   }
 
+  // H-010 FIX: Use dynamic event data for cancelled message
+  const eventTitle = eventData?.title || 'el evento'
+
   if (cancelled) {
     return (
       <div className={styles.container}>
@@ -203,7 +219,7 @@ export default function CancelPage() {
           <h1>RSVP Cancelado</h1>
           <p>Tu asistencia ha sido cancelada exitosamente.</p>
           <p className={styles.subtext}>
-            Lamentamos que no puedas asistir a {eventConfig.event.title}.
+            Lamentamos que no puedas asistir a {eventTitle}.
           </p>
           <a href="/" className={styles.homeBtn}>
             Volver al inicio
@@ -228,13 +244,13 @@ export default function CancelPage() {
     )
   }
 
-  const displayTitle = eventTheme?.title || eventConfig.event.title
-  const displaySubtitle = eventTheme?.subtitle || eventConfig.event.subtitle
-  const theme = eventTheme || {
-    primaryColor: '#FF1493',
-    secondaryColor: '#00FFFF',
-    accentColor: '#FFD700'
-  }
+  // H-010 FIX: Use dynamic event data throughout
+  const displayTitle = eventData?.title || 'Evento'
+  const displaySubtitle = eventData?.subtitle || ''
+  const displayDate = eventData?.date || ''
+  const displayTime = eventData?.time || ''
+  const displayLocation = eventData?.location || ''
+  const theme = eventData?.theme || defaultTheme
 
   return (
     <div className={styles.container}>
@@ -260,8 +276,9 @@ export default function CancelPage() {
         >
           <h2 style={{ color: theme.primaryColor }}>{displayTitle}</h2>
           <p style={{ color: 'rgba(255, 255, 255, 0.8)' }}>{displaySubtitle}</p>
-          <p style={{ color: 'rgba(255, 255, 255, 0.7)' }}>{eventConfig.event.date} - {eventConfig.event.time}</p>
-          <p style={{ color: 'rgba(255, 255, 255, 0.7)' }}>{eventConfig.event.location}</p>
+          {/* H-010 FIX: Use dynamic date/time/location from the actual event */}
+          <p style={{ color: 'rgba(255, 255, 255, 0.7)' }}>{displayDate} - {displayTime}</p>
+          <p style={{ color: 'rgba(255, 255, 255, 0.7)' }}>{displayLocation}</p>
         </div>
 
         {rsvpData?.status === 'cancelled' && !updated && (

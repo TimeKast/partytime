@@ -1,4 +1,28 @@
+/**
+ * Email template generator for RSVP confirmations, reminders, and re-invitations
+ * H-005 FIX: Now accepts dynamic event data instead of using static event-config.json
+ */
+
 import eventConfig from '../event-config.json'
+
+export interface EventData {
+  title: string
+  subtitle: string
+  date: string
+  time: string
+  location: string
+  details: string
+  price?: string | null
+  theme: {
+    primaryColor: string
+    secondaryColor: string
+    accentColor: string
+    backgroundColor?: string
+  }
+  contact?: {
+    hostEmail?: string
+  }
+}
 
 interface EmailTemplateProps {
   name: string
@@ -6,17 +30,43 @@ interface EmailTemplateProps {
   cancelUrl: string
   isReminder?: boolean // true = recordatorio, false/undefined = confirmación
   isCancelled?: boolean // true = re-invitación a quien canceló
+  eventData?: EventData // H-005 FIX: Optional dynamic event data
 }
 
-export function generateConfirmationEmail({ name, plusOne, cancelUrl, isReminder = false, isCancelled = false }: EmailTemplateProps): string {
-  const { event, theme } = eventConfig
-  
+/**
+ * Generate HTML email for confirmations, reminders, and re-invitations
+ * @param props - Email template properties including optional dynamic event data
+ */
+export function generateConfirmationEmail({
+  name,
+  plusOne,
+  cancelUrl,
+  isReminder = false,
+  isCancelled = false,
+  eventData
+}: EmailTemplateProps): string {
+  // H-005 FIX: Use dynamic event data if provided, fallback to static config
+  const event = eventData || {
+    title: eventConfig.event.title,
+    subtitle: eventConfig.event.subtitle,
+    date: eventConfig.event.date,
+    time: eventConfig.event.time,
+    location: eventConfig.event.location,
+    details: eventConfig.event.details,
+    price: eventConfig.event.price,
+    theme: eventConfig.theme,
+    contact: eventConfig.contact
+  }
+
+  const theme = event.theme || eventConfig.theme
+  const contactEmail = event.contact?.hostEmail || eventConfig.contact.hostEmail
+
   // Limpiar cualquier = al inicio de la URL (bug de encoding)
   const cleanCancelUrl = cancelUrl.replace(/^=+/, '').trim()
 
   // Textos según tipo de email
   let greeting, mainText, closingText, headerBadge
-  
+
   if (isCancelled) {
     // Email especial para quien canceló - tono elegante y no invasivo
     greeting = `¡Hola <strong>${name}</strong>! 👋`
@@ -31,7 +81,7 @@ export function generateConfirmationEmail({ name, plusOne, cancelUrl, isReminder
   } else {
     greeting = `¡Hola <strong>${name}</strong>!`
     mainText = `Tu asistencia ha sido confirmada para <strong>${event.title}</strong>.`
-    closingText = `¡Nos vemos ahí! �`
+    closingText = `¡Nos vemos ahí! 🎉`
     headerBadge = null
   }
 
@@ -51,7 +101,7 @@ export function generateConfirmationEmail({ name, plusOne, cancelUrl, isReminder
           
           <!-- Header con colores del evento -->
           <tr>
-            <td style="background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.backgroundColor} 100%); padding: 40px 30px; text-align: center;">
+            <td style="background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.backgroundColor || '#1a0033'} 100%); padding: 40px 30px; text-align: center;">
               ${headerBadge ? `
               <p style="margin: 0 0 10px 0; color: ${isCancelled ? '#fbbf24' : '#fbbf24'}; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;">
                 ${headerBadge}
@@ -167,9 +217,9 @@ export function generateConfirmationEmail({ name, plusOne, cancelUrl, isReminder
               </table>
 
               <p style="margin: 0 0 30px 0; font-size: 14px; line-height: 1.6; color: #777777;">
-                ${isCancelled 
-                  ? 'Si decides acompañarnos, solo haz clic abajo para reconfirmar tu asistencia. Si no puedes, no hay problema - quedamos igual de bien. 😊'
-                  : 'Si necesitas modificar tus datos o cancelar tu asistencia, haz clic en el botón de abajo:'}
+                ${isCancelled
+      ? 'Si decides acompañarnos, solo haz clic abajo para reconfirmar tu asistencia. Si no puedes, no hay problema - quedamos igual de bien. 😊'
+      : 'Si necesitas modificar tus datos o cancelar tu asistencia, haz clic en el botón de abajo:'}
               </p>
 
               <!-- Botón de cancelación o reconfirmación -->
@@ -182,9 +232,9 @@ export function generateConfirmationEmail({ name, plusOne, cancelUrl, isReminder
               </table>
 
               <p style="margin: 0 0 20px 0; font-size: 12px; line-height: 1.5; color: #9ca3af; text-align: center; font-style: italic;">
-                ${isCancelled 
-                  ? '✨ Recuerda que puedes cambiar de opinión las veces que necesites'
-                  : '💡 Si cancelas, puedes usar este mismo enlace para reconfirmar tu asistencia más tarde'}
+                ${isCancelled
+      ? '✨ Recuerda que puedes cambiar de opinión las veces que necesites'
+      : '💡 Si cancelas, puedes usar este mismo enlace para reconfirmar tu asistencia más tarde'}
               </p>
               
               <p style="margin: 0 0 20px 0; font-size: 12px; line-height: 1.6; color: #999999; text-align: center;">
@@ -198,7 +248,7 @@ export function generateConfirmationEmail({ name, plusOne, cancelUrl, isReminder
           <tr>
             <td style="background-color: #f9f9f9; padding: 30px; text-align: center; border-top: 1px solid #eeeeee;">
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #999999;">
-                ¿Preguntas? Contáctanos: ${eventConfig.contact.hostEmail}
+                ¿Preguntas? Contáctanos: ${contactEmail}
               </p>
               <p style="margin: 0; font-size: 12px; color: #aaaaaa;">
                 Este email fue enviado porque confirmaste tu asistencia a ${event.title}

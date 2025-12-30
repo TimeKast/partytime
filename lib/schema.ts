@@ -81,7 +81,21 @@ export const rsvps = pgTable('rsvps', {
     createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
-// Event settings (for backwards compatibility with existing config)
+/**
+ * Event settings (for backwards compatibility with existing config)
+ * 
+ * H-006 DEPRECATION NOTICE:
+ * This table duplicates fields from the `events` table and should be consolidated.
+ * Plan: Migrate all event_settings data to events table, then remove this table.
+ * 
+ * MIGRATION STEPS:
+ * 1. Update saveEventSettings() to write to events table instead
+ * 2. Update getEventSettings() to read from events table
+ * 3. Run data migration script to copy eventSettings → events
+ * 4. Remove this table and related queries
+ * 
+ * @deprecated Use `events` table directly for new features
+ */
 export const eventSettings = pgTable('event_settings', {
     id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
     eventId: text('event_id').notNull().unique(),
