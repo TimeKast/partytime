@@ -1,5 +1,4 @@
 import { ImageResponse } from 'next/og'
-import { getAppSetting, getEventById } from '@/lib/queries'
 import eventConfig from '@/event-config.json'
 
 export const runtime = 'edge'
@@ -11,15 +10,12 @@ export const size = {
 export const contentType = 'image/png'
 
 export default async function Image() {
-    const homeEventId = await getAppSetting('home_event_id')
-    const eventId = homeEventId || eventConfig.event.id
-    const event = await getEventById(eventId)
-
-    const title = event?.title || eventConfig.event.title
-    const subtitle = event?.subtitle || eventConfig.event.subtitle
-    const date = event?.date || eventConfig.event.date
-    const time = event?.time || eventConfig.event.time
-    const location = event?.location || eventConfig.event.location
+    // Usamos los datos del config estático para evitar problemas con Edge runtime
+    const title = eventConfig.event.title
+    const subtitle = eventConfig.event.subtitle
+    const date = eventConfig.event.date
+    const time = eventConfig.event.time
+    const location = eventConfig.event.location
 
     return new ImageResponse(
         (
@@ -52,7 +48,6 @@ export default async function Image() {
                             color: '#ff6b9d',
                             textShadow: '0 0 30px rgba(255, 107, 157, 0.8)',
                             marginBottom: '10px',
-                            fontFamily: 'sans-serif',
                         }}
                     >
                         {title}
@@ -63,7 +58,6 @@ export default async function Image() {
                             color: '#00f5ff',
                             textShadow: '0 0 20px rgba(0, 245, 255, 0.6)',
                             marginBottom: '30px',
-                            fontFamily: 'sans-serif',
                         }}
                     >
                         {subtitle}
@@ -74,7 +68,6 @@ export default async function Image() {
                             gap: '30px',
                             fontSize: '28px',
                             color: '#ffffff',
-                            fontFamily: 'sans-serif',
                         }}
                     >
                         <span>📅 {date}</span>
@@ -85,7 +78,6 @@ export default async function Image() {
                             fontSize: '24px',
                             color: '#b8b8b8',
                             marginTop: '20px',
-                            fontFamily: 'sans-serif',
                         }}
                     >
                         📍 {location}
