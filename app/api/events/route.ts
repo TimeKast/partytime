@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isDatabaseConfigured } from '@/lib/db'
+import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
 import type { Event } from '@/lib/schema'
 
 // Mock storage for demo mode
@@ -50,12 +51,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         // Verify admin authentication
-        const authHeader = request.headers.get('authorization')
-        if (!authHeader || !verifyAuth(authHeader)) {
-            return NextResponse.json({
-                success: false,
-                error: 'No autorizado'
-            }, { status: 401 })
+        if (!validateAdminAuth(request)) {
+            return getUnauthorizedResponse()
         }
 
         const body = await request.json()
@@ -146,16 +143,4 @@ export async function POST(request: NextRequest) {
     }
 }
 
-/**
- * Verify admin authentication
- */
-function verifyAuth(authHeader: string): boolean {
-    try {
-        const base64Credentials = authHeader.replace('Basic ', '')
-        const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii')
-        const [username, password] = credentials.split(':')
-        return username === 'admin' && password === 'partytime'
-    } catch {
-        return false
-    }
-}
+

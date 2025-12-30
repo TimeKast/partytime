@@ -1,16 +1,18 @@
 # 🎉 Rooftop Party - Invitación Web Interactiva
 
-Aplicación web elegante e impactante para invitaciones a eventos, diseñada con **Next.js 14**, **TypeScript**, y **Google Cloud Firestore**. Optimizada para mobile-first y lista para desplegar en Vercel.
+Aplicación web elegante e impactante para invitaciones a eventos, diseñada con **Next.js 14**, **TypeScript**, y **Neon PostgreSQL** con **Drizzle ORM**. Optimizada para mobile-first y lista para desplegar en Vercel.
 
 ## ✨ Características
 
 - 🎨 **Diseño impactante** inspirado en el flyer del evento
 - 📱 **Mobile-first** - Perfectamente adaptado para smartphones
 - 🎭 **Animaciones suaves** con Framer Motion
-- 💾 **Base de datos Google Cloud Firestore** para almacenar RSVPs
+- 💾 **Base de datos Neon PostgreSQL** serverless para almacenar RSVPs
+- 📧 **Emails de confirmación** con Resend
 - 🔄 **Template reutilizable** - Fácil de actualizar para futuros eventos
 - ⚡ **Deploy rápido** en Vercel
 - 📊 **API de estadísticas** para monitorear asistencia
+- 🔐 **Panel de administración** protegido
 
 ## 🚀 Inicio Rápido
 
@@ -20,55 +22,41 @@ Aplicación web elegante e impactante para invitaciones a eventos, diseñada con
 npm install
 ```
 
-### 2. Configurar Google Cloud Firestore
+### 2. Configurar Base de Datos (Neon PostgreSQL)
 
-#### Paso 1: Crear Proyecto en Google Cloud
+#### Paso 1: Crear Proyecto en Neon
+1. Ve a [Neon Console](https://console.neon.tech)
+2. Crea un nuevo proyecto
+3. Copia la connection string
 
-1. Ve a [Google Cloud Console](https://console.cloud.google.com)
-2. Crea un nuevo proyecto o selecciona uno existente
-3. Habilita **Cloud Firestore API**
-   - Busca "Firestore" en el menú de búsqueda
-   - Selecciona "Cloud Firestore"
-   - Click en "Create Database"
-   - Elige modo **Native** y selecciona tu región preferida
-
-#### Paso 2: Crear Service Account
-
-1. Ve a **IAM & Admin** > **Service Accounts**
-2. Click en **Create Service Account**
-3. Nombre: `rooftop-party-app`
-4. Role: **Cloud Datastore User**
-5. Click en **Create and Continue**
-6. Click en **Done**
-
-#### Paso 3: Generar Clave JSON
-
-1. En la lista de Service Accounts, encuentra la que acabas de crear
-2. Click en los 3 puntos > **Manage Keys**
-3. **Add Key** > **Create new key** > **JSON**
-4. Se descargará un archivo JSON con las credenciales
-
-### 3. Configurar Variables de Entorno
+#### Paso 2: Configurar Variables de Entorno
 
 Crea un archivo `.env.local` en la raíz del proyecto:
 
 ```env
-# Google Cloud Firestore Configuration
-# ⚠️ SOLO private_key lleva comillas, las demás NO
-GOOGLE_CLOUD_PROJECT_ID=party-rsvp-477219
-GOOGLE_CLOUD_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nTu clave privada aquí\n-----END PRIVATE KEY-----\n"
-GOOGLE_CLOUD_CLIENT_EMAIL=rooftop@party-rsvp-477219.iam.gserviceaccount.com
-FIRESTORE_COLLECTION_NAME=rsvps
+# Base de datos (REQUERIDO para producción)
+DATABASE_URL=postgresql://user:password@ep-xxx.us-east-1.aws.neon.tech/dbname?sslmode=require
 
-# Opcional: Para envío de emails
-# SENDGRID_API_KEY=your-sendgrid-api-key
-# FROM_EMAIL=noreply@yourdomain.com
+# Autenticación admin (REQUERIDO)
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=tu-contraseña-segura
+
+# Emails con Resend (opcional)
+RESEND_API_KEY=re_xxx
+FROM_EMAIL=invitaciones@tudominio.com
+
+# URL de la aplicación
+NEXT_PUBLIC_APP_URL=https://tudominio.com
+
+# Secret para tokens de cancelación
+CANCEL_TOKEN_SECRET=tu-secret-aleatorio
 ```
 
-**💡 Extrae del archivo JSON descargado:**
-- `project_id` → `GOOGLE_CLOUD_PROJECT_ID` (❌ sin comillas)
-- `private_key` → `GOOGLE_CLOUD_PRIVATE_KEY` (✅ **con comillas**, incluye `\n`)
-- `client_email` → `GOOGLE_CLOUD_CLIENT_EMAIL` (❌ sin comillas)
+#### Paso 3: Ejecutar Migraciones
+
+```bash
+npx drizzle-kit push
+```
 
 ### 4. Agregar Imágenes
 

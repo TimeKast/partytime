@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getRSVPById, validateCancelToken } from '@/lib/firestore'
+import { getRSVPById, validateCancelToken } from '@/lib/queries'
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 
     // Validar token
     const isValidToken = validateCancelToken(token, rsvpId, rsvp.email)
-    
+
     if (!isValidToken) {
       return NextResponse.json(
         { error: 'Token inválido o expirado' },

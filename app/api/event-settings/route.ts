@@ -14,20 +14,15 @@ export async function GET(request: NextRequest) {
 
     const dbUrl = process.env.DATABASE_URL
 
-    console.log('📖 GET /api/event-settings')
-    console.log('📖 eventId:', eventId)
-
     if (dbUrl) {
       try {
         const sql = neon(dbUrl)
 
         // Query directa sin ORM
         const rows = await sql`SELECT * FROM event_settings WHERE event_id = ${eventId}`
-        console.log('📖 Filas encontradas:', rows.length)
 
         if (rows.length > 0) {
           const row = rows[0]
-          console.log('✅ Cargando configuración de la base de datos para:', eventId)
 
           return NextResponse.json({
             success: true,
@@ -59,16 +54,13 @@ export async function GET(request: NextRequest) {
             },
             source: 'database'
           })
-        } else {
-          console.log('⚠️ No se encontraron settings para eventId:', eventId)
         }
       } catch (dbError) {
-        console.error('❌ Error al consultar base de datos:', dbError)
+        console.error('Error al consultar base de datos:', dbError)
       }
     }
 
     // Return default/empty config for new events
-    console.log('📖 Usando configuración vacía/default para evento:', eventId)
     return NextResponse.json({
       success: true,
       settings: {

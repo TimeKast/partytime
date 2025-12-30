@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isDatabaseConfigured } from '@/lib/db'
+import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
 
 /**
  * POST /api/admin/event-settings/update
  * Actualiza la configuración del evento (requiere autenticación admin)
  */
 export async function POST(request: NextRequest) {
-  try {
-    // Verificar autenticación básica
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader || !verifyAuth(authHeader)) {
-      return NextResponse.json({
-        success: false,
-        message: 'No autorizado'
-      }, { status: 401 })
-    }
+  // Verificar autenticación básica
+  if (!validateAdminAuth(request)) {
+    return getUnauthorizedResponse()
+  }
 
+  try {
     const body = await request.json()
 
     // Validar campos requeridos
@@ -47,56 +44,26 @@ export async function POST(request: NextRequest) {
       accentColor: body.theme?.accentColor || '#FFD700'
     }
 
-    console.log('📝 Preparando settings:', settings)
-
     if (isDatabaseConfigured()) {
-      console.log('✅ Base de datos configurada, guardando...')
       const { saveEventSettings } = await import('@/lib/queries')
-      try {
-        const result = await saveEventSettings(settings)
-        console.log('✅ Guardado exitoso:', result)
+      const result = await saveEventSettings(settings)
 
-        return NextResponse.json({
-          success: true,
-          message: 'Configuración actualizada correctamente'
-        })
-      } catch (dbError) {
-        console.error('❌ Error de base de datos:', dbError)
-        return NextResponse.json({
-          success: false,
-          message: 'Error al guardar en base de datos'
-        }, { status: 500 })
-      }
+      return NextResponse.json({
+        success: true,
+        message: 'Configuración actualizada correctamente'
+      })
     } else {
-      console.log('⚠️ Modo demo - configuración no guardada permanentemente')
       return NextResponse.json({
         success: true,
         message: 'Configuración actualizada (modo demo)',
         note: 'Configura DATABASE_URL para guardar permanentemente'
       })
     }
-
   } catch (error) {
     console.error('Error al actualizar configuración:', error)
     return NextResponse.json({
       success: false,
       message: 'Error al actualizar configuración'
     }, { status: 500 })
-  }
-}
-
-/**
- * Verificar autenticación básica
- */
-function verifyAuth(authHeader: string): boolean {
-  try {
-    const base64Credentials = authHeader.replace('Basic ', '')
-    const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii')
-    const [username, password] = credentials.split(':')
-
-    // Estas credenciales deben coincidir con las del admin
-    return username === 'admin' && password === 'partytime'
-  } catch {
-    return false
   }
 }

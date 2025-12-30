@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import eventConfig from '@/event-config.json'
 import { isDatabaseConfigured } from '@/lib/db'
+import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
 
 // Mock storage para modo demo
 const mockRsvps: any[] = []
@@ -116,8 +117,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Endpoint para obtener todos los RSVPs
+// Endpoint para obtener todos los RSVPs (REQUIERE AUTENTICACIÓN ADMIN)
 export async function GET(request: NextRequest) {
+  // H-004: Proteger endpoint que expone datos personales
+  if (!validateAdminAuth(request)) {
+    return getUnauthorizedResponse()
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const eventId = searchParams.get('eventId') || eventConfig.event.id

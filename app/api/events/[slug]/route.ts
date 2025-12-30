@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isDatabaseConfigured } from '@/lib/db'
+import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
 import { neon } from '@neondatabase/serverless'
 import eventConfig from '@/event-config.json'
 
@@ -15,7 +16,6 @@ interface RouteParams {
 export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
         const { slug } = await params
-        console.log('📖 GET /api/events/' + slug)
 
         // Check if this is the default event from config
         const isDefaultEvent = slug === eventConfig.event.id
@@ -25,11 +25,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             const event = await getEventBySlug(slug)
 
             if (event) {
-                console.log('✅ Evento encontrado en DB:', event.title)
 
                 // Also fetch event_settings to get additional configuration
                 const dbUrl = process.env.DATABASE_URL
-                let mergedEvent = { ...event }
+                let mergedEvent: any = { ...event }
 
                 if (dbUrl) {
                     try {
@@ -38,7 +37,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
                         if (settingsRows.length > 0) {
                             const settings = settingsRows[0]
-                            console.log('✅ Settings encontrados, combinando datos...')
 
                             // Override with settings data (settings take priority)
                             mergedEvent = {
@@ -101,7 +99,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
             // If not found in DB but is the default event, build from config + settings
             if (isDefaultEvent) {
-                console.log('📖 Usando evento default con settings de DB')
                 const dbUrl = process.env.DATABASE_URL
 
                 if (dbUrl) {
@@ -110,7 +107,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
                     if (rows.length > 0) {
                         const settings = rows[0]
-                        console.log('✅ Settings encontrados para evento default:', settings.title)
 
                         return NextResponse.json({
                             success: true,
@@ -150,7 +146,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                 }
 
                 // Fallback to pure config data
-                console.log('📖 Usando evento default puro del config')
                 return NextResponse.json({
                     success: true,
                     event: {
@@ -230,12 +225,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 export async function PUT(request: NextRequest, { params }: RouteParams) {
     try {
         // Verify admin authentication
-        const authHeader = request.headers.get('authorization')
-        if (!authHeader || !verifyAuth(authHeader)) {
-            return NextResponse.json({
-                success: false,
-                error: 'No autorizado'
-            }, { status: 401 })
+        if (!validateAdminAuth(request)) {
+            return getUnauthorizedResponse()
         }
 
         const { slug } = await params
@@ -300,12 +291,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
     try {
         // Verify admin authentication
-        const authHeader = request.headers.get('authorization')
-        if (!authHeader || !verifyAuth(authHeader)) {
-            return NextResponse.json({
-                success: false,
-                error: 'No autorizado'
-            }, { status: 401 })
+        if (!validateAdminAuth(request)) {
+            return getUnauthorizedResponse()
         }
 
         const { slug } = await params
@@ -344,16 +331,3 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 }
 
-/**
- * Verify admin authentication
- */
-function verifyAuth(authHeader: string): boolean {
-    try {
-        const base64Credentials = authHeader.replace('Basic ', '')
-        const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii')
-        const [username, password] = credentials.split(':')
-        return username === 'admin' && password === 'partytime'
-    } catch {
-        return false
-    }
-}

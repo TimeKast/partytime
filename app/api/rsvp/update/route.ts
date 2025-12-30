@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { updateRSVP, validateCancelToken, getRSVPById } from '@/lib/firestore'
+import { updateRSVP, validateCancelToken, getRSVPById } from '@/lib/queries'
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     // Validar token con el email ACTUAL (no el nuevo)
     const isValidToken = validateCancelToken(token, rsvpId, currentRSVP.email)
-    
+
     if (!isValidToken) {
       return NextResponse.json(
         { error: 'Token inválido o expirado' },

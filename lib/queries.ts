@@ -308,22 +308,10 @@ export async function deleteEvent(eventId: string, hardDelete: boolean = false):
 export async function getEventSettings(eventId: string): Promise<EventSettings | null> {
     if (!db) throw new Error('Database not configured')
 
-    console.log('🔍 getEventSettings - Buscando eventId:', eventId)
-
-    // First, let's see ALL rows in the table
-    const allRows = await db.select().from(eventSettings)
-    console.log('🔍 Todas las filas en event_settings:', allRows.length)
-    console.log('🔍 Event IDs en la tabla:', allRows.map(r => r.eventId))
-
     const [result] = await db.select()
         .from(eventSettings)
         .where(eq(eventSettings.eventId, eventId))
         .limit(1)
-
-    console.log('🔍 Resultado de query:', result ? 'ENCONTRADO' : 'NO ENCONTRADO')
-    if (result) {
-        console.log('🔍 Título encontrado:', result.title)
-    }
 
     return result || null
 }

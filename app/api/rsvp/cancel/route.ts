@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cancelRSVP } from '@/lib/firestore'
+import { cancelRSVP } from '@/lib/queries'
 
 export async function POST(request: NextRequest) {
   try {
