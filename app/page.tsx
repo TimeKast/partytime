@@ -22,10 +22,11 @@ export async function generateMetadata(): Promise<Metadata> {
   const title = `${event.title} - ${event.subtitle}`
   const description = `${event.date} ${event.time} - ${event.location}`
 
-  // Evitar imágenes gigantes (background.png es de 18MB)
-  let imageUrl = event.backgroundImageUrl || '/og-image.png'
-  if (imageUrl.includes('background.png')) {
-    imageUrl = '/og-image.png'
+  // WhatsApp ignora imágenes de > 5MB (background.png pesa 18MB)
+  // Siempre usaremos og-image.png (optimizado de 2MB) si la imagen es pesada o local
+  let imageUrl = event.backgroundImageUrl || 'https://party.timekast.mx/og-image.png'
+  if (imageUrl.includes('background.png') || imageUrl.startsWith('/')) {
+    imageUrl = 'https://party.timekast.mx/og-image.png'
   }
 
   return {
@@ -34,11 +35,13 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       title,
       description,
-      type: 'website',
+      url: 'https://party.timekast.mx',
       siteName: eventConfig.event.title,
+      type: 'website',
       images: [
         {
           url: imageUrl,
+          secureUrl: imageUrl,
           width: 1200,
           height: 630,
           alt: event.title,

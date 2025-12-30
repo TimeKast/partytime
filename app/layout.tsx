@@ -4,14 +4,8 @@ import eventConfig from '../event-config.json'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://party.timekast.mx'),
-  title: {
-    default: eventConfig.event.title,
-    template: `%s | ${eventConfig.event.title}`
-  },
+  title: eventConfig.event.title,
   description: eventConfig.event.subtitle,
-  icons: {
-    icon: '/favicon.ico',
-  }
 }
 
 export const viewport: Viewport = {
