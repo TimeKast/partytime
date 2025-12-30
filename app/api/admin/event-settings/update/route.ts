@@ -46,12 +46,22 @@ export async function POST(request: NextRequest) {
 
     if (isDatabaseConfigured()) {
       const { saveEventSettings } = await import('@/lib/queries')
-      const result = await saveEventSettings(settings)
+      console.log('📝 Saving event settings for eventId:', settings.eventId)
+      console.log('📝 Settings data:', JSON.stringify(settings, null, 2))
 
-      return NextResponse.json({
-        success: true,
-        message: 'Configuración actualizada correctamente'
-      })
+      try {
+        const result = await saveEventSettings(settings)
+        console.log('✅ Event settings saved successfully:', result?.id || 'no id returned')
+
+        return NextResponse.json({
+          success: true,
+          message: 'Configuración actualizada correctamente',
+          savedId: result?.id
+        })
+      } catch (saveError) {
+        console.error('❌ Database save error:', saveError)
+        throw saveError
+      }
     } else {
       return NextResponse.json({
         success: true,
