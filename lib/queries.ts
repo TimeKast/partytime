@@ -339,17 +339,32 @@ export async function deleteEvent(eventId: string, hardDelete: boolean = false):
 // ============================================
 
 /**
- * Get event settings by eventId
+ * Get event settings by eventId - searches by both UUID and slug
  */
 export async function getEventSettings(eventId: string): Promise<EventSettings | null> {
     if (!db) throw new Error('Database not configured')
 
+    // Try to find by exact eventId first
     const [result] = await db.select()
         .from(eventSettings)
         .where(eq(eventSettings.eventId, eventId))
         .limit(1)
 
-    return result || null
+    if (result) return result
+
+    // If not found, try to find by slug (in case eventId is a UUID but settings were saved with slug)
+    // First, get the event to find its slug
+    const event = await getEventById(eventId)
+    if (event && event.slug !== eventId) {
+        const [resultBySlug] = await db.select()
+            .from(eventSettings)
+            .where(eq(eventSettings.eventId, event.slug))
+            .limit(1)
+
+        if (resultBySlug) return resultBySlug
+    }
+
+    return null
 }
 
 /**
