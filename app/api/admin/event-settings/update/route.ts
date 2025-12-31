@@ -27,16 +27,21 @@ export async function POST(request: NextRequest) {
     if (isDatabaseConfigured()) {
       const { getEventBySlug, updateEvent } = await import('@/lib/queries')
 
+      console.log('🔍 [update] Looking for event with eventId:', body.eventId)
+
       // Find the event by slug or ID
       const event = await getEventBySlug(body.eventId)
+
       if (!event) {
+        console.error('❌ [update] Event not found for eventId:', body.eventId)
         return NextResponse.json({
           success: false,
           message: 'Evento no encontrado'
         }, { status: 404 })
       }
 
-      console.log('📝 Updating event for eventId:', event.id)
+      console.log('✅ [update] Event found - ID:', event.id, 'Slug:', event.slug, 'Title:', event.title)
+      console.log('📝 [update] Updating with location:', body.location)
 
       // Prepare update data
       const updates = {
