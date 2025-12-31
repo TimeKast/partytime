@@ -90,44 +90,10 @@ async function migrateRSVPs() {
     console.log(`   ✅ Migrated: ${migrated} | Skipped (duplicates): ${skipped}`)
 }
 
-async function migrateEventSettings() {
-    console.log('\n⚙️  Migrating Event Settings...')
+// NOTE: migrateEventSettings function removed - eventSettings table was deprecated
+// and consolidated into the 'events' table. See H-006 deprecation notice.
+// If you need to migrate old eventSettings data, migrate it directly into the events table.
 
-    const snapshot = await firestore.collection('eventSettings').get()
-    console.log(`   Found ${snapshot.docs.length} settings in Firebase`)
-
-    let migrated = 0
-
-    for (const doc of snapshot.docs) {
-        const data = doc.data()
-
-        try {
-            await db.insert(schema.eventSettings).values({
-                id: doc.id,
-                eventId: data.eventId,
-                title: data.title || '',
-                subtitle: data.subtitle || '',
-                date: data.date || '',
-                time: data.time || '',
-                location: data.location || '',
-                details: data.details || '',
-                priceEnabled: data.price?.enabled || false,
-                priceAmount: data.price?.amount || 0,
-                priceCurrency: data.price?.currency || 'MXN',
-                capacityEnabled: data.capacity?.enabled || false,
-                capacityLimit: data.capacity?.limit || 0,
-                backgroundImageUrl: data.backgroundImage?.url || '/background.png',
-                updatedAt: data.updatedAt ? new Date(data.updatedAt) : new Date(),
-            }).onConflictDoNothing()
-
-            migrated++
-        } catch (error: any) {
-            console.error(`   ❌ Error migrating settings ${doc.id}:`, error.message)
-        }
-    }
-
-    console.log(`   ✅ Migrated: ${migrated}`)
-}
 
 async function migrateEvents() {
     console.log('\n🎉 Migrating Events...')
@@ -192,7 +158,7 @@ async function main() {
 
     try {
         await migrateRSVPs()
-        await migrateEventSettings()
+        // migrateEventSettings removed - table consolidated into events
         await migrateEvents()
 
         console.log('\n=====================================')
