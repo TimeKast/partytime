@@ -101,7 +101,24 @@ export async function validateSession(token: string): Promise<User | null> {
 
     if (!session) return null
 
-    // Get the user
+    // Handle special case: super_admin via environment variables
+    if (session.userId === 'super_admin_env') {
+        const superAdminEmail = process.env.ADMIN_EMAIL || process.env.ADMIN_USERNAME || 'admin@env'
+        // Return a synthetic user object for env-based super admin
+        return {
+            id: 'super_admin_env',
+            email: superAdminEmail,
+            passwordHash: '',
+            name: 'Super Admin',
+            role: 'super_admin',
+            isActive: true,
+            invitedBy: null,
+            createdAt: new Date(),
+            lastLoginAt: new Date(),
+        } as User
+    }
+
+    // Get the user from database
     const [user] = await db.select()
         .from(users)
         .where(and(
