@@ -112,11 +112,11 @@ export function generateConfirmationEmail({
   <!-- Wrapper exterior con imagen de fondo del evento -->
   <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #0f0f0f;">
     <tr>
-      <td style="background-image: url('${bgImageUrl}'); background-size: cover; background-position: center top; background-repeat: no-repeat;">
-        <!-- Overlay oscuro con fade para legibilidad -->
-        <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(180deg, rgba(15,15,15,0.75) 0%, rgba(15,15,15,0.92) 50%, rgba(15,15,15,0.98) 100%);">
+      <td style="background-color: #0f0f0f;">
+        <!-- Contenedor principal con fondo sólido -->
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #0f0f0f;">
           <tr>
-            <td align="center" style="padding: 48px 20px;">
+            <td align="center" style="padding: 48px 20px; background-color: #0f0f0f;">
               
               <!-- Container principal -->
               <table role="presentation" style="width: 580px; max-width: 100%; border-collapse: collapse;">
@@ -127,7 +127,7 @@ export function generateConfirmationEmail({
                     ${headerBadge ? `
                     <table role="presentation" style="margin: 0 auto 16px auto; border-collapse: collapse;">
                       <tr>
-                        <td style="background-color: #3d3520; border: 1px solid #5c4f30; border-radius: 20px; padding: 6px 16px;">
+                        <td style="background-color: #3d3520; border-radius: 20px; padding: 6px 16px;">
                           <p style="margin: 0; color: #fbbf24; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px;">
                             ${headerBadge}
                           </p>
