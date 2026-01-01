@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
-import { saveRSVP } from '@/lib/firestore'
+import { cookies } from 'next/headers'
+import { validateSession } from '@/lib/auth-utils'
+import { saveRSVP } from '@/lib/queries'
 import eventConfig from '@/event-config.json'
 
 const demoRSVPs = [
@@ -55,9 +57,21 @@ const demoRSVPs = [
 ]
 
 export async function POST() {
+  // Check auth
+  const cookieStore = await cookies()
+  const token = cookieStore.get('rp_session')?.value
+
+  if (!token) {
+    return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+  }
+
+  const currentUser = await validateSession(token)
+  if (!currentUser || currentUser.role !== 'super_admin') {
+    return NextResponse.json({ success: false, error: 'Acceso denegado' }, { status: 403 })
+  }
   try {
     const results = []
-    
+
     for (const rsvp of demoRSVPs) {
       const result = await saveRSVP(rsvp)
       results.push({
@@ -66,7 +80,7 @@ export async function POST() {
         success: true
       })
     }
-    
+
     return NextResponse.json({
       success: true,
       message: 'Datos demo agregados exitosamente',
@@ -76,8 +90,8 @@ export async function POST() {
   } catch (error) {
     console.error('Error agregando datos demo:', error)
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         error: 'Error agregando datos demo',
         details: error instanceof Error ? error.message : 'Unknown error'
       },

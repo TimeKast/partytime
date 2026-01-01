@@ -1,14 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
+import { cookies } from 'next/headers'
+import { validateSession } from '@/lib/auth-utils'
+import { userHasEventAccess } from '@/lib/user-queries'
 import { resend, FROM_EMAIL } from '@/lib/resend'
 import { generateConfirmationEmail, EventData } from '@/lib/email-template'
 import { generateCancelToken, recordEmailSent, getRSVPById, getEventBySlug } from '@/lib/queries'
 import eventConfig from '@/event-config.json'
 
 export async function POST(request: NextRequest) {
-  // Validar autenticación
-  if (!validateAdminAuth(request)) {
-    return getUnauthorizedResponse()
+  // Check auth
+  const cookieStore = await cookies()
+  const token = cookieStore.get('rp_session')?.value
+
+  if (!token) {
+    return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+  }
+
+  const currentUser = await validateSession(token)
+  if (!currentUser) {
+    return NextResponse.json({ success: false, error: 'Sesión inválida' }, { status: 401 })
   }
 
   try {
@@ -27,6 +37,14 @@ export async function POST(request: NextRequest) {
     try {
       const rsvp = await getRSVPById(rsvpId)
       if (rsvp && rsvp.eventId) {
+        // Check permissions
+        if (currentUser.role !== 'super_admin') {
+          const { hasAccess } = await userHasEventAccess(currentUser.id, rsvp.eventId, 'manager')
+          if (!hasAccess) {
+            return NextResponse.json({ success: false, error: 'No tienes permiso para enviar correos de este evento' }, { status: 403 })
+          }
+        }
+
         const event = await getEventBySlug(rsvp.eventId)
         if (event) {
           // Build EventData from the actual event

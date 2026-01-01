@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
-import { updateRSVP } from '@/lib/firestore'
+import { cookies } from 'next/headers'
+import { validateSession } from '@/lib/auth-utils'
+import { userHasEventAccess } from '@/lib/user-queries'
+import { getRSVPById, updateRSVP } from '@/lib/queries'
 
 export async function POST(request: NextRequest) {
-  // Validar autenticación
-  if (!validateAdminAuth(request)) {
-    return getUnauthorizedResponse()
+  // Check auth
+  const cookieStore = await cookies()
+  const token = cookieStore.get('rp_session')?.value
+
+  if (!token) {
+    return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+  }
+
+  const currentUser = await validateSession(token)
+  if (!currentUser) {
+    return NextResponse.json({ success: false, error: 'Sesión inválida' }, { status: 401 })
   }
 
   try {
@@ -24,6 +34,23 @@ export async function POST(request: NextRequest) {
         { error: 'No hay cambios para actualizar' },
         { status: 400 }
       )
+    }
+
+    // Fetch RSVP to get its eventId for permission check
+    const rsvp = await getRSVPById(rsvpId)
+    if (!rsvp) {
+      return NextResponse.json(
+        { error: 'RSVP no encontrado' },
+        { status: 404 }
+      )
+    }
+
+    // Check permissions
+    if (currentUser.role !== 'super_admin') {
+      const { hasAccess } = await userHasEventAccess(currentUser.id, rsvp.eventId, 'manager')
+      if (!hasAccess) {
+        return NextResponse.json({ success: false, error: 'No tienes permiso para modificar este RSVP' }, { status: 403 })
+      }
     }
 
     // Actualizar RSVP sin enviar email

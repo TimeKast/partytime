@@ -10,13 +10,13 @@ import eventConfig from '@/event-config.json'
 import styles from './admin.module.css'
 import type { Event } from '@/types/event'
 // H-008 FIX: Import extracted components to reduce monolithic file size
-import { LoginForm, StatsCards, type RSVP } from './components'
+import { StatsCards, UserManagement, type RSVP } from './components'
 
 export default function AdminDashboard() {
   const router = useRouter()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
+  const [checkingAuth, setCheckingAuth] = useState(true)
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; role: string } | null>(null)
   const [rsvps, setRsvps] = useState<RSVP[]>([])
   const [filteredRsvps, setFilteredRsvps] = useState<RSVP[]>([])
   const [emailTargetRsvps, setEmailTargetRsvps] = useState<RSVP[]>([])
@@ -24,7 +24,7 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('')
 
   // Estado para tabs
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'config' | 'eventos'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'config' | 'eventos' | 'usuarios'>('dashboard')
 
   // Estado para multi-party
   const [events, setEvents] = useState<Event[]>([])
@@ -71,49 +71,27 @@ export default function AdminDashboard() {
     plusOne: false
   })
 
-  // Autenticación
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setMessage('')
-
-    try {
-      // Crear credenciales Base64
-      const credentials = btoa(`${username}:${password}`)
-
-      // Validar credenciales con el servidor
-      const response = await fetch('/api/admin/validate', {
-        headers: {
-          'Authorization': `Basic ${credentials}`
+  // Check authentication on mount
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const res = await fetch('/api/auth/me')
+        const data = await res.json()
+        if (data.authenticated && data.user) {
+          setIsAuthenticated(true)
+          setCurrentUser(data.user)
+        } else {
+          // Not authenticated, redirect to login
+          router.replace('/login')
         }
-      })
-
-      if (response.status === 401) {
-        setMessage('❌ Credenciales incorrectas')
-        setLoading(false)
-        return
+      } catch {
+        router.replace('/login')
+      } finally {
+        setCheckingAuth(false)
       }
-
-      if (!response.ok) {
-        setMessage('❌ Error de conexión')
-        setLoading(false)
-        return
-      }
-
-      // Credenciales válidas - guardar y marcar como autenticado
-      sessionStorage.setItem('admin_auth', credentials)
-      setIsAuthenticated(true)
-      setMessage('')
-
-      // Cargar datos
-      await loadRSVPs()
-    } catch (error) {
-      console.error('Error en login:', error)
-      setMessage('❌ Error de conexión')
-    } finally {
-      setLoading(false)
     }
-  }
+    checkAuth()
+  }, [router])
 
   const loadRSVPs = async (eventId?: string) => {
     setLoading(true)
@@ -121,13 +99,8 @@ export default function AdminDashboard() {
       const targetEventId = eventId || selectedEventId
       console.log('🔄 Cargando RSVPs para evento:', targetEventId)
 
-      const authHeader = sessionStorage.getItem('admin_auth')
-      // Cargar RSVPs desde la API con filtro por evento
-      const response = await fetch(`/api/rsvp?eventId=${encodeURIComponent(targetEventId)}`, {
-        headers: {
-          'Authorization': `Basic ${authHeader}`
-        }
-      })
+      // Cookies are sent automatically
+      const response = await fetch(`/api/rsvp?eventId=${encodeURIComponent(targetEventId)}`)
 
       if (!response.ok) {
         throw new Error('Error al cargar RSVPs')
@@ -164,30 +137,17 @@ export default function AdminDashboard() {
     }
   }
 
-  // Cargar RSVPs al montar si hay sesión
+  // Load RSVPs once authenticated
   useEffect(() => {
-    console.log('🔍 Verificando sesión...')
-    const authHeader = sessionStorage.getItem('admin_auth')
-    console.log('🔑 Auth header:', authHeader ? 'Existe' : 'No existe')
-
-    if (authHeader) {
-      setIsAuthenticated(true)
-      console.log('✅ Usuario autenticado, cargando RSVPs...')
+    if (isAuthenticated && !checkingAuth) {
       loadRSVPs()
-    } else {
-      console.log('❌ Usuario no autenticado')
     }
-  }, [])
+  }, [isAuthenticated, checkingAuth])
 
   // Cargar lista de eventos
   const loadEvents = async () => {
     try {
-      const authHeader = sessionStorage.getItem('admin_auth')
-      const response = await fetch('/api/events', {
-        headers: {
-          'Authorization': `Basic ${authHeader}`
-        }
-      })
+      const response = await fetch('/api/events')
       if (response.ok) {
         const data = await response.json()
         if (data.success && data.events) {
@@ -202,10 +162,7 @@ export default function AdminDashboard() {
   // Cargar settings de la app
   const loadAppSettings = async () => {
     try {
-      const authHeader = sessionStorage.getItem('admin_auth')
-      const response = await fetch('/api/admin/settings', {
-        headers: { 'Authorization': `Basic ${authHeader}` }
-      })
+      const response = await fetch('/api/admin/settings')
       if (response.ok) {
         const data = await response.json()
         if (data.success && data.settings) {
@@ -221,12 +178,10 @@ export default function AdminDashboard() {
   const setAsHome = async (eventId: string) => {
     try {
       setLoading(true)
-      const authHeader = sessionStorage.getItem('admin_auth')
       const response = await fetch('/api/admin/settings', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${authHeader}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ id: 'home_event_id', value: eventId })
       })
@@ -277,12 +232,7 @@ export default function AdminDashboard() {
   const loadEventConfig = async (eventId: string) => {
     try {
       console.log('⚙️ Cargando configuración para evento:', eventId)
-      const authHeader = sessionStorage.getItem('admin_auth')
-      const response = await fetch(`/api/event-settings?eventId=${encodeURIComponent(eventId)}`, {
-        headers: {
-          'Authorization': `Basic ${authHeader}`
-        }
-      })
+      const response = await fetch(`/api/event-settings?eventId=${encodeURIComponent(eventId)}`)
       if (response.ok) {
         const data = await response.json()
         if (data.success && data.settings) {
@@ -476,15 +426,10 @@ export default function AdminDashboard() {
     setMessage(`Enviando ${messageType}...`)
 
     try {
-      const authHeader = sessionStorage.getItem('admin_auth')
-      console.log('🔐 Auth header existe:', !!authHeader)
-      console.log('🔐 Auth header (primeros 20 chars):', authHeader?.substring(0, 20))
-
       const response = await fetch('/api/admin/send-email', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${authHeader}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           rsvpId: rsvp.id,
@@ -546,16 +491,14 @@ export default function AdminDashboard() {
     setMessage('Enviando emails...')
 
     try {
-      const authHeader = sessionStorage.getItem('admin_auth')
-
       // Enviar lista de IDs específicos de los RSVPs filtrados para email
       const response = await fetch('/api/admin/send-bulk-email', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${authHeader}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          eventId: selectedEventId,
           rsvpIds: emailTargetRsvps.map(r => r.id)
         })
       })
@@ -588,13 +531,10 @@ export default function AdminDashboard() {
     setMessage(`${action.charAt(0).toUpperCase() + action.slice(1)}ando...`)
 
     try {
-      const authHeader = sessionStorage.getItem('admin_auth')
-
       const response = await fetch('/api/admin/update-rsvp', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${authHeader}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           rsvpId: rsvp.id,
@@ -656,13 +596,10 @@ export default function AdminDashboard() {
     setMessage('Guardando cambios...')
 
     try {
-      const authHeader = sessionStorage.getItem('admin_auth')
-
       const response = await fetch('/api/admin/update-rsvp', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${authHeader}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           rsvpId: editingRsvp.id,
@@ -693,16 +630,7 @@ export default function AdminDashboard() {
     setMessage('')
 
     try {
-      const authHeader = sessionStorage.getItem('admin_auth')
       console.log('💾 Guardando configuración...')
-      console.log('🔑 Auth header existe:', !!authHeader)
-      console.log('🔑 Auth header valor:', authHeader ? authHeader.substring(0, 10) + '...' : 'NULL')
-
-      if (!authHeader) {
-        setMessage('❌ No autenticado - por favor inicia sesión de nuevo')
-        setLoading(false)
-        return
-      }
 
       const requestBody = {
         eventId: selectedEventId,
@@ -737,8 +665,7 @@ export default function AdminDashboard() {
       const response = await fetch('/api/admin/event-settings/update', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${authHeader}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(requestBody)
       })
@@ -761,11 +688,15 @@ export default function AdminDashboard() {
   }
 
   // Cerrar sesión
-  const handleLogout = () => {
-    sessionStorage.removeItem('admin_auth')
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } catch {
+      // Ignore errors, still redirect
+    }
     setIsAuthenticated(false)
-    setUsername('')
-    setPassword('')
+    setCurrentUser(null)
+    router.replace('/login')
   }
 
   // Exportar lista informativa (elegante con todos los detalles)
@@ -864,16 +795,14 @@ export default function AdminDashboard() {
     emailsSent: rsvps.filter(r => r.emailSent).length,
   }
 
-  // H-008 FIX: Use extracted LoginForm component
+  // While checking auth, show loading
+  if (checkingAuth) {
+    return <div className={styles.loadingContainer}>Validando sesión...</div>
+  }
+
+  // If not authenticated, the useEffect will redirect to /login
   if (!isAuthenticated) {
-    return (
-      <LoginForm
-        onLoginSuccess={(credentials) => {
-          setIsAuthenticated(true)
-          loadRSVPs()
-        }}
-      />
-    )
+    return null
   }
 
   return (
@@ -970,6 +899,14 @@ export default function AdminDashboard() {
         >
           ⚙️ Configuración
         </button>
+        {currentUser?.role === 'super_admin' && (
+          <button
+            className={`${styles.tab} ${activeTab === 'usuarios' ? styles.tabActive : ''}`}
+            onClick={() => setActiveTab('usuarios')}
+          >
+            👥 Usuarios
+          </button>
+        )}
       </div>
 
       {/* Contenido del Dashboard */}
@@ -1586,19 +1523,12 @@ export default function AdminDashboard() {
               const form = e.target as HTMLFormElement
               const formData = new FormData(form)
 
-              const credentials = sessionStorage.getItem('admin_auth')
-              if (!credentials) {
-                setMessage('Error: No autenticado')
-                return
-              }
-
               try {
                 setLoading(true)
                 const response = await fetch('/api/events', {
                   method: 'POST',
                   headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Basic ${credentials}`
+                    'Content-Type': 'application/json'
                   },
                   body: JSON.stringify({
                     slug: formData.get('slug'),
@@ -1756,6 +1686,11 @@ export default function AdminDashboard() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Contenido de Usuarios (solo super_admin) */}
+      {activeTab === 'usuarios' && currentUser?.role === 'super_admin' && (
+        <UserManagement events={events} />
       )}
     </div>
   )

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import eventConfig from '@/event-config.json'
 import { isDatabaseConfigured } from '@/lib/db'
-import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
+import { cookies } from 'next/headers'
+import { validateSession } from '@/lib/auth-utils'
+import { userHasEventAccess } from '@/lib/user-queries'
 
 export const dynamic = 'force-dynamic'
 
@@ -121,14 +123,30 @@ export async function POST(request: NextRequest) {
 
 // Endpoint para obtener todos los RSVPs (REQUIERE AUTENTICACIÓN ADMIN)
 export async function GET(request: NextRequest) {
-  // H-004: Proteger endpoint que expone datos personales
-  if (!validateAdminAuth(request)) {
-    return getUnauthorizedResponse()
+  // Check session
+  const cookieStore = await cookies()
+  const token = cookieStore.get('rp_session')?.value
+
+  if (!token) {
+    return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+  }
+
+  const currentUser = await validateSession(token)
+  if (!currentUser) {
+    return NextResponse.json({ success: false, error: 'Sesión inválida' }, { status: 401 })
   }
 
   try {
     const { searchParams } = new URL(request.url)
     const eventId = searchParams.get('eventId') || eventConfig.event.id
+
+    // Check permissions
+    if (currentUser.role !== 'super_admin') {
+      const { hasAccess } = await userHasEventAccess(currentUser.id, eventId, 'viewer')
+      if (!hasAccess) {
+        return NextResponse.json({ success: false, error: 'No tienes permiso para ver los RSVPs de este evento' }, { status: 403 })
+      }
+    }
 
     if (isDatabaseConfigured()) {
       const { getRSVPsByEvent } = await import('@/lib/queries')

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isDatabaseConfigured } from '@/lib/db'
-import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
+import { cookies } from 'next/headers'
+import { validateSession } from '@/lib/auth-utils'
+import { userHasEventAccess } from '@/lib/user-queries'
 
 /**
  * POST /api/admin/event-settings/update
@@ -8,9 +10,17 @@ import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
  * Now directly updates the 'events' table (consolidated)
  */
 export async function POST(request: NextRequest) {
-  // Verificar autenticación básica
-  if (!validateAdminAuth(request)) {
-    return getUnauthorizedResponse()
+  // Check auth
+  const cookieStore = await cookies()
+  const token = cookieStore.get('rp_session')?.value
+
+  if (!token) {
+    return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+  }
+
+  const currentUser = await validateSession(token)
+  if (!currentUser) {
+    return NextResponse.json({ success: false, error: 'Sesión inválida' }, { status: 401 })
   }
 
   try {
@@ -41,6 +51,14 @@ export async function POST(request: NextRequest) {
       }
 
       console.log('✅ [update] Event found - ID:', event.id, 'Slug:', event.slug, 'Title:', event.title)
+
+      // Check permissions
+      if (currentUser.role !== 'super_admin') {
+        const { hasAccess } = await userHasEventAccess(currentUser.id, event.id, 'manager')
+        if (!hasAccess) {
+          return NextResponse.json({ success: false, error: 'No tienes permiso para modificar la configuración de este evento' }, { status: 403 })
+        }
+      }
       console.log('📝 [update] Updating with location:', body.location)
 
       // Prepare update data

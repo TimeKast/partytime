@@ -6,6 +6,7 @@
 
 export { default as LoginForm } from './LoginForm'
 export { default as StatsCards } from './StatsCards'
+export { default as UserManagement } from './UserManagement'
 
 // Types for admin components
 export interface RSVP {

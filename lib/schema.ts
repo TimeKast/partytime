@@ -88,9 +88,55 @@ export const appSettings = pgTable('app_settings', {
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
+// ============================================
+// User Management Tables
+// ============================================
+
+// Users table for authentication and authorization
+export const users = pgTable('users', {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    email: varchar('email', { length: 255 }).notNull().unique(),
+    passwordHash: text('password_hash').notNull(),
+    name: varchar('name', { length: 100 }).notNull(),
+    // Role: 'super_admin' (full access), 'manager' (manage assigned events), 'viewer' (read-only)
+    role: varchar('role', { length: 20 }).notNull().default('viewer'),
+    isActive: boolean('is_active').default(true),
+    invitedBy: text('invited_by'), // ID of user who invited this user
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    lastLoginAt: timestamp('last_login_at'),
+})
+
+// User sessions for persistent login (up to 30 days)
+export const userSessions = pgTable('user_sessions', {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text('user_id').notNull(),
+    token: text('token').notNull().unique(),
+    expiresAt: timestamp('expires_at').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    userAgent: text('user_agent'),
+    ipAddress: varchar('ip_address', { length: 45 }),
+})
+
+// Assignment of events to users (for manager/viewer roles)
+export const userEventAssignments = pgTable('user_event_assignments', {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text('user_id').notNull(),
+    eventId: text('event_id').notNull(),
+    // Role for this specific event: 'manager' or 'viewer'
+    role: varchar('role', { length: 20 }).notNull().default('viewer'),
+    assignedBy: text('assigned_by'),
+    assignedAt: timestamp('assigned_at').defaultNow().notNull(),
+})
 
 // Type exports for use in application
 export type Event = typeof events.$inferSelect
 export type NewEvent = typeof events.$inferInsert
 export type RSVP = typeof rsvps.$inferSelect
 export type NewRSVP = typeof rsvps.$inferInsert
+export type User = typeof users.$inferSelect
+export type NewUser = typeof users.$inferInsert
+export type UserSession = typeof userSessions.$inferSelect
+export type NewUserSession = typeof userSessions.$inferInsert
+export type UserEventAssignment = typeof userEventAssignments.$inferSelect
+export type NewUserEventAssignment = typeof userEventAssignments.$inferInsert
+

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isDatabaseConfigured } from '@/lib/db'
-import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
+import { cookies } from 'next/headers'
+import { validateSession } from '@/lib/auth-utils'
+import { userHasEventAccess } from '@/lib/user-queries'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,9 +92,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
  */
 export async function PUT(request: NextRequest, { params }: RouteParams) {
     try {
-        // Verify admin authentication
-        if (!validateAdminAuth(request)) {
-            return getUnauthorizedResponse()
+        // Check auth
+        const cookieStore = await cookies()
+        const token = cookieStore.get('rp_session')?.value
+
+        if (!token) {
+            return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+        }
+
+        const currentUser = await validateSession(token)
+        if (!currentUser) {
+            return NextResponse.json({ success: false, error: 'Sesión inválida' }, { status: 401 })
         }
 
         const { slug } = await params
@@ -112,6 +122,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                 success: false,
                 error: 'Evento no encontrado'
             }, { status: 404 })
+        }
+
+        // Check permissions
+        if (currentUser.role !== 'super_admin') {
+            const { hasAccess } = await userHasEventAccess(currentUser.id, existingEvent.id, 'manager')
+            if (!hasAccess) {
+                return NextResponse.json({ success: false, error: 'No tienes permiso para modificar este evento' }, { status: 403 })
+            }
         }
 
         const body = await request.json()
@@ -156,9 +174,22 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
     try {
-        // Verify admin authentication
-        if (!validateAdminAuth(request)) {
-            return getUnauthorizedResponse()
+        // Check auth
+        const cookieStore = await cookies()
+        const token = cookieStore.get('rp_session')?.value
+
+        if (!token) {
+            return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+        }
+
+        const currentUser = await validateSession(token)
+        if (!currentUser) {
+            return NextResponse.json({ success: false, error: 'Sesión inválida' }, { status: 401 })
+        }
+
+        // Only super_admin can delete events
+        if (currentUser.role !== 'super_admin') {
+            return NextResponse.json({ success: false, error: 'Acceso denegado. Se requiere ser Super Admin para eliminar eventos.' }, { status: 403 })
         }
 
         const { slug } = await params

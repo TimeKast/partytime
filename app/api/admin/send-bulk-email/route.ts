@@ -1,19 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
+import { cookies } from 'next/headers'
+import { validateSession } from '@/lib/auth-utils'
+import { userHasEventAccess } from '@/lib/user-queries'
 import { resend, FROM_EMAIL } from '@/lib/resend'
 import { generateConfirmationEmail } from '@/lib/email-template'
-import { getRSVPsByEvent, generateCancelToken, recordEmailSent } from '@/lib/firestore'
+import { getRSVPsByEvent, generateCancelToken, recordEmailSent, getEventById } from '@/lib/queries'
 import eventConfig from '@/event-config.json'
 
 export async function POST(request: NextRequest) {
-  // Validar autenticación
-  if (!validateAdminAuth(request)) {
-    return getUnauthorizedResponse()
+  // Check auth
+  const cookieStore = await cookies()
+  const token = cookieStore.get('rp_session')?.value
+
+  if (!token) {
+    return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+  }
+
+  const currentUser = await validateSession(token)
+  if (!currentUser) {
+    return NextResponse.json({ success: false, error: 'Sesión inválida' }, { status: 401 })
   }
 
   try {
     const body = await request.json()
-    const { rsvpIds } = body // Array de IDs específicos a enviar
+    const { rsvpIds, eventId } = body // Array de IDs específicos a enviar y el ID del evento
+
+    if (!eventId) {
+      return NextResponse.json({ success: false, error: 'eventId es requerido' }, { status: 400 })
+    }
+
+    // Check permissions
+    if (currentUser.role !== 'super_admin') {
+      const { hasAccess } = await userHasEventAccess(currentUser.id, eventId, 'manager')
+      if (!hasAccess) {
+        return NextResponse.json({ success: false, error: 'No tienes permiso para enviar correos masivos de este evento' }, { status: 403 })
+      }
+    }
 
     if (!rsvpIds || !Array.isArray(rsvpIds) || rsvpIds.length === 0) {
       return NextResponse.json({
@@ -23,7 +45,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Obtener todos los RSVPs del evento
-    const allRsvps = await getRSVPsByEvent(eventConfig.event.id)
+    const allRsvps = await getRSVPsByEvent(eventId)
+
+    // Get event title for subjects
+    const event = await getEventById(eventId)
+    const eventTitle = event?.title || eventConfig.event.title
 
     // Filtrar solo los RSVPs con los IDs especificados
     const filteredRsvps = allRsvps.filter(r => rsvpIds.includes(r.id))
@@ -64,11 +90,11 @@ export async function POST(request: NextRequest) {
         // Asunto según tipo de email
         let subject
         if (isCancelled) {
-          subject = `Te extrañamos - ${eventConfig.event.title}`
+          subject = `Te extrañamos - ${eventTitle}`
         } else if (isReminder) {
-          subject = `Recordatorio - ${eventConfig.event.title}`
+          subject = `Recordatorio - ${eventTitle}`
         } else {
-          subject = `Confirmación - ${eventConfig.event.title}`
+          subject = `Confirmación - ${eventTitle}`
         }
 
         const { error } = await resend.emails.send({

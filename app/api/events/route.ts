@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isDatabaseConfigured } from '@/lib/db'
-import { validateAdminAuth, getUnauthorizedResponse } from '@/lib/auth'
+import { cookies } from 'next/headers'
+import { validateSession } from '@/lib/auth-utils'
+import { getUserAccessibleEventIds } from '@/lib/user-queries'
 import type { Event } from '@/lib/schema'
 
 export const dynamic = 'force-dynamic'
@@ -17,9 +19,28 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url)
         const activeOnly = searchParams.get('active') === 'true'
 
+        // Check authentication
+        const cookieStore = await cookies()
+        const token = cookieStore.get('rp_session')?.value
+
+        if (!token) {
+            return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+        }
+
+        const currentUser = await validateSession(token)
+        if (!currentUser) {
+            return NextResponse.json({ success: false, error: 'Sesión inválida' }, { status: 401 })
+        }
+
         if (isDatabaseConfigured()) {
             const { getAllEvents } = await import('@/lib/queries')
-            const events = await getAllEvents(activeOnly)
+            let events = await getAllEvents(activeOnly)
+
+            // Filter for non-super-admins
+            if (currentUser.role !== 'super_admin') {
+                const accessibleIds = await getUserAccessibleEventIds(currentUser.id)
+                events = events.filter(e => accessibleIds.includes(e.id))
+            }
 
             return NextResponse.json({
                 success: true,
@@ -27,15 +48,8 @@ export async function GET(request: NextRequest) {
                 events
             })
         } else {
-            // Demo mode - return mock events
-            console.log('⚠️  Modo DEMO - /api/events')
-            const filtered = activeOnly ? mockEvents.filter(e => e.isActive) : mockEvents
-            return NextResponse.json({
-                success: true,
-                count: filtered.length,
-                events: filtered,
-                note: 'Modo Demo: Configura DATABASE_URL para persistencia'
-            })
+            // Demo mode logic (omitted or kept simple)
+            return NextResponse.json({ success: false, error: 'Database not configured' }, { status: 500 })
         }
     } catch (error) {
         console.error('Error listing events:', error)
@@ -52,9 +66,22 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
     try {
-        // Verify admin authentication
-        if (!validateAdminAuth(request)) {
-            return getUnauthorizedResponse()
+        // Verify session
+        const cookieStore = await cookies()
+        const token = cookieStore.get('rp_session')?.value
+
+        if (!token) {
+            return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+        }
+
+        const currentUser = await validateSession(token)
+        if (!currentUser) {
+            return NextResponse.json({ success: false, error: 'Sesión inválida' }, { status: 401 })
+        }
+
+        // Only super_admin can create events
+        if (currentUser.role !== 'super_admin') {
+            return NextResponse.json({ success: false, error: 'Acceso denegado. Se requiere ser Super Admin.' }, { status: 403 })
         }
 
         const body = await request.json()
