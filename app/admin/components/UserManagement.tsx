@@ -42,7 +42,6 @@ export default function UserManagement({ events }: UserManagementProps) {
         email: '',
         password: '',
         name: '',
-        role: 'user' as 'super_admin' | 'user',
     })
 
     // Load users on mount
@@ -96,7 +95,7 @@ export default function UserManagement({ events }: UserManagementProps) {
             if (data.success) {
                 setMessage('✅ Usuario creado exitosamente')
                 setShowCreateForm(false)
-                setNewUserForm({ email: '', password: '', name: '', role: 'user' })
+                setNewUserForm({ email: '', password: '', name: '' })
                 await loadUsers()
             } else {
                 setMessage(`❌ ${data.error}`)

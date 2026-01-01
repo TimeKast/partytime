@@ -19,7 +19,7 @@ export async function createUser(data: {
     email: string
     password: string
     name: string
-    role?: 'super_admin' | 'user'
+    role?: 'super_admin' | 'manager' | 'viewer'
     invitedBy?: string
 }): Promise<User> {
     if (!db) throw new Error('Database not configured')
@@ -37,7 +37,7 @@ export async function createUser(data: {
         email: data.email.toLowerCase().trim(),
         passwordHash,
         name: data.name.trim(),
-        role: data.role || 'user',
+        role: data.role || 'viewer',
         invitedBy: data.invitedBy || null,
     }).returning()
 

@@ -91,10 +91,14 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Validate role
-        if (role && !['manager', 'viewer'].includes(role)) {
+        // Rol global: ya no se selecciona por evento. Por defecto creamos como "viewer".
+        // Aceptamos "user" legacy y lo mapeamos a "viewer" para compatibilidad.
+        const normalizedRole =
+            role === 'user' || role === undefined || role === null || role === '' ? 'viewer' : role
+
+        if (normalizedRole && !['super_admin', 'manager', 'viewer'].includes(normalizedRole)) {
             return NextResponse.json(
-                { success: false, error: 'Rol inválido. Usa "manager" o "viewer"' },
+                { success: false, error: 'Rol inválido. Usa "super_admin", "manager" o "viewer"' },
                 { status: 400 }
             )
         }
@@ -104,7 +108,7 @@ export async function POST(request: NextRequest) {
             email,
             password,
             name,
-            role: role || 'viewer',
+            role: normalizedRole || 'viewer',
             invitedBy: currentUser.id,
         })
 
