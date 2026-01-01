@@ -380,8 +380,75 @@ export default function AdminDashboard() {
     setEmailTargetRsvps(filtered)
   }, [rsvps, emailFilterStatus, emailFilterEmail])
 
+  // Helper: Check if event date has passed
+  // Event dates are stored as text like "SÁBADO, 29 NOV" or "2025-01-30"
+  // Returns true if the event is in the past (before today)
+  const isEventPast = (): boolean => {
+    const dateStr = configForm.date
+    if (!dateStr) return false
+
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+    // Try to parse various date formats
+    const monthMap: { [key: string]: number } = {
+      'ene': 0, 'jan': 0, 'enero': 0, 'january': 0,
+      'feb': 1, 'febrero': 1, 'february': 1,
+      'mar': 2, 'marzo': 2, 'march': 2,
+      'abr': 3, 'apr': 3, 'abril': 3, 'april': 3,
+      'may': 4, 'mayo': 4,
+      'jun': 5, 'junio': 5, 'june': 5,
+      'jul': 6, 'julio': 6, 'july': 6,
+      'ago': 7, 'aug': 7, 'agosto': 7, 'august': 7,
+      'sep': 8, 'sept': 8, 'septiembre': 8, 'september': 8,
+      'oct': 9, 'octubre': 9, 'october': 9,
+      'nov': 10, 'noviembre': 10, 'november': 10,
+      'dic': 11, 'dec': 11, 'diciembre': 11, 'december': 11
+    }
+
+    // Try ISO format first (2025-01-30)
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+      const eventDate = new Date(dateStr)
+      return eventDate < today
+    }
+
+    // Try to extract day and month from text like "SÁBADO, 29 NOV"
+    const match = dateStr.match(/(\d{1,2})\s*(\w+)/i)
+    if (match) {
+      const day = parseInt(match[1])
+      const monthStr = match[2].toLowerCase()
+      const month = monthMap[monthStr]
+
+      if (month !== undefined) {
+        // Assume current year or next year if month has passed
+        let year = now.getFullYear()
+        const eventDate = new Date(year, month, day)
+
+        // If the parsed date is way in the past (more than 6 months ago), 
+        // assume it was from the previous year
+        const sixMonthsAgo = new Date(now)
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+        if (eventDate < sixMonthsAgo) {
+          // Event is in the past
+          return true
+        }
+
+        return eventDate < today
+      }
+    }
+
+    // If we can't parse, don't block (allow sending)
+    return false
+  }
+
   // Enviar email individual
   const sendEmail = async (rsvp: RSVP) => {
+    // Check if event has passed
+    if (isEventPast()) {
+      setMessage('❌ No se pueden enviar emails para eventos que ya pasaron')
+      return
+    }
+
     const isCancelled = rsvp.status === 'cancelled'
     const isReminder = !isCancelled && !!rsvp.emailSent
 
@@ -441,6 +508,12 @@ export default function AdminDashboard() {
 
   // Enviar emails masivos
   const sendBulkEmails = async () => {
+    // Check if event has passed
+    if (isEventPast()) {
+      setMessage('❌ No se pueden enviar emails para eventos que ya pasaron')
+      return
+    }
+
     const count = emailTargetRsvps.length
     if (count === 0) {
       setMessage('❌ No hay RSVPs para enviar')
