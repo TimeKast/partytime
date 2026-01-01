@@ -98,8 +98,8 @@ export function generateConfirmationEmail({
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="color-scheme" content="light only">
-  <meta name="supported-color-schemes" content="light only">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
   <meta name="x-apple-disable-message-reformatting">
   <title>${isCancelled ? 'Te extrañamos' : (isReminder ? 'Recordatorio' : 'Confirmación')} RSVP - ${event.title}</title>
   <!--[if mso]>
@@ -107,24 +107,8 @@ export function generateConfirmationEmail({
     body, table, td, p, span, a { font-family: Arial, sans-serif !important; }
   </style>
   <![endif]-->
-  <style>
-    :root { color-scheme: light only; supported-color-schemes: light only; }
-    /* Gmail dark mode fix - u + .body selector only works in Gmail */
-    u + .body .gd-text-dark { color: #1a1a1a !important; }
-    u + .body .gd-text-secondary { color: #4a4a4a !important; }
-    u + .body .gd-text-muted { color: #666666 !important; }
-    u + .body .gd-text-label { color: #888888 !important; }
-    u + .body .gd-bg-card { background-color: rgba(255,255,255,0.85) !important; }
-    /* Fallback for other clients */
-    @media (prefers-color-scheme: dark) {
-      .gd-text-dark { color: #1a1a1a !important; -webkit-text-fill-color: #1a1a1a !important; }
-      .gd-text-secondary { color: #4a4a4a !important; -webkit-text-fill-color: #4a4a4a !important; }
-      .gd-text-muted { color: #666666 !important; -webkit-text-fill-color: #666666 !important; }
-      .gd-text-label { color: #888888 !important; -webkit-text-fill-color: #888888 !important; }
-    }
-  </style>
 </head>
-<body class="body" style="margin: 0; padding: 0; font-family: 'Segoe UI', 'Arial', sans-serif; background-color: #0f0f0f;">
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', 'Arial', sans-serif; background-color: #0f0f0f;">
   <!-- Wrapper exterior con imagen de fondo del evento -->
   <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #0f0f0f;">
     <tr>
@@ -163,30 +147,30 @@ export function generateConfirmationEmail({
                 <!-- Card principal del contenido -->
                 <tr>
                   <td>
-                    <table role="presentation" class="gd-bg-card" style="width: 100%; border-collapse: collapse; background-color: rgba(255,255,255,0.85); border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+                    <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: rgba(20,20,25,0.85); border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);">
                       
                       <!-- Barra superior decorativa sutil -->
                       <tr>
-                        <td style="background: linear-gradient(90deg, #2d2d2d 0%, #404040 50%, #2d2d2d 100%); height: 4px;"></td>
+                        <td style="background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 50%, #fbbf24 100%); height: 4px;"></td>
                       </tr>
 
                       <!-- Contenido principal -->
                       <tr>
                         <td style="padding: 40px 36px;">
-                          <p class="gd-text-dark" style="margin: 0 0 16px 0; font-size: 20px; color: #1a1a1a; font-weight: 300;">
+                          <p style="margin: 0 0 16px 0; font-size: 20px; color: #ffffff; font-weight: 300;">
                             ${greeting}
                           </p>
                           
-                          <p class="gd-text-secondary" style="margin: 0 0 8px 0; font-size: 15px; line-height: 1.7; color: #4a4a4a;">
+                          <p style="margin: 0 0 8px 0; font-size: 15px; line-height: 1.7; color: rgba(255,255,255,0.85);">
                             ${mainText}
                           </p>
                           
-                          <p class="gd-text-secondary" style="margin: 0 0 32px 0; font-size: 15px; line-height: 1.7; color: #4a4a4a;">
+                          <p style="margin: 0 0 32px 0; font-size: 15px; line-height: 1.7; color: rgba(255,255,255,0.85);">
                             ${closingText}
                           </p>
 
                           <!-- Detalles del evento en card interna -->
-                          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, rgba(250,250,250,0.8) 0%, rgba(245,245,245,0.8) 100%); border-radius: 12px; margin-bottom: 32px;">
+                          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, rgba(40,40,50,0.8) 0%, rgba(30,30,40,0.8) 100%); border-radius: 12px; margin-bottom: 32px; border: 1px solid rgba(255,255,255,0.08);">
                             <tr>
                               <td style="padding: 28px;">
                                 
@@ -196,15 +180,15 @@ export function generateConfirmationEmail({
                                     <td style="width: 40px; vertical-align: top; padding-right: 16px;">
                                       <table role="presentation" style="border-collapse: collapse;">
                                         <tr>
-                                          <td style="background: #1a1a1a; border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
+                                          <td style="background: rgba(255,255,255,0.1); border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
                                             <span style="font-size: 18px; color: #ffffff;">📅</span>
                                           </td>
                                         </tr>
                                       </table>
                                     </td>
-                                    <td style="vertical-align: middle; border-bottom: 1px solid #e8e8e8; padding-bottom: 20px;">
-                                      <p class="gd-text-label" style="margin: 0 0 2px 0; font-size: 11px; color: #888888; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Fecha</p>
-                                      <p class="gd-text-dark" style="margin: 0; font-size: 16px; color: #1a1a1a; font-weight: 600;">${event.date}</p>
+                                    <td style="vertical-align: middle; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px;">
+                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: rgba(255,255,255,0.5); font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Fecha</p>
+                                      <p style="margin: 0; font-size: 16px; color: #ffffff; font-weight: 600;">${event.date}</p>
                                     </td>
                                   </tr>
                                 </table>
@@ -215,15 +199,15 @@ export function generateConfirmationEmail({
                                     <td style="width: 40px; vertical-align: top; padding-right: 16px;">
                                       <table role="presentation" style="border-collapse: collapse;">
                                         <tr>
-                                          <td style="background: #1a1a1a; border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
+                                          <td style="background: rgba(255,255,255,0.1); border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
                                             <span style="font-size: 18px; color: #ffffff;">⏰</span>
                                           </td>
                                         </tr>
                                       </table>
                                     </td>
-                                    <td style="vertical-align: middle; border-bottom: 1px solid #e8e8e8; padding-bottom: 20px;">
-                                      <p class="gd-text-label" style="margin: 0 0 2px 0; font-size: 11px; color: #888888; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Hora</p>
-                                      <p class="gd-text-dark" style="margin: 0; font-size: 16px; color: #1a1a1a; font-weight: 600;">${event.time}</p>
+                                    <td style="vertical-align: middle; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px;">
+                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: rgba(255,255,255,0.5); font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Hora</p>
+                                      <p style="margin: 0; font-size: 16px; color: #ffffff; font-weight: 600;">${event.time}</p>
                                     </td>
                                   </tr>
                                 </table>
@@ -234,15 +218,15 @@ export function generateConfirmationEmail({
                                     <td style="width: 40px; vertical-align: top; padding-right: 16px;">
                                       <table role="presentation" style="border-collapse: collapse;">
                                         <tr>
-                                          <td style="background: #1a1a1a; border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
+                                          <td style="background: rgba(255,255,255,0.1); border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
                                             <span style="font-size: 18px; color: #ffffff;">📍</span>
                                           </td>
                                         </tr>
                                       </table>
                                     </td>
-                                    <td style="vertical-align: middle; ${event.price || plusOne ? 'border-bottom: 1px solid #e8e8e8; padding-bottom: 20px;' : ''}">
-                                      <p class="gd-text-label" style="margin: 0 0 2px 0; font-size: 11px; color: #888888; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Lugar</p>
-                                      <p class="gd-text-dark" style="margin: 0; font-size: 16px; color: #1a1a1a; font-weight: 600;">${event.location}</p>
+                                    <td style="vertical-align: middle; ${event.price || plusOne ? 'border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px;' : ''}">
+                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: rgba(255,255,255,0.5); font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Lugar</p>
+                                      <p style="margin: 0; font-size: 16px; color: #ffffff; font-weight: 600;">${event.location}</p>
                                     </td>
                                   </tr>
                                 </table>
@@ -260,9 +244,9 @@ export function generateConfirmationEmail({
                                         </tr>
                                       </table>
                                     </td>
-                                    <td style="vertical-align: middle; ${plusOne ? 'border-bottom: 1px solid #e8e8e8; padding-bottom: 20px;' : ''}">
-                                      <p class="gd-text-label" style="margin: 0 0 2px 0; font-size: 11px; color: #888888; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Cuota de Recuperación</p>
-                                      <p style="margin: 0; font-size: 16px; color: #065f46; font-weight: 700;">${event.price}</p>
+                                    <td style="vertical-align: middle; ${plusOne ? 'border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px;' : ''}">
+                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: rgba(255,255,255,0.5); font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Cuota de Recuperación</p>
+                                      <p style="margin: 0; font-size: 16px; color: #34d399; font-weight: 700;">${event.price}</p>
                                     </td>
                                   </tr>
                                 </table>
@@ -282,8 +266,8 @@ export function generateConfirmationEmail({
                                       </table>
                                     </td>
                                     <td style="vertical-align: middle;">
-                                      <p class="gd-text-label" style="margin: 0 0 2px 0; font-size: 11px; color: #888888; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Acompañante</p>
-                                      <p style="margin: 0; font-size: 16px; color: #4f46e5; font-weight: 600;">+1 Confirmado</p>
+                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: rgba(255,255,255,0.5); font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Acompañante</p>
+                                      <p style="margin: 0; font-size: 16px; color: #a78bfa; font-weight: 600;">+1 Confirmado</p>
                                     </td>
                                   </tr>
                                 </table>
@@ -296,15 +280,15 @@ export function generateConfirmationEmail({
                           <!-- Detalles adicionales -->
                           <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 32px;">
                             <tr>
-                              <td style="background: linear-gradient(135deg, rgba(248,249,250,0.75) 0%, rgba(240,241,242,0.75) 100%); border-left: 3px solid #2d2d2d; border-radius: 0 8px 8px 0; padding: 20px 24px;">
-                                <p class="gd-text-secondary" style="margin: 0; font-size: 14px; color: #4a4a4a; line-height: 1.8;">
+                              <td style="background: linear-gradient(135deg, rgba(40,40,50,0.75) 0%, rgba(30,30,40,0.75) 100%); border-left: 3px solid #fbbf24; border-radius: 0 8px 8px 0; padding: 20px 24px;">
+                                <p style="margin: 0; font-size: 14px; color: rgba(255,255,255,0.8); line-height: 1.8;">
                                   ${event.details.split('\n').join('<br>')}
                                 </p>
                               </td>
                             </tr>
                           </table>
 
-                          <p class="gd-text-muted" style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #666666; text-align: center;">
+                          <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: rgba(255,255,255,0.6); text-align: center;">
                             ${isCancelled
       ? 'Si decides acompañarnos, solo haz clic abajo para reconfirmar tu asistencia.<br>Si no puedes, no hay problema - quedamos igual de bien. 😊'
       : 'Si necesitas modificar tus datos o cancelar tu asistencia:'}
@@ -314,20 +298,20 @@ export function generateConfirmationEmail({
                           <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 0 0 20px 0;">
                             <tr>
                               <td align="center" style="padding: 0;">
-                                <a href="${cleanCancelUrl}" target="_blank" style="background: ${isCancelled ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)'};border:none;border-radius: 8px;color:#ffffff;display:inline-block;font-family:'Segoe UI',Arial,sans-serif;font-size:15px;font-weight:500;line-height:52px;text-align:center;text-decoration:none;width:260px;-webkit-text-size-adjust:none;letter-spacing: 0.5px;">${isCancelled ? 'Reconfirmar Asistencia ✨' : 'Modificar o Cancelar'}</a>
+                                <a href="${cleanCancelUrl}" target="_blank" style="background: ${isCancelled ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)'};border:none;border-radius: 8px;color:${isCancelled ? '#ffffff' : '#000000'};display:inline-block;font-family:'Segoe UI',Arial,sans-serif;font-size:15px;font-weight:600;line-height:52px;text-align:center;text-decoration:none;width:260px;-webkit-text-size-adjust:none;letter-spacing: 0.5px;">${isCancelled ? 'Reconfirmar Asistencia ✨' : 'Modificar o Cancelar'}</a>
                               </td>
                             </tr>
                           </table>
 
-                          <p style="margin: 0 0 16px 0; font-size: 12px; line-height: 1.5; color: #999999; text-align: center;">
+                          <p style="margin: 0 0 16px 0; font-size: 12px; line-height: 1.5; color: rgba(255,255,255,0.5); text-align: center;">
                             ${isCancelled
       ? '✨ Recuerda que puedes cambiar de opinión las veces que necesites'
       : '💡 Si cancelas, puedes usar este mismo enlace para reconfirmar después'}
                           </p>
                           
-                          <p style="margin: 0; font-size: 11px; line-height: 1.6; color: #aaaaaa; text-align: center;">
+                          <p style="margin: 0; font-size: 11px; line-height: 1.6; color: rgba(255,255,255,0.4); text-align: center;">
                             O copia y pega este enlace en tu navegador:<br>
-                            <span style="color:#666666;word-break:break-all;">${cleanCancelUrl}</span>
+                            <span style="color:rgba(255,255,255,0.6);word-break:break-all;">${cleanCancelUrl}</span>
                           </p>
                         </td>
                       </tr>
