@@ -112,11 +112,11 @@ export function generateConfirmationEmail({
   <!-- Wrapper exterior con imagen de fondo del evento -->
   <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #0f0f0f;">
     <tr>
-      <td style="background-color: #0f0f0f;">
-        <!-- Contenedor principal con fondo sólido -->
-        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #0f0f0f;">
+      <td style="background-image: url('${bgImageUrl}'); background-size: cover; background-position: center top; background-repeat: no-repeat;">
+        <!-- Overlay oscuro con fade para legibilidad -->
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(180deg, rgba(15,15,15,0.75) 0%, rgba(15,15,15,0.92) 50%, rgba(15,15,15,0.98) 100%);">
           <tr>
-            <td align="center" style="padding: 48px 20px; background-color: #0f0f0f;">
+            <td align="center" style="padding: 48px 20px;">
               
               <!-- Container principal -->
               <table role="presentation" style="width: 580px; max-width: 100%; border-collapse: collapse;">
@@ -135,10 +135,10 @@ export function generateConfirmationEmail({
                       </tr>
                     </table>
                     ` : ''}
-                    <h1 style="margin: 0; color: #ffffff; font-size: 36px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase;">
+                    <h1 style="margin: 0; color: #fbbf24; font-size: 36px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase;">
                       ${event.title}
                     </h1>
-                    <h2 style="margin: 8px 0 0 0; color: #cccccc; font-size: 18px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase;">
+                    <h2 style="margin: 8px 0 0 0; color: #f59e0b; font-size: 18px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase;">
                       ${event.subtitle}
                     </h2>
                   </td>
@@ -322,10 +322,10 @@ export function generateConfirmationEmail({
                 <!-- Footer -->
                 <tr>
                   <td style="padding: 32px 20px; text-align: center;">
-                    <p style="margin: 0 0 8px 0; font-size: 13px; color: #999999;">
-                      ¿Preguntas? Contáctanos: <span style="color: #cccccc;">${contactEmail}</span>
+                    <p style="margin: 0 0 8px 0; font-size: 13px; color: #d4a853;">
+                      ¿Preguntas? Contáctanos: <span style="color: #fbbf24;">${contactEmail}</span>
                     </p>
-                    <p style="margin: 0; font-size: 11px; color: #777777;">
+                    <p style="margin: 0; font-size: 11px; color: #b8944a;">
                       Este email fue enviado porque confirmaste tu asistencia a ${event.title}
                     </p>
                   </td>
