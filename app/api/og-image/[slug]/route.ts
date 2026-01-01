@@ -14,7 +14,7 @@ const FETCH_TIMEOUT = 8000 // 8 segundos timeout para fetch de imagen
 const MIN_ASPECT_RATIO = 1.2 // Mínimo ratio ancho/alto para considerar imagen horizontal (landscape)
 
 // Comprimir imagen con sharp para WhatsApp (objetivo: < 250KB)
-async function compressForWhatsApp(imageBuffer: Buffer): Promise<Buffer> {
+async function compressForWhatsApp(imageBuffer: Uint8Array): Promise<Uint8Array> {
   try {
     const compressed = await sharp(imageBuffer)
       .resize(1200, 630, { fit: 'cover', position: 'center' })
@@ -127,12 +127,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         console.log(`[OG-Image] Found custom OG image: ${customPath} (${(imageBuffer.length/1024).toFixed(0)}KB)`)
         
         // Comprimir si es mayor a TARGET_SIZE_KB
-        let finalBuffer = imageBuffer
+        let finalBuffer: Uint8Array = imageBuffer
         let contentType = customPath.endsWith('.png') ? 'image/png' : 'image/jpeg'
         
         if (imageBuffer.length > TARGET_SIZE_KB * 1024) {
           console.log(`[OG-Image] Compressing image for WhatsApp compatibility...`)
-          finalBuffer = await compressForWhatsApp(imageBuffer)
+          finalBuffer = await compressForWhatsApp(Buffer.from(imageBuffer))
           contentType = 'image/jpeg' // Sharp convierte a JPEG
         }
         
