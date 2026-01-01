@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export async function generateMetadata(): Promise<Metadata> {
-  const baseUrl = 'https://party.timekast.mx'
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://party.timekast.mx'
 
   try {
     const homeEventId = await getAppSetting('home_event_id')
@@ -20,20 +20,39 @@ export async function generateMetadata(): Promise<Metadata> {
         metadataBase: new URL(baseUrl),
         title: eventConfig.event.title,
         description: eventConfig.event.subtitle,
+        openGraph: {
+          title: eventConfig.event.title,
+          description: eventConfig.event.subtitle,
+          url: `${baseUrl}/`,
+          siteName: eventConfig.event.title,
+          type: 'website',
+          locale: 'es_MX',
+          images: [
+            {
+              url: `${baseUrl}/opengraph-image`,
+              secureUrl: `${baseUrl}/opengraph-image`,
+              type: 'image/png',
+              width: 1200,
+              height: 630,
+              alt: eventConfig.event.title,
+            },
+          ],
+        },
+        twitter: {
+          card: 'summary_large_image',
+          title: eventConfig.event.title,
+          description: eventConfig.event.subtitle,
+          images: [`${baseUrl}/opengraph-image`],
+        },
       }
     }
 
     const title = `${event.title} - ${event.subtitle}`
     const description = `${event.date} ${event.time} - ${event.location}`
 
-    // Evitar fondo pesado (18MB) que bloquea WhatsApp
-    let imageUrl = event.backgroundImageUrl || '/og-event.png'
-
-    if (imageUrl.includes('background.png')) {
-      imageUrl = `${baseUrl}/og-event.png`
-    } else if (imageUrl.startsWith('/')) {
-      imageUrl = `${baseUrl}${imageUrl}`
-    }
+    // WhatsApp necesita un og:image servible, rápido y con URL absoluta.
+    // Usamos una imagen OG generada por evento (ligera) para evitar fondos pesados.
+    const imageUrl = `${baseUrl}/${event.slug}/opengraph-image`
 
     return {
       metadataBase: new URL(baseUrl),
@@ -42,15 +61,26 @@ export async function generateMetadata(): Promise<Metadata> {
       openGraph: {
         title,
         description,
-        url: `${baseUrl}/${event.slug}`,
+        url: `${baseUrl}/`,
         siteName: eventConfig.event.title,
         type: 'website',
         locale: 'es_MX',
+        images: [
+          {
+            url: imageUrl,
+            secureUrl: imageUrl,
+            type: 'image/png',
+            width: 1200,
+            height: 630,
+            alt: event.title,
+          },
+        ],
       },
       twitter: {
         card: 'summary_large_image',
         title,
         description,
+        images: [imageUrl],
       },
     }
   } catch (error) {
@@ -59,6 +89,30 @@ export async function generateMetadata(): Promise<Metadata> {
       metadataBase: new URL(baseUrl),
       title: eventConfig.event.title,
       description: eventConfig.event.subtitle,
+      openGraph: {
+        title: eventConfig.event.title,
+        description: eventConfig.event.subtitle,
+        url: `${baseUrl}/`,
+        siteName: eventConfig.event.title,
+        type: 'website',
+        locale: 'es_MX',
+        images: [
+          {
+            url: `${baseUrl}/opengraph-image`,
+            secureUrl: `${baseUrl}/opengraph-image`,
+            type: 'image/png',
+            width: 1200,
+            height: 630,
+            alt: eventConfig.event.title,
+          },
+        ],
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: eventConfig.event.title,
+        description: eventConfig.event.subtitle,
+        images: [`${baseUrl}/opengraph-image`],
+      },
     }
   }
 }

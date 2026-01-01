@@ -9,7 +9,7 @@ interface LayoutProps {
 
 export async function generateMetadata({ params }: LayoutProps): Promise<Metadata> {
     const { slug } = params
-    const baseUrl = 'https://party.timekast.mx'
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://party.timekast.mx'
 
     try {
         const event = await getEventBySlugWithSettings(slug)
@@ -25,14 +25,8 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
         const title = `${event.title} - ${event.subtitle}`
         const description = `${event.date} ${event.time} - ${event.location}`
 
-        // Usar imagen optimizada og-event.png si la imagen es pesada o local
-        let imageUrl = event.backgroundImageUrl || '/og-event.png'
-
-        if (imageUrl.includes('background.png')) {
-            imageUrl = `${baseUrl}/og-event.png`
-        } else if (imageUrl.startsWith('/')) {
-            imageUrl = `${baseUrl}${imageUrl}`
-        }
+        // Imagen OG ligera y confiable (WhatsApp/Facebook) por evento
+        const imageUrl = `${baseUrl}/${slug}/opengraph-image`
 
         return {
             metadataBase: new URL(baseUrl),
