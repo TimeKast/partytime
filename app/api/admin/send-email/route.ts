@@ -37,15 +37,18 @@ export async function POST(request: NextRequest) {
     try {
       const rsvp = await getRSVPById(rsvpId)
       if (rsvp && rsvp.eventId) {
-        // Check permissions
+        // Resolve slug to event for permission check
+        const event = await getEventBySlug(rsvp.eventId)
+        const eventUUID = event?.id || rsvp.eventId
+        
+        // Check permissions using UUID
         if (currentUser.role !== 'super_admin') {
-          const { hasAccess } = await userHasEventAccess(currentUser.id, rsvp.eventId, 'manager')
+          const { hasAccess } = await userHasEventAccess(currentUser.id, eventUUID, 'manager')
           if (!hasAccess) {
             return NextResponse.json({ success: false, error: 'No tienes permiso para enviar correos de este evento' }, { status: 403 })
           }
         }
 
-        const event = await getEventBySlug(rsvp.eventId)
         if (event) {
           // Build EventData from the actual event
           const theme = (event.theme as any) || eventConfig.theme

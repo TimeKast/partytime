@@ -4,7 +4,7 @@ import { validateSession } from '@/lib/auth-utils'
 import { userHasEventAccess } from '@/lib/user-queries'
 import { resend, FROM_EMAIL } from '@/lib/resend'
 import { generateConfirmationEmail } from '@/lib/email-template'
-import { getRSVPsByEvent, generateCancelToken, recordEmailSent, getEventById } from '@/lib/queries'
+import { getRSVPsByEvent, generateCancelToken, recordEmailSent, getEventBySlug } from '@/lib/queries'
 import eventConfig from '@/event-config.json'
 
 export async function POST(request: NextRequest) {
@@ -23,15 +23,21 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { rsvpIds, eventId } = body // Array de IDs específicos a enviar y el ID del evento
+    const { rsvpIds, eventId: eventIdOrSlug } = body // Array de IDs específicos a enviar y el ID/slug del evento
 
-    if (!eventId) {
+    if (!eventIdOrSlug) {
       return NextResponse.json({ success: false, error: 'eventId es requerido' }, { status: 400 })
     }
 
-    // Check permissions
+    // Resolve slug to event and get UUID
+    const event = await getEventBySlug(eventIdOrSlug)
+    const eventUUID = event?.id || eventIdOrSlug
+    const eventSlug = event?.slug || eventIdOrSlug
+    const eventTitle = event?.title || eventConfig.event.title
+
+    // Check permissions using UUID
     if (currentUser.role !== 'super_admin') {
-      const { hasAccess } = await userHasEventAccess(currentUser.id, eventId, 'manager')
+      const { hasAccess } = await userHasEventAccess(currentUser.id, eventUUID, 'manager')
       if (!hasAccess) {
         return NextResponse.json({ success: false, error: 'No tienes permiso para enviar correos masivos de este evento' }, { status: 403 })
       }
@@ -44,12 +50,8 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Obtener todos los RSVPs del evento
-    const allRsvps = await getRSVPsByEvent(eventId)
-
-    // Get event title for subjects
-    const event = await getEventById(eventId)
-    const eventTitle = event?.title || eventConfig.event.title
+    // Obtener todos los RSVPs del evento usando el slug
+    const allRsvps = await getRSVPsByEvent(eventSlug)
 
     // Filtrar solo los RSVPs con los IDs especificados
     const filteredRsvps = allRsvps.filter(r => rsvpIds.includes(r.id))

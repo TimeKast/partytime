@@ -138,34 +138,41 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url)
-    const eventId = searchParams.get('eventId') || eventConfig.event.id
-
-    // Check permissions
-    if (currentUser.role !== 'super_admin') {
-      const { hasAccess } = await userHasEventAccess(currentUser.id, eventId, 'viewer')
-      if (!hasAccess) {
-        return NextResponse.json({ success: false, error: 'No tienes permiso para ver los RSVPs de este evento' }, { status: 403 })
-      }
-    }
+    const eventIdOrSlug = searchParams.get('eventId') || eventConfig.event.id
 
     if (isDatabaseConfigured()) {
-      const { getRSVPsByEvent } = await import('@/lib/queries')
-      const rsvps = await getRSVPsByEvent(eventId)
+      const { getRSVPsByEvent, getEventBySlug } = await import('@/lib/queries')
+      
+      // Resolve slug to event ID for permission check
+      const event = await getEventBySlug(eventIdOrSlug)
+      const eventUUID = event?.id || eventIdOrSlug
+      const eventSlug = event?.slug || eventIdOrSlug
+
+      // Check permissions using the UUID
+      if (currentUser.role !== 'super_admin') {
+        const { hasAccess } = await userHasEventAccess(currentUser.id, eventUUID, 'viewer')
+        if (!hasAccess) {
+          return NextResponse.json({ success: false, error: 'No tienes permiso para ver los RSVPs de este evento' }, { status: 403 })
+        }
+      }
+
+      // Get RSVPs using the slug (as stored in eventId field)
+      const rsvps = await getRSVPsByEvent(eventSlug)
 
       return NextResponse.json({
         success: true,
         count: rsvps.length,
         rsvps,
-        eventId,
+        eventId: eventSlug,
       })
     } else {
       // Modo demo - filter by eventId
-      const filtered = mockRsvps.filter(r => r.eventId === eventId)
+      const filtered = mockRsvps.filter(r => r.eventId === eventIdOrSlug)
       return NextResponse.json({
         success: true,
         count: filtered.length,
         rsvps: filtered,
-        eventId,
+        eventId: eventIdOrSlug,
         note: 'Modo Demo: Datos en memoria temporal'
       })
     }

@@ -24,17 +24,23 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url)
-    const eventId = searchParams.get('eventId') || eventConfig.event.id
+    const eventIdOrSlug = searchParams.get('eventId') || eventConfig.event.id
 
-    // Check permissions
+    // Import getEventBySlug to resolve slug to UUID
+    const { getEventBySlug } = await import('@/lib/queries')
+    const event = await getEventBySlug(eventIdOrSlug)
+    const eventUUID = event?.id || eventIdOrSlug
+    const eventSlug = event?.slug || eventIdOrSlug
+
+    // Check permissions using UUID
     if (currentUser.role !== 'super_admin') {
-      const { hasAccess } = await userHasEventAccess(currentUser.id, eventId, 'viewer')
+      const { hasAccess } = await userHasEventAccess(currentUser.id, eventUUID, 'viewer')
       if (!hasAccess) {
         return NextResponse.json({ success: false, error: 'No tienes permiso para ver las estadísticas de este evento' }, { status: 403 })
       }
     }
 
-    const rsvps = await getRSVPsByEvent(eventId)
+    const rsvps = await getRSVPsByEvent(eventSlug)
 
     const stats = {
       totalConfirmed: rsvps.length,
@@ -44,7 +50,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      eventId,
+      eventId: eventSlug,
       stats
     })
   } catch (error) {

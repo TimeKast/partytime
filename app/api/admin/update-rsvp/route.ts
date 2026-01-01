@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { validateSession } from '@/lib/auth-utils'
 import { userHasEventAccess } from '@/lib/user-queries'
-import { getRSVPById, updateRSVP } from '@/lib/queries'
+import { getRSVPById, updateRSVP, getEventBySlug } from '@/lib/queries'
 
 export async function POST(request: NextRequest) {
   // Check auth
@@ -45,9 +45,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check permissions
+    // Resolve slug to UUID for permission check
+    const event = await getEventBySlug(rsvp.eventId)
+    const eventUUID = event?.id || rsvp.eventId
+
+    // Check permissions using UUID
     if (currentUser.role !== 'super_admin') {
-      const { hasAccess } = await userHasEventAccess(currentUser.id, rsvp.eventId, 'manager')
+      const { hasAccess } = await userHasEventAccess(currentUser.id, eventUUID, 'manager')
       if (!hasAccess) {
         return NextResponse.json({ success: false, error: 'No tienes permiso para modificar este RSVP' }, { status: 403 })
       }
