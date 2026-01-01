@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
             location: event.location || '',
             details: event.details || '',
             price: event.priceEnabled ? `$${event.priceAmount} ${event.priceCurrency || 'MXN'}` : null,
+            backgroundImageUrl: event.backgroundImageUrl || eventConfig.event.backgroundImage || '/background.png',
             theme: {
               primaryColor: theme.primaryColor || eventConfig.theme.primaryColor,
               secondaryColor: theme.secondaryColor || eventConfig.theme.secondaryColor,

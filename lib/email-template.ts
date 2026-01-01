@@ -13,6 +13,7 @@ export interface EventData {
   location: string
   details: string
   price?: string | null
+  backgroundImageUrl?: string // URL de la imagen de fondo del evento
   theme: {
     primaryColor: string
     secondaryColor: string
@@ -85,6 +86,12 @@ export function generateConfirmationEmail({
     headerBadge = null
   }
 
+  // Construir URL completa de la imagen de fondo
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const bgImageUrl = event.backgroundImageUrl 
+    ? (event.backgroundImageUrl.startsWith('http') ? event.backgroundImageUrl : `${baseUrl}${event.backgroundImageUrl}`)
+    : `${baseUrl}/background.png`
+
   return `
 <!DOCTYPE html>
 <html lang="es">
@@ -93,169 +100,233 @@ export function generateConfirmationEmail({
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${isCancelled ? 'Te extrañamos' : (isReminder ? 'Recordatorio' : 'Confirmación')} RSVP - ${event.title}</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: 'Arial', sans-serif; background-color: #f4f4f4;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', 'Arial', sans-serif; background-color: #0f0f0f;">
+  <!-- Wrapper exterior con imagen de fondo del evento -->
+  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #0f0f0f;">
     <tr>
-      <td align="center" style="padding: 40px 0;">
-        <table role="presentation" style="width: 600px; max-width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          
-          <!-- Header con colores del evento -->
+      <td style="background-image: url('${bgImageUrl}'); background-size: cover; background-position: center top; background-repeat: no-repeat;">
+        <!-- Overlay oscuro con fade para legibilidad -->
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(180deg, rgba(15,15,15,0.75) 0%, rgba(15,15,15,0.92) 50%, rgba(15,15,15,0.98) 100%);">
           <tr>
-            <td style="background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.backgroundColor || '#1a0033'} 100%); padding: 40px 30px; text-align: center;">
-              ${headerBadge ? `
-              <p style="margin: 0 0 10px 0; color: ${isCancelled ? '#fbbf24' : '#fbbf24'}; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;">
-                ${headerBadge}
-              </p>
-              ` : ''}
-              <h1 style="margin: 0; color: #ffffff; font-size: 32px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
-                ${event.title}
-              </h1>
-              <h2 style="margin: 10px 0 0 0; color: ${theme.secondaryColor}; font-size: 24px; font-weight: 700; text-transform: uppercase; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">
-                ${event.subtitle}
-              </h2>
-            </td>
-          </tr>
-
-          <!-- Contenido principal -->
-          <tr>
-            <td style="padding: 40px 30px;">
-              <p style="margin: 0 0 20px 0; font-size: 18px; color: #333333;">
-                ${greeting}
-              </p>
+            <td align="center" style="padding: 48px 20px;">
               
-              <p style="margin: 0 0 10px 0; font-size: 16px; line-height: 1.6; color: #555555;">
-                ${mainText}
-              </p>
-              
-              <p style="margin: 0 0 30px 0; font-size: 16px; line-height: 1.6; color: #555555;">
-                ${closingText}
-              </p>
-
-              <!-- Detalles del evento -->
-              <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 30px;">
+              <!-- Container principal -->
+              <table role="presentation" style="width: 580px; max-width: 100%; border-collapse: collapse;">
+                
+                <!-- Header elegante y neutro -->
                 <tr>
-                  <td style="padding: 30px;">
-                    
-                    <!-- Fecha -->
-                    <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 18px;">
+                  <td style="padding: 0 0 32px 0; text-align: center;">
+                    ${headerBadge ? `
+                    <table role="presentation" style="margin: 0 auto 16px auto; border-collapse: collapse;">
                       <tr>
-                        <td style="width: 24px; vertical-align: middle; padding-right: 16px; text-align: center;">
-                          <span style="font-size: 18px; color: ${theme.primaryColor}; font-weight: 700;">●</span>
-                        </td>
-                        <td style="vertical-align: middle; border-bottom: 1px solid #f3f4f6; padding-bottom: 18px;">
-                          <p style="margin: 0 0 4px 0; font-size: 12px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Fecha</p>
-                          <p style="margin: 0; font-size: 17px; color: #1f2937; font-weight: 600;">${event.date}</p>
-                        </td>
-                      </tr>
-                    </table>
-
-                    <!-- Hora -->
-                    <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 18px;">
-                      <tr>
-                        <td style="width: 24px; vertical-align: middle; padding-right: 16px; text-align: center;">
-                          <span style="font-size: 18px; color: ${theme.primaryColor}; font-weight: 700;">●</span>
-                        </td>
-                        <td style="vertical-align: middle; border-bottom: 1px solid #f3f4f6; padding-bottom: 18px;">
-                          <p style="margin: 0 0 4px 0; font-size: 12px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Hora</p>
-                          <p style="margin: 0; font-size: 17px; color: #1f2937; font-weight: 600;">${event.time}</p>
-                        </td>
-                      </tr>
-                    </table>
-
-                    <!-- Lugar -->
-                    <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 18px;">
-                      <tr>
-                        <td style="width: 24px; vertical-align: middle; padding-right: 16px; text-align: center;">
-                          <span style="font-size: 18px; color: ${theme.primaryColor}; font-weight: 700;">●</span>
-                        </td>
-                        <td style="vertical-align: middle; border-bottom: 1px solid #f3f4f6; padding-bottom: 18px;">
-                          <p style="margin: 0 0 4px 0; font-size: 12px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Lugar</p>
-                          <p style="margin: 0; font-size: 17px; color: #1f2937; font-weight: 600;">${event.location}</p>
-                        </td>
-                      </tr>
-                    </table>
-
-                    ${event.price ? `
-                    <!-- Cuota -->
-                    <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 18px;">
-                      <tr>
-                        <td style="width: 24px; vertical-align: middle; padding-right: 16px; text-align: center;">
-                          <span style="font-size: 18px; color: #047857; font-weight: 700;">●</span>
-                        </td>
-                        <td style="vertical-align: middle; border-bottom: 1px solid #f3f4f6; padding-bottom: 18px;">
-                          <p style="margin: 0 0 4px 0; font-size: 12px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Cuota de Recuperación</p>
-                          <p style="margin: 0; font-size: 17px; color: #047857; font-weight: 700;">${event.price}</p>
+                        <td style="background: linear-gradient(135deg, rgba(251,191,36,0.15) 0%, rgba(251,191,36,0.05) 100%); border: 1px solid rgba(251,191,36,0.3); border-radius: 20px; padding: 6px 16px;">
+                          <p style="margin: 0; color: #fbbf24; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px;">
+                            ${headerBadge}
+                          </p>
                         </td>
                       </tr>
                     </table>
                     ` : ''}
-
-                    ${plusOne ? `
-                    <!-- Acompañante -->
-                    <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 18px;">
-                      <tr>
-                        <td style="width: 24px; vertical-align: middle; padding-right: 16px; text-align: center;">
-                          <span style="font-size: 18px; color: #667eea; font-weight: 700;">●</span>
-                        </td>
-                        <td style="vertical-align: middle; border-bottom: 1px solid #f3f4f6; padding-bottom: 18px;">
-                          <p style="margin: 0 0 4px 0; font-size: 12px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Acompañante</p>
-                          <p style="margin: 0; font-size: 17px; color: #667eea; font-weight: 600;">+1 Confirmado</p>
-                        </td>
-                      </tr>
-                    </table>
-                    ` : ''}
-
-                    <!-- Detalles adicionales -->
-                    <div style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #f3f4f6;">
-                      <p style="margin: 0; font-size: 15px; color: #4b5563; line-height: 1.7; font-weight: 500;">
-                        ${event.details.split('\n').join('<br>')}
-                      </p>
-                    </div>
-
+                    <h1 style="margin: 0; color: #ffffff; font-size: 36px; font-weight: 300; letter-spacing: 4px; text-transform: uppercase;">
+                      ${event.title}
+                    </h1>
+                    <h2 style="margin: 8px 0 0 0; color: rgba(255,255,255,0.7); font-size: 18px; font-weight: 400; letter-spacing: 3px; text-transform: uppercase;">
+                      ${event.subtitle}
+                    </h2>
                   </td>
                 </tr>
-              </table>
 
-              <p style="margin: 0 0 30px 0; font-size: 14px; line-height: 1.6; color: #777777;">
-                ${isCancelled
-      ? 'Si decides acompañarnos, solo haz clic abajo para reconfirmar tu asistencia. Si no puedes, no hay problema - quedamos igual de bien. 😊'
-      : 'Si necesitas modificar tus datos o cancelar tu asistencia, haz clic en el botón de abajo:'}
-              </p>
-
-              <!-- Botón de cancelación o reconfirmación -->
-              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 0 0 20px 0;">
+                <!-- Card principal del contenido -->
                 <tr>
-                  <td align="center" style="padding: 0;">
-                    <a href="${cleanCancelUrl}" target="_blank" style="background-color:${isCancelled ? '#10b981' : '#667eea'};border:2px solid ${isCancelled ? '#10b981' : '#667eea'};border-radius:6px;color:#ffffff;display:inline-block;font-family:Arial,sans-serif;font-size:16px;font-weight:600;line-height:50px;text-align:center;text-decoration:none;width:280px;-webkit-text-size-adjust:none;">${isCancelled ? 'Reconfirmar Asistencia ✨' : 'Modificar o Cancelar'}</a>
-                  </td>
-                </tr>
-              </table>
+                  <td>
+                    <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: rgba(255,255,255,0.97); border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+                      
+                      <!-- Barra superior decorativa sutil -->
+                      <tr>
+                        <td style="background: linear-gradient(90deg, #2d2d2d 0%, #404040 50%, #2d2d2d 100%); height: 4px;"></td>
+                      </tr>
 
-              <p style="margin: 0 0 20px 0; font-size: 12px; line-height: 1.5; color: #9ca3af; text-align: center; font-style: italic;">
-                ${isCancelled
+                      <!-- Contenido principal -->
+                      <tr>
+                        <td style="padding: 40px 36px;">
+                          <p style="margin: 0 0 16px 0; font-size: 20px; color: #1a1a1a; font-weight: 300;">
+                            ${greeting}
+                          </p>
+                          
+                          <p style="margin: 0 0 8px 0; font-size: 15px; line-height: 1.7; color: #4a4a4a;">
+                            ${mainText}
+                          </p>
+                          
+                          <p style="margin: 0 0 32px 0; font-size: 15px; line-height: 1.7; color: #4a4a4a;">
+                            ${closingText}
+                          </p>
+
+                          <!-- Detalles del evento en card interna -->
+                          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%); border-radius: 12px; margin-bottom: 32px;">
+                            <tr>
+                              <td style="padding: 28px;">
+                                
+                                <!-- Fecha -->
+                                <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                                  <tr>
+                                    <td style="width: 40px; vertical-align: top; padding-right: 16px;">
+                                      <table role="presentation" style="border-collapse: collapse;">
+                                        <tr>
+                                          <td style="background: #1a1a1a; border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
+                                            <span style="font-size: 18px; color: #ffffff;">📅</span>
+                                          </td>
+                                        </tr>
+                                      </table>
+                                    </td>
+                                    <td style="vertical-align: middle; border-bottom: 1px solid #e8e8e8; padding-bottom: 20px;">
+                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: #888888; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Fecha</p>
+                                      <p style="margin: 0; font-size: 16px; color: #1a1a1a; font-weight: 600;">${event.date}</p>
+                                    </td>
+                                  </tr>
+                                </table>
+
+                                <!-- Hora -->
+                                <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                                  <tr>
+                                    <td style="width: 40px; vertical-align: top; padding-right: 16px;">
+                                      <table role="presentation" style="border-collapse: collapse;">
+                                        <tr>
+                                          <td style="background: #1a1a1a; border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
+                                            <span style="font-size: 18px; color: #ffffff;">⏰</span>
+                                          </td>
+                                        </tr>
+                                      </table>
+                                    </td>
+                                    <td style="vertical-align: middle; border-bottom: 1px solid #e8e8e8; padding-bottom: 20px;">
+                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: #888888; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Hora</p>
+                                      <p style="margin: 0; font-size: 16px; color: #1a1a1a; font-weight: 600;">${event.time}</p>
+                                    </td>
+                                  </tr>
+                                </table>
+
+                                <!-- Lugar -->
+                                <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: ${event.price || plusOne ? '20px' : '0'};">
+                                  <tr>
+                                    <td style="width: 40px; vertical-align: top; padding-right: 16px;">
+                                      <table role="presentation" style="border-collapse: collapse;">
+                                        <tr>
+                                          <td style="background: #1a1a1a; border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
+                                            <span style="font-size: 18px; color: #ffffff;">📍</span>
+                                          </td>
+                                        </tr>
+                                      </table>
+                                    </td>
+                                    <td style="vertical-align: middle; ${event.price || plusOne ? 'border-bottom: 1px solid #e8e8e8; padding-bottom: 20px;' : ''}">
+                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: #888888; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Lugar</p>
+                                      <p style="margin: 0; font-size: 16px; color: #1a1a1a; font-weight: 600;">${event.location}</p>
+                                    </td>
+                                  </tr>
+                                </table>
+
+                                ${event.price ? `
+                                <!-- Cuota -->
+                                <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: ${plusOne ? '20px' : '0'};">
+                                  <tr>
+                                    <td style="width: 40px; vertical-align: top; padding-right: 16px;">
+                                      <table role="presentation" style="border-collapse: collapse;">
+                                        <tr>
+                                          <td style="background: #065f46; border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
+                                            <span style="font-size: 18px; color: #ffffff;">💰</span>
+                                          </td>
+                                        </tr>
+                                      </table>
+                                    </td>
+                                    <td style="vertical-align: middle; ${plusOne ? 'border-bottom: 1px solid #e8e8e8; padding-bottom: 20px;' : ''}">
+                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: #888888; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Cuota de Recuperación</p>
+                                      <p style="margin: 0; font-size: 16px; color: #065f46; font-weight: 700;">${event.price}</p>
+                                    </td>
+                                  </tr>
+                                </table>
+                                ` : ''}
+
+                                ${plusOne ? `
+                                <!-- Acompañante -->
+                                <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                                  <tr>
+                                    <td style="width: 40px; vertical-align: top; padding-right: 16px;">
+                                      <table role="presentation" style="border-collapse: collapse;">
+                                        <tr>
+                                          <td style="background: #4f46e5; border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
+                                            <span style="font-size: 18px; color: #ffffff;">👥</span>
+                                          </td>
+                                        </tr>
+                                      </table>
+                                    </td>
+                                    <td style="vertical-align: middle;">
+                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: #888888; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Acompañante</p>
+                                      <p style="margin: 0; font-size: 16px; color: #4f46e5; font-weight: 600;">+1 Confirmado</p>
+                                    </td>
+                                  </tr>
+                                </table>
+                                ` : ''}
+
+                              </td>
+                            </tr>
+                          </table>
+
+                          <!-- Detalles adicionales -->
+                          <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 32px;">
+                            <tr>
+                              <td style="background: linear-gradient(135deg, #f8f9fa 0%, #f0f1f2 100%); border-left: 3px solid #2d2d2d; border-radius: 0 8px 8px 0; padding: 20px 24px;">
+                                <p style="margin: 0; font-size: 14px; color: #4a4a4a; line-height: 1.8;">
+                                  ${event.details.split('\n').join('<br>')}
+                                </p>
+                              </td>
+                            </tr>
+                          </table>
+
+                          <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #666666; text-align: center;">
+                            ${isCancelled
+      ? 'Si decides acompañarnos, solo haz clic abajo para reconfirmar tu asistencia.<br>Si no puedes, no hay problema - quedamos igual de bien. 😊'
+      : 'Si necesitas modificar tus datos o cancelar tu asistencia:'}
+                          </p>
+
+                          <!-- Botón de acción -->
+                          <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 0 0 20px 0;">
+                            <tr>
+                              <td align="center" style="padding: 0;">
+                                <a href="${cleanCancelUrl}" target="_blank" style="background: ${isCancelled ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)'};border:none;border-radius: 8px;color:#ffffff;display:inline-block;font-family:'Segoe UI',Arial,sans-serif;font-size:15px;font-weight:500;line-height:52px;text-align:center;text-decoration:none;width:260px;-webkit-text-size-adjust:none;letter-spacing: 0.5px;">${isCancelled ? 'Reconfirmar Asistencia ✨' : 'Modificar o Cancelar'}</a>
+                              </td>
+                            </tr>
+                          </table>
+
+                          <p style="margin: 0 0 16px 0; font-size: 12px; line-height: 1.5; color: #999999; text-align: center;">
+                            ${isCancelled
       ? '✨ Recuerda que puedes cambiar de opinión las veces que necesites'
-      : '💡 Si cancelas, puedes usar este mismo enlace para reconfirmar tu asistencia más tarde'}
-              </p>
+      : '💡 Si cancelas, puedes usar este mismo enlace para reconfirmar después'}
+                          </p>
+                          
+                          <p style="margin: 0; font-size: 11px; line-height: 1.6; color: #aaaaaa; text-align: center;">
+                            O copia y pega este enlace en tu navegador:<br>
+                            <span style="color:#666666;word-break:break-all;">${cleanCancelUrl}</span>
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="padding: 32px 20px; text-align: center;">
+                    <p style="margin: 0 0 8px 0; font-size: 13px; color: rgba(255,255,255,0.6);">
+                      ¿Preguntas? Contáctanos: <span style="color: rgba(255,255,255,0.8);">${contactEmail}</span>
+                    </p>
+                    <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.4);">
+                      Este email fue enviado porque confirmaste tu asistencia a ${event.title}
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
               
-              <p style="margin: 0 0 20px 0; font-size: 12px; line-height: 1.6; color: #999999; text-align: center;">
-                O copia y pega este enlace en tu navegador:<br>
-                <span style="color:#667eea;word-break:break-all;font-size:11px;">${cleanCancelUrl}</span>
-              </p>
             </td>
           </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background-color: #f9f9f9; padding: 30px; text-align: center; border-top: 1px solid #eeeeee;">
-              <p style="margin: 0 0 10px 0; font-size: 14px; color: #999999;">
-                ¿Preguntas? Contáctanos: ${contactEmail}
-              </p>
-              <p style="margin: 0; font-size: 12px; color: #aaaaaa;">
-                Este email fue enviado porque confirmaste tu asistencia a ${event.title}
-              </p>
-            </td>
-          </tr>
-
         </table>
       </td>
     </tr>
