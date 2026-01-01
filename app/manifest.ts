@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'Party Time!',
     short_name: 'Party Time!',
     description: 'Party Time! — Invitaciones y RSVP para eventos increíbles',
-    start_url: '/',
+    start_url: '/admin',
     display: 'standalone',
     background_color: '#1a0033',
     theme_color: '#1a0033',
