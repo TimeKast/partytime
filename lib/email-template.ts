@@ -147,7 +147,7 @@ export function generateConfirmationEmail({
                 <!-- Card principal del contenido -->
                 <tr>
                   <td>
-                    <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: rgba(20,20,25,0.85); border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);">
+                    <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #1a1a1f; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); border: 1px solid #2a2a30;">
                       
                       <!-- Barra superior decorativa sutil -->
                       <tr>
@@ -161,16 +161,16 @@ export function generateConfirmationEmail({
                             ${greeting}
                           </p>
                           
-                          <p style="margin: 0 0 8px 0; font-size: 15px; line-height: 1.7; color: rgba(255,255,255,0.85);">
+                          <p style="margin: 0 0 8px 0; font-size: 15px; line-height: 1.7; color: #ccccdd;">
                             ${mainText}
                           </p>
                           
-                          <p style="margin: 0 0 32px 0; font-size: 15px; line-height: 1.7; color: rgba(255,255,255,0.85);">
+                          <p style="margin: 0 0 32px 0; font-size: 15px; line-height: 1.7; color: #ccccdd;">
                             ${closingText}
                           </p>
 
                           <!-- Detalles del evento en card interna -->
-                          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, rgba(40,40,50,0.8) 0%, rgba(30,30,40,0.8) 100%); border-radius: 12px; margin-bottom: 32px; border: 1px solid rgba(255,255,255,0.08);">
+                          <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #252530; border-radius: 12px; margin-bottom: 32px; border: 1px solid #333340;">
                             <tr>
                               <td style="padding: 28px;">
                                 
@@ -180,14 +180,14 @@ export function generateConfirmationEmail({
                                     <td style="width: 40px; vertical-align: top; padding-right: 16px;">
                                       <table role="presentation" style="border-collapse: collapse;">
                                         <tr>
-                                          <td style="background: rgba(255,255,255,0.1); border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
-                                            <span style="font-size: 18px; color: #ffffff;">📅</span>
+                                          <td style="background-color: #333340; border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
+                                            <span style="font-size: 18px;">📅</span>
                                           </td>
                                         </tr>
                                       </table>
                                     </td>
-                                    <td style="vertical-align: middle; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px;">
-                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: rgba(255,255,255,0.5); font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Fecha</p>
+                                    <td style="vertical-align: middle; border-bottom: 1px solid #333340; padding-bottom: 20px;">
+                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: #888899; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Fecha</p>
                                       <p style="margin: 0; font-size: 16px; color: #ffffff; font-weight: 600;">${event.date}</p>
                                     </td>
                                   </tr>
@@ -199,14 +199,14 @@ export function generateConfirmationEmail({
                                     <td style="width: 40px; vertical-align: top; padding-right: 16px;">
                                       <table role="presentation" style="border-collapse: collapse;">
                                         <tr>
-                                          <td style="background: rgba(255,255,255,0.1); border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
-                                            <span style="font-size: 18px; color: #ffffff;">⏰</span>
+                                          <td style="background-color: #333340; border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
+                                            <span style="font-size: 18px;">⏰</span>
                                           </td>
                                         </tr>
                                       </table>
                                     </td>
-                                    <td style="vertical-align: middle; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px;">
-                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: rgba(255,255,255,0.5); font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Hora</p>
+                                    <td style="vertical-align: middle; border-bottom: 1px solid #333340; padding-bottom: 20px;">
+                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: #888899; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Hora</p>
                                       <p style="margin: 0; font-size: 16px; color: #ffffff; font-weight: 600;">${event.time}</p>
                                     </td>
                                   </tr>
@@ -218,14 +218,14 @@ export function generateConfirmationEmail({
                                     <td style="width: 40px; vertical-align: top; padding-right: 16px;">
                                       <table role="presentation" style="border-collapse: collapse;">
                                         <tr>
-                                          <td style="background: rgba(255,255,255,0.1); border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
-                                            <span style="font-size: 18px; color: #ffffff;">📍</span>
+                                          <td style="background-color: #333340; border-radius: 8px; width: 40px; height: 40px; text-align: center; vertical-align: middle;">
+                                            <span style="font-size: 18px;">📍</span>
                                           </td>
                                         </tr>
                                       </table>
                                     </td>
-                                    <td style="vertical-align: middle; ${event.price || plusOne ? 'border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px;' : ''}">
-                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: rgba(255,255,255,0.5); font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Lugar</p>
+                                    <td style="vertical-align: middle; ${event.price || plusOne ? 'border-bottom: 1px solid #333340; padding-bottom: 20px;' : ''}">
+                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: #888899; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Lugar</p>
                                       <p style="margin: 0; font-size: 16px; color: #ffffff; font-weight: 600;">${event.location}</p>
                                     </td>
                                   </tr>
@@ -244,8 +244,8 @@ export function generateConfirmationEmail({
                                         </tr>
                                       </table>
                                     </td>
-                                    <td style="vertical-align: middle; ${plusOne ? 'border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px;' : ''}">
-                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: rgba(255,255,255,0.5); font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Cuota de Recuperación</p>
+                                    <td style="vertical-align: middle; ${plusOne ? 'border-bottom: 1px solid #333340; padding-bottom: 20px;' : ''}">
+                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: #888899; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Cuota de Recuperación</p>
                                       <p style="margin: 0; font-size: 16px; color: #34d399; font-weight: 700;">${event.price}</p>
                                     </td>
                                   </tr>
@@ -266,7 +266,7 @@ export function generateConfirmationEmail({
                                       </table>
                                     </td>
                                     <td style="vertical-align: middle;">
-                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: rgba(255,255,255,0.5); font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Acompañante</p>
+                                      <p style="margin: 0 0 2px 0; font-size: 11px; color: #888899; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Acompañante</p>
                                       <p style="margin: 0; font-size: 16px; color: #a78bfa; font-weight: 600;">+1 Confirmado</p>
                                     </td>
                                   </tr>
@@ -280,15 +280,15 @@ export function generateConfirmationEmail({
                           <!-- Detalles adicionales -->
                           <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 32px;">
                             <tr>
-                              <td style="background: linear-gradient(135deg, rgba(40,40,50,0.75) 0%, rgba(30,30,40,0.75) 100%); border-left: 3px solid #fbbf24; border-radius: 0 8px 8px 0; padding: 20px 24px;">
-                                <p style="margin: 0; font-size: 14px; color: rgba(255,255,255,0.8); line-height: 1.8;">
+                              <td style="background-color: #252530; border-left: 3px solid #fbbf24; border-radius: 0 8px 8px 0; padding: 20px 24px;">
+                                <p style="margin: 0; font-size: 14px; color: #bbbbcc; line-height: 1.8;">
                                   ${event.details.split('\n').join('<br>')}
                                 </p>
                               </td>
                             </tr>
                           </table>
 
-                          <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: rgba(255,255,255,0.6); text-align: center;">
+                          <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #999999; text-align: center;">
                             ${isCancelled
       ? 'Si decides acompañarnos, solo haz clic abajo para reconfirmar tu asistencia.<br>Si no puedes, no hay problema - quedamos igual de bien. 😊'
       : 'Si necesitas modificar tus datos o cancelar tu asistencia:'}
@@ -303,15 +303,15 @@ export function generateConfirmationEmail({
                             </tr>
                           </table>
 
-                          <p style="margin: 0 0 16px 0; font-size: 12px; line-height: 1.5; color: rgba(255,255,255,0.5); text-align: center;">
+                          <p style="margin: 0 0 16px 0; font-size: 12px; line-height: 1.5; color: #888899; text-align: center;">
                             ${isCancelled
       ? '✨ Recuerda que puedes cambiar de opinión las veces que necesites'
       : '💡 Si cancelas, puedes usar este mismo enlace para reconfirmar después'}
                           </p>
                           
-                          <p style="margin: 0; font-size: 11px; line-height: 1.6; color: rgba(255,255,255,0.4); text-align: center;">
+                          <p style="margin: 0; font-size: 11px; line-height: 1.6; color: #777788; text-align: center;">
                             O copia y pega este enlace en tu navegador:<br>
-                            <span style="color:rgba(255,255,255,0.6);word-break:break-all;">${cleanCancelUrl}</span>
+                            <span style="color:#999999;word-break:break-all;">${cleanCancelUrl}</span>
                           </p>
                         </td>
                       </tr>
