@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 
 const OG_SIZE = { width: 1200, height: 630 }
 const MAX_BYTES = 5 * 1024 * 1024 // 5MB (límite práctico para scrapers como WhatsApp/FB)
-const TARGET_SIZE_KB = 250 // Objetivo: < 250KB para WhatsApp
+const TARGET_SIZE_KB = 280 // Objetivo: < 280KB para WhatsApp
 const FETCH_TIMEOUT = 8000 // 8 segundos timeout para fetch de imagen
 const MIN_ASPECT_RATIO = 1.2 // Mínimo ratio ancho/alto para considerar imagen horizontal (landscape)
 
