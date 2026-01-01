@@ -25,8 +25,11 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
         const title = `${event.title} - ${event.subtitle}`
         const description = `${event.date} ${event.time} - ${event.location}`
 
-        // Imagen OG ligera y confiable (WhatsApp/Facebook) por evento
-        const imageUrl = `${baseUrl}/${slug}/opengraph-image`
+        // Preferir la imagen configurada en el evento (si existe). Fallback a imagen OG generada.
+        let imageUrl = event.backgroundImageUrl || `${baseUrl}/${slug}/opengraph-image`
+        if (imageUrl.startsWith('/')) {
+            imageUrl = `${baseUrl}${imageUrl}`
+        }
 
         return {
             metadataBase: new URL(baseUrl),

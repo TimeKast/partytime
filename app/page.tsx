@@ -50,9 +50,11 @@ export async function generateMetadata(): Promise<Metadata> {
     const title = `${event.title} - ${event.subtitle}`
     const description = `${event.date} ${event.time} - ${event.location}`
 
-    // WhatsApp necesita un og:image servible, rápido y con URL absoluta.
-    // Usamos una imagen OG generada por evento (ligera) para evitar fondos pesados.
-    const imageUrl = `${baseUrl}/${event.slug}/opengraph-image`
+    // Preferir la imagen configurada en el evento (si existe). Fallback a imagen OG generada.
+    let imageUrl = event.backgroundImageUrl || `/${event.slug}/opengraph-image`
+    if (imageUrl.startsWith('/')) {
+      imageUrl = `${baseUrl}${imageUrl}`
+    }
 
     return {
       metadataBase: new URL(baseUrl),
