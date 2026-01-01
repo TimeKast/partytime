@@ -8,7 +8,7 @@ config({ path: '.env.local' })
 import { neon } from '@neondatabase/serverless'
 import { drizzle } from 'drizzle-orm/neon-http'
 import { eq } from 'drizzle-orm'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import * as schema from '../lib/schema'
 
 const SALT_ROUNDS = 12

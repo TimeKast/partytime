@@ -1,4 +1,4 @@
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import { db, users, userSessions } from './db'
 import { eq, and, gt, lt } from 'drizzle-orm'
 import type { User, UserSession } from './schema'
