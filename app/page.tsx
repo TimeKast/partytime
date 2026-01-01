@@ -8,48 +8,58 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export async function generateMetadata(): Promise<Metadata> {
-  const homeEventId = await getAppSetting('home_event_id')
-  const eventId = homeEventId || eventConfig.event.id
-  const event = await getEventBySlugWithSettings(eventId)
   const baseUrl = 'https://party.timekast.mx'
 
-  if (!event) {
+  try {
+    const homeEventId = await getAppSetting('home_event_id')
+    const eventId = homeEventId || eventConfig.event.id
+    const event = await getEventBySlugWithSettings(eventId)
+
+    if (!event) {
+      return {
+        metadataBase: new URL(baseUrl),
+        title: eventConfig.event.title,
+        description: eventConfig.event.subtitle,
+      }
+    }
+
+    const title = `${event.title} - ${event.subtitle}`
+    const description = `${event.date} ${event.time} - ${event.location}`
+
+    // Evitar fondo pesado (18MB) que bloquea WhatsApp
+    let imageUrl = event.backgroundImageUrl || '/og-event.png'
+
+    if (imageUrl.includes('background.png')) {
+      imageUrl = `${baseUrl}/og-event.png`
+    } else if (imageUrl.startsWith('/')) {
+      imageUrl = `${baseUrl}${imageUrl}`
+    }
+
+    return {
+      metadataBase: new URL(baseUrl),
+      title,
+      description,
+      openGraph: {
+        title,
+        description,
+        url: `${baseUrl}/${event.slug}`,
+        siteName: eventConfig.event.title,
+        type: 'website',
+        locale: 'es_MX',
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title,
+        description,
+      },
+    }
+  } catch (error) {
+    console.error('🏠 [Home] Error generating metadata:', error)
     return {
       metadataBase: new URL(baseUrl),
       title: eventConfig.event.title,
       description: eventConfig.event.subtitle,
     }
-  }
-
-  const title = `${event.title} - ${event.subtitle}`
-  const description = `${event.date} ${event.time} - ${event.location}`
-
-  // Evitar fondo pesado (18MB) que bloquea WhatsApp
-  let imageUrl = event.backgroundImageUrl || '/og-event.png'
-
-  if (imageUrl.includes('background.png')) {
-    imageUrl = `${baseUrl}/og-event.png`
-  } else if (imageUrl.startsWith('/')) {
-    imageUrl = `${baseUrl}${imageUrl}`
-  }
-
-  return {
-    metadataBase: new URL(baseUrl),
-    title,
-    description,
-    openGraph: {
-      title,
-      description,
-      url: `${baseUrl}/${event.slug}`,
-      siteName: eventConfig.event.title,
-      type: 'website',
-      locale: 'es_MX',
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description,
-    },
   }
 }
 
@@ -60,23 +70,39 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function Home() {
   noStore()
 
-  // 1. Intentar obtener el ID del evento de inicio desde la DB
-  const homeEventId = await getAppSetting('home_event_id')
+  try {
+    // 1. Intentar obtener el ID del evento de inicio desde la DB
+    const homeEventId = await getAppSetting('home_event_id')
+    console.log('🏠 [Home] home_event_id from DB:', homeEventId)
 
-  if (homeEventId) {
-    const event = await getEventById(homeEventId)
-    if (event && event.slug) {
-      redirect(`/${event.slug}`)
+    if (homeEventId) {
+      const event = await getEventById(homeEventId)
+      console.log('🏠 [Home] Found event for homeEventId:', event?.slug)
+      if (event && event.slug) {
+        return redirect(`/${event.slug}`)
+      } else if (event) {
+        // Si el evento existe pero no tiene slug (raro), redireccionar al ID
+        console.warn('🏠 [Home] Event found but has no slug, using ID:', event.id)
+        return redirect(`/${event.id}`)
+      }
     }
-  }
 
-  // 2. Fallback al slug del config por defecto
-  // Buscamos el evento legado por su ID conocido
-  const defaultEvent = await getEventById(eventConfig.event.id)
-  if (defaultEvent && defaultEvent.slug) {
-    redirect(`/${defaultEvent.slug}`)
+    // 2. Fallback al slug del config por defecto
+    console.log('🏠 [Home] Falling back to default event config ID:', eventConfig.event.id)
+    const defaultEvent = await getEventById(eventConfig.event.id)
+    if (defaultEvent && defaultEvent.slug) {
+      console.log('🏠 [Home] Redirecting to default event slug:', defaultEvent.slug)
+      return redirect(`/${defaultEvent.slug}`)
+    }
+  } catch (error) {
+    // Next.js redirect standard throws are caught here, we need to rethrow them
+    if (error && typeof error === 'object' && 'digest' in error && (error as any).digest?.startsWith('NEXT_REDIRECT')) {
+      throw error
+    }
+    console.error('🏠 [Home] Critical error in home page redirect:', error)
   }
 
   // Fallback final ultra-seguro usando el ID como slug (comportamiento original)
+  console.log('🏠 [Home] Last resort fallback redirect to:', eventConfig.event.id)
   redirect(`/${eventConfig.event.id}`)
 }

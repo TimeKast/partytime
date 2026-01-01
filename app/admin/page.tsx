@@ -832,6 +832,15 @@ export default function AdminDashboard() {
           <span className={styles.headerSubtitle}>{eventConfig.event.title}</span>
         </div>
         <div className={styles.headerActions}>
+          {currentUser?.role === 'super_admin' && (
+            <button
+              onClick={() => setActiveTab('usuarios')}
+              className={`${styles.userManagementBtn} ${activeTab === 'usuarios' ? styles.tabActive : ''}`}
+              title="Gestión de Usuarios"
+            >
+              👥 Usuarios
+            </button>
+          )}
           <button onClick={handleLogout} className={styles.logoutBtn}>
             Cerrar Sesión
           </button>
@@ -910,7 +919,6 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className={styles.tabs}>
         <button
           className={`${styles.tab} ${activeTab === 'dashboard' ? styles.tabActive : ''}`}
@@ -924,14 +932,6 @@ export default function AdminDashboard() {
         >
           ⚙️ Config
         </button>
-        {currentUser?.role === 'super_admin' && (
-          <button
-            className={`${styles.tab} ${activeTab === 'usuarios' ? styles.tabActive : ''}`}
-            onClick={() => setActiveTab('usuarios')}
-          >
-            👥 Usuarios
-          </button>
-        )}
       </div>
 
       {/* Contenido del Dashboard */}
