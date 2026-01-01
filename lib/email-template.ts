@@ -139,7 +139,7 @@ export function generateConfirmationEmail({
                 <!-- Card principal del contenido -->
                 <tr>
                   <td>
-                    <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: rgba(255,255,255,0.97); border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+                    <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: rgba(255,255,255,0.85); border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
                       
                       <!-- Barra superior decorativa sutil -->
                       <tr>
@@ -162,7 +162,7 @@ export function generateConfirmationEmail({
                           </p>
 
                           <!-- Detalles del evento en card interna -->
-                          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%); border-radius: 12px; margin-bottom: 32px;">
+                          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, rgba(250,250,250,0.8) 0%, rgba(245,245,245,0.8) 100%); border-radius: 12px; margin-bottom: 32px;">
                             <tr>
                               <td style="padding: 28px;">
                                 
@@ -272,7 +272,7 @@ export function generateConfirmationEmail({
                           <!-- Detalles adicionales -->
                           <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 32px;">
                             <tr>
-                              <td style="background: linear-gradient(135deg, #f8f9fa 0%, #f0f1f2 100%); border-left: 3px solid #2d2d2d; border-radius: 0 8px 8px 0; padding: 20px 24px;">
+                              <td style="background: linear-gradient(135deg, rgba(248,249,250,0.75) 0%, rgba(240,241,242,0.75) 100%); border-left: 3px solid #2d2d2d; border-radius: 0 8px 8px 0; padding: 20px 24px;">
                                 <p style="margin: 0; font-size: 14px; color: #4a4a4a; line-height: 1.8;">
                                   ${event.details.split('\n').join('<br>')}
                                 </p>
