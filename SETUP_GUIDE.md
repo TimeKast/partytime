@@ -1,353 +1,307 @@
-# 🎯 PASOS FINALES DE CONFIGURACIÓN
+# 🎯 Guía de Configuración Completa
 
-## ✅ Lo que ya está listo:
+## ✅ Requisitos Previos
 
-1. ✅ Proyecto Next.js creado y configurado
-2. ✅ Dependencias instaladas
-3. ✅ Componentes y páginas implementadas
-4. ✅ API Routes configuradas
-5. ✅ Integración con Google Cloud Firestore
-6. ✅ Diseño mobile-first con animaciones
+- Node.js 18+ instalado
+- Cuenta en [Vercel](https://vercel.com)
+- Cuenta en [Neon](https://neon.tech) (base de datos)
+- Cuenta en [Resend](https://resend.com) (emails)
 
 ---
 
-## 📸 PASO 1: Agregar Imágenes (IMPORTANTE)
+## 📋 Paso 1: Clonar y Configurar Proyecto
 
-Necesitas copiar manualmente las imágenes del flyer a la carpeta `public/`:
+```bash
+# Clonar repositorio
+git clone https://github.com/tu-usuario/rooftop-party.git
+cd rooftop-party
 
-### Opción A: Usar la imagen del fondo del flyer
-
-1. Guarda la imagen de fondo (la segunda imagen que compartiste) como:
-   - `public/background.jpg`
-
-### Opción B: Usar ambas imágenes
-
-1. Primera imagen (con texto) → `public/flyer.jpg`
-2. Segunda imagen (solo fondo) → `public/background.jpg`
-
-**💡 Recomendación:** Usa la segunda imagen (sin texto) como `background.jpg` para que el texto de la web se vea mejor.
-
-### Cómo copiar:
-
-```
-# Desde tu ubicación de descarga o donde tengas las imágenes
-# Copiar a: C:\Users\josea\OneDrive\Documents\TimeKast\Rooftop Party\public\background.jpg
+# Instalar dependencias
+npm install
 ```
 
-O simplemente arrastra la imagen a la carpeta `public/` en VS Code.
+---
+
+## 🗄️ Paso 2: Configurar Base de Datos (Neon PostgreSQL)
+
+### 2.1 Crear Proyecto en Neon
+
+1. Ve a [Neon Console](https://console.neon.tech)
+2. Crea un nuevo proyecto
+3. Nombre sugerido: `rooftop-party`
+4. Copia la **Connection String**
+
+### 2.2 Configurar Variables de Entorno
+
+Crea archivo `.env.local`:
+
+```env
+DATABASE_URL=postgresql://user:pass@ep-xxx.us-east-1.aws.neon.tech/dbname?sslmode=require
+```
+
+### 2.3 Ejecutar Migraciones
+
+```bash
+npx drizzle-kit push
+```
+
+Esto creará las tablas: `events`, `rsvps`, `users`
 
 ---
 
-## 🔐 PASO 2: Configurar Google Cloud Firestore
+## 📧 Paso 3: Configurar Emails (Resend)
 
-### Configuración Paso a Paso:
+### 3.1 Crear Cuenta en Resend
 
-1. **Crear proyecto en Google Cloud:**
-   - Ve a: https://console.cloud.google.com
-   - Crea un nuevo proyecto o selecciona uno existente
-   - Nombre sugerido: "rooftop-party-app"
+1. Ve a [Resend](https://resend.com)
+2. Crea una cuenta
+3. En API Keys, crea una nueva key
 
-2. **Habilitar Cloud Firestore:**
-   - Busca "Firestore" en el menú de búsqueda
-   - Click en "Create Database"
-   - Elige modo **Native**
-   - Selecciona tu región (ejemplo: `us-central1`)
-   - Empieza en modo **Production** (con reglas de seguridad)
+### 3.2 Verificar Dominio (Recomendado)
 
-3. **Crear Service Account:**
-   - Ve a **IAM & Admin** > **Service Accounts**
-   - Click en **Create Service Account**
-   - Nombre: `rooftop-party-app`
-   - Descripción: "Service account para app de invitaciones"
-   - Click en **Create and Continue**
+1. En Resend → Domains → Add Domain
+2. Sigue las instrucciones para agregar registros DNS
+3. Una vez verificado, podrás enviar desde `@tudominio.com`
 
-4. **Asignar permisos:**
-   - En el campo "Select a role", busca: **"datastore"**
-   - Selecciona (cualquiera funciona):
-     - **"Editor de datos de Cloud Datastore"** ✅ (recomendado - español)
-     - **"Cloud Datastore User"** (inglés)
-     - **"Cloud Datastore Owner"** (más permisos)
-   - Click en **Continue**
-   - Click en **Done**
+### 3.3 Agregar Variables
 
-5. **Generar clave JSON:**
-   - En la lista de Service Accounts, encuentra la que creaste
-   - Click en los 3 puntos (⋮) > **Manage Keys**
-   - **Add Key** > **Create new key** > **JSON**
-   - Se descargará un archivo JSON (¡guárdalo en lugar seguro!)
+En `.env.local`:
 
-6. **Configurar en `.env.local`:**
-   
-   Abre el archivo JSON descargado. Verás algo como:
-   
-   ```json
-   {
-     "project_id": "party-rsvp-477219",
-     "private_key": "-----BEGIN PRIVATE KEY-----\nMIIE...\n-----END PRIVATE KEY-----\n",
-     "client_email": "rooftop-party@party-rsvp-477219.iam.gserviceaccount.com"
-   }
-   ```
-   
-   Crea `.env.local` así (⚠️ **fíjate en las comillas**):
-   
-   ```env
-   # SIN comillas (copia solo el valor):
-   GOOGLE_CLOUD_PROJECT_ID=party-rsvp-477219
-   
-   # CON comillas (copia TODO incluyendo comillas y \n):
-   GOOGLE_CLOUD_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIE...\n-----END PRIVATE KEY-----\n"
-   
-   # SIN comillas (copia solo el valor):
-   GOOGLE_CLOUD_CLIENT_EMAIL=rooftop-party@party-rsvp-477219.iam.gserviceaccount.com
-   
-   # SIN comillas:
-   FIRESTORE_COLLECTION_NAME=rsvps
-   ```
+```env
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxx
+FROM_EMAIL=invitaciones@tudominio.com
+```
 
-   **💡 Regla simple:**
-   - ✅ **SOLO `GOOGLE_CLOUD_PRIVATE_KEY` lleva comillas**
-   - ❌ **Las demás NO llevan comillas**
-   - ⚠️ La private_key debe incluir los `\n` (saltos de línea)
-
-**💰 Costo:** Firestore tiene un tier gratuito generoso. Un evento de 500 personas está dentro del uso gratuito.
+> **Nota**: Sin dominio verificado, puedes usar `onboarding@resend.dev` para pruebas.
 
 ---
 
-## 🚀 PASO 3: Ejecutar la Aplicación
+## 🔒 Paso 4: Configurar Seguridad
 
-Una vez que tengas las imágenes y la configuración:
+### 4.1 Generar Secrets
+
+En PowerShell:
+```powershell
+# Generar CANCEL_TOKEN_SECRET
+$bytes = New-Object byte[] 32
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+[Convert]::ToBase64String($bytes)
+```
+
+Repite para generar `CRON_SECRET`.
+
+### 4.2 Agregar a `.env.local`
+
+```env
+CANCEL_TOKEN_SECRET=tu-secret-generado-1
+CRON_SECRET=tu-secret-generado-2
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+---
+
+## 👤 Paso 5: Crear Usuario Admin
+
+### Opción A: Script (Recomendado)
+
+Edita `scripts/create-super-admin.ts` con tus credenciales y ejecuta:
+
+```bash
+npx ts-node scripts/create-super-admin.ts
+```
+
+### Opción B: SQL Directo
+
+En Neon Console → SQL Editor:
+
+```sql
+INSERT INTO users (id, username, password_hash, role, created_at, updated_at)
+VALUES (
+  'usr_' || gen_random_uuid(),
+  'admin',
+  'hash_de_tu_password', -- Usar bcrypt
+  'super_admin',
+  NOW(),
+  NOW()
+);
+```
+
+---
+
+## 🎉 Paso 6: Crear Primer Evento
+
+### Opción A: Desde el Panel Admin
+
+1. Inicia `npm run dev`
+2. Ve a `/admin` y logueate
+3. En el selector de eventos, haz clic en "+ Crear Evento"
+4. Completa la información
+
+### Opción B: SQL Directo
+
+```sql
+INSERT INTO events (id, slug, title, subtitle, date, time, location, details, is_active, created_at, updated_at)
+VALUES (
+  'evt_' || gen_random_uuid(),
+  'mi-fiesta',
+  'MI FIESTA',
+  'CELEBRACIÓN 2026',
+  'SÁBADO, 15 FEB',
+  '8:00 PM',
+  'Tu Ubicación',
+  '🎉 ¡No te lo pierdas!',
+  true,
+  NOW(),
+  NOW()
+);
+```
+
+---
+
+## 🚀 Paso 7: Probar Localmente
 
 ```bash
 npm run dev
 ```
 
-Abre tu navegador en: http://localhost:3000
-
-### ¿Qué deberías ver?
-
-✅ Fondo con los remolinos coloridos del flyer
-✅ Título "ROOFTOP PARTY" con efecto neón
-✅ Información del evento
-✅ Botón "CONFIRMAR ASISTENCIA"
-✅ Al hacer clic, se abre un modal elegante con formulario
+Verifica:
+- [ ] http://localhost:3000/mi-fiesta muestra la invitación
+- [ ] El formulario RSVP funciona
+- [ ] http://localhost:3000/admin permite login
+- [ ] Puedes ver/gestionar RSVPs
 
 ---
 
-## 📱 PASO 4: Probar en Mobile
+## ☁️ Paso 8: Deploy en Vercel
 
-1. En tu terminal donde corre `npm run dev`, verás la dirección local
-2. En tu celular, conectado a la misma red WiFi:
-   - Abre el navegador
-   - Ve a: `http://[tu-ip-local]:3000`
-   - Ejemplo: `http://192.168.1.5:3000`
+### 8.1 Conectar Repositorio
 
-Para encontrar tu IP local:
-```bash
-ipconfig
-# Busca "IPv4 Address" en tu adaptador de red
-```
+1. Ve a [Vercel](https://vercel.com)
+2. New Project → Import Git Repository
+3. Selecciona tu repositorio
+
+### 8.2 Configurar Variables de Entorno
+
+En Vercel → Settings → Environment Variables, agrega:
+
+| Variable | Valor |
+|----------|-------|
+| `DATABASE_URL` | Connection string de Neon |
+| `RESEND_API_KEY` | API key de Resend |
+| `FROM_EMAIL` | Tu email verificado |
+| `CANCEL_TOKEN_SECRET` | Secret generado |
+| `CRON_SECRET` | Secret para cron |
+| `NEXT_PUBLIC_APP_URL` | Tu URL de Vercel |
+
+### 8.3 Deploy
+
+Vercel desplegará automáticamente al detectar el repositorio.
 
 ---
 
-## 🎨 PASO 5: Personalizar para Futuros Eventos
+## ⏰ Paso 9: Verificar Cron Jobs
 
-### Cambiar información del evento:
-
-Edita `event-config.json`:
+El archivo `vercel.json` ya configura el cron para recordatorios:
 
 ```json
 {
-  "event": {
-    "id": "mi-nuevo-evento-diciembre-2024",  // ⬅️ Cambia esto
-    "title": "FIESTA DE FIN DE AÑO",          // ⬅️ Y esto
-    "subtitle": "CELEBRACIÓN 2024",
-    "date": "SÁBADO, 31 DIC",
-    "time": "DESDE LAS 10:00 PM",
-    "location": "TU NUEVA UBICACIÓN",
-    "details": "🎊 ¡Trae tu mejor outfit!",
-    "backgroundImage": "/nuevo-fondo.jpg"     // ⬅️ Nueva imagen
-  }
+  "crons": [
+    {
+      "path": "/api/cron/send-reminders",
+      "schedule": "0 */12 * * *"
+    }
+  ]
 }
 ```
 
-### Cambiar colores:
+Verifica en Vercel → Settings → Cron Jobs que aparece listado.
 
-```json
-{
-  "theme": {
-    "primaryColor": "#FF1493",    // Rosa neón
-    "secondaryColor": "#00FFFF",  // Cyan
-    "accentColor": "#FFD700"      // Dorado
-  }
-}
+---
+
+## 🎨 Paso 10: Personalizar Evento
+
+### Desde el Panel Admin
+
+1. Ve a `/admin`
+2. Selecciona tu evento
+3. Haz clic en "⚙️ Config"
+4. Edita:
+   - Información del evento
+   - Imagen de fondo (URL)
+   - Configuración de emails
+
+### Configurar Emails Automáticos
+
+1. **Confirmación automática**: Toggle ON para enviar email al RSVP
+2. **Recordatorio programado**: Toggle ON y selecciona fecha/hora
+
+---
+
+## ✅ Checklist Final
+
+### Configuración Básica
+- [ ] Base de datos Neon creada
+- [ ] Migraciones ejecutadas
+- [ ] Variables de entorno configuradas
+- [ ] Usuario admin creado
+- [ ] Al menos un evento creado
+
+### Emails
+- [ ] Resend API key configurada
+- [ ] Dominio verificado (o usando test email)
+- [ ] Email de prueba enviado correctamente
+
+### Deploy
+- [ ] Proyecto desplegado en Vercel
+- [ ] Variables de entorno en Vercel
+- [ ] URL pública funcionando
+- [ ] Cron jobs configurados
+
+### Funcionalidad
+- [ ] RSVP funciona en producción
+- [ ] Panel admin accesible
+- [ ] Emails se envían correctamente
+- [ ] Cancelación de RSVP funciona
+
+---
+
+## 🐛 Troubleshooting
+
+### Error de conexión a DB
+```
+Verifica DATABASE_URL en .env.local
+Asegúrate que la IP esté permitida en Neon
+```
+
+### Emails no llegan
+```
+Verifica RESEND_API_KEY
+Revisa que FROM_EMAIL esté verificado
+Chequea la carpeta de spam
+```
+
+### 401 en /admin
+```
+Verifica que creaste usuario admin
+Verifica credenciales correctas
+```
+
+### Cron no ejecuta
+```
+Solo funciona en Vercel (no local)
+Verifica CRON_SECRET configurado
+Revisa logs en Vercel
 ```
 
 ---
 
-## 🌐 PASO 6: Deploy a Vercel (Hacer tu sitio público)
+## 📞 Recursos
 
-### Método 1: Deploy desde GitHub (Recomendado)
-
-1. **Sube tu código a GitHub:**
-   ```bash
-   git init
-   git add .
-   git commit -m "Rooftop Party Invitation"
-   git branch -M main
-   git remote add origin https://github.com/tu-usuario/rooftop-party.git
-   git push -u origin main
-   ```
-
-2. **Conecta con Vercel:**
-   - Ve a: https://vercel.com
-   - Click "New Project"
-   - Import desde GitHub
-   - Selecciona tu repositorio
-
-3. **Configurar Variables de Entorno en Vercel:**
-   - En Vercel, ve a tu proyecto → Settings → Environment Variables
-   - Agrega:
-     - `COSMOS_ENDPOINT`
-     - `COSMOS_KEY`
-     - `COSMOS_DATABASE_NAME`
-     - `COSMOS_CONTAINER_NAME`
-
-4. **Deploy:** ¡Automático! Vercel lo desplegará
-
-### Método 2: Deploy Directo desde CLI
-
-```bash
-# Instalar Vercel CLI
-npm i -g vercel
-
-# Login
-vercel login
-
-# Deploy
-vercel
-
-# Configurar variables de entorno cuando te lo pida
-
-# Deploy a producción
-vercel --prod
-```
-
-Tu URL será algo como: `https://rooftop-party-xyz.vercel.app`
+- [Neon Docs](https://neon.tech/docs)
+- [Resend Docs](https://resend.com/docs)
+- [Vercel Docs](https://vercel.com/docs)
+- [Drizzle ORM](https://orm.drizzle.team)
 
 ---
 
-## 📊 FUNCIONALIDADES EXTRAS DISPONIBLES
-
-### Ver todos los RSVPs:
-
-GET `https://tu-url.vercel.app/api/rsvp`
-
-### Ver estadísticas:
-
-GET `https://tu-url.vercel.app/api/stats`
-
-Respuesta:
-```json
-{
-  "success": true,
-  "eventId": "rooftop-party-andras-oct2024",
-  "stats": {
-    "totalConfirmed": 45,
-    "confirmed": 45,
-    "cancelled": 0
-  }
-}
-```
-
----
-
-## 🔮 PRÓXIMAS MEJORAS SUGERIDAS
-
-1. **Emails Automáticos:**
-   - Confirmación al registrarse
-   - Recordatorio 1 día antes
-   - → Usar SendGrid (ver README.md)
-
-2. **Panel de Administración:**
-   - Ver lista de confirmados
-   - Exportar a Excel
-   - Buscar por nombre/email
-
-3. **WhatsApp Notifications:**
-   - Enviar confirmación por WhatsApp
-   - Recordatorios automáticos
-
-4. **QR Codes:**
-   - Generar QR único por invitado
-   - App para check-in en la entrada
-
-5. **Compartir en Redes:**
-   - Botones para compartir en Instagram/Facebook
-   - Open Graph tags para preview elegante
-
----
-
-## ❓ TROUBLESHOOTING
-
-### "Cannot connect to Cosmos DB"
-- Verifica que el endpoint y key sean correctos
-- Si usas emulador, asegúrate que esté corriendo
-- Revisa que `.env.local` exista y esté bien configurado
-
-### "Las imágenes no se ven"
-- Verifica que estén en `public/background.jpg`
-- Revisa el nombre del archivo (case-sensitive)
-- Recarga la página (Ctrl + F5)
-
-### "Error al enviar el formulario"
-- Abre la consola del navegador (F12)
-- Revisa el tab "Network" para ver el error exacto
-- Verifica la conexión a Cosmos DB
-
-### "La página se ve mal en mobile"
-- Limpia la cache del navegador
-- Asegúrate de tener la última versión del código
-- Verifica el viewport en DevTools (F12)
-
----
-
-## 📞 SOPORTE
-
-Si tienes algún problema:
-
-1. Revisa la consola del navegador (F12 → Console)
-2. Revisa los logs del terminal donde corre `npm run dev`
-3. Consulta el README.md completo
-4. Revisa la documentación de Azure Cosmos DB: https://learn.microsoft.com/azure/cosmos-db/
-
----
-
-## ✅ CHECKLIST FINAL
-
-Antes de compartir tu invitación:
-
-- [ ] ✅ Imágenes agregadas a `public/`
-- [ ] ✅ Azure Cosmos DB configurado
-- [ ] ✅ Información del evento actualizada en `event-config.json`
-- [ ] ✅ Probado en navegador de escritorio
-- [ ] ✅ Probado en navegador móvil
-- [ ] ✅ Formulario funciona y guarda datos
-- [ ] ✅ Desplegado en Vercel
-- [ ] ✅ Variables de entorno configuradas en Vercel
-- [ ] ✅ URL personalizada (opcional)
-- [ ] ✅ Open Graph tags para compartir en redes (opcional)
-
----
-
-## 🎉 ¡LISTO!
-
-Una vez completados estos pasos, tendrás:
-
-✨ Una invitación web profesional y elegante
-📱 Optimizada para móviles
-💾 Base de datos en la nube
-📊 Estadísticas en tiempo real
-🔄 Template reutilizable para futuros eventos
-🚀 Desplegada y accesible desde cualquier lugar
-
-**¡Que disfrutes tu evento! 🎊🎉**
+**¡Tu sistema de invitaciones está listo! 🎉**

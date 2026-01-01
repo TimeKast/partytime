@@ -13,11 +13,6 @@ Abre: http://localhost:3000
 npm run build
 ```
 
-### Iniciar en modo producción (después del build)
-```bash
-npm start
-```
-
 ### Linting
 ```bash
 npm run lint
@@ -25,154 +20,127 @@ npm run lint
 
 ---
 
-## 📦 Deploy
+## 🗄️ Base de Datos (Drizzle + Neon)
 
-### Vercel CLI - Deploy
+### Ejecutar migraciones
 ```bash
-# Instalar CLI (solo una vez)
+npx drizzle-kit push
+```
+
+### Generar migraciones
+```bash
+npx drizzle-kit generate
+```
+
+### Abrir Drizzle Studio
+```bash
+npx drizzle-kit studio
+```
+
+### Ver cambios pendientes
+```bash
+npx drizzle-kit diff
+```
+
+---
+
+## 📦 Deploy (Vercel)
+
+### Instalar CLI
+```bash
 npm i -g vercel
+```
 
-# Login
+### Login
+```bash
 vercel login
+```
 
-# Deploy a preview
+### Deploy preview
+```bash
 vercel
+```
 
-# Deploy a producción
+### Deploy producción
+```bash
 vercel --prod
 ```
 
-### Vercel - Variables de entorno
+### Ver logs
 ```bash
-# Agregar variable
-vercel env add COSMOS_ENDPOINT
+vercel logs
+vercel logs --follow  # En tiempo real
+```
 
-# Listar variables
+### Variables de entorno
+```bash
+vercel env add NOMBRE_VARIABLE
 vercel env ls
-
-# Remover variable
-vercel env rm COSMOS_ENDPOINT
+vercel env rm NOMBRE_VARIABLE
 ```
 
 ---
 
-## 🗄️ Azure Cosmos DB
+## 📊 API - Pruebas con cURL
 
-### Usando Azure CLI
-
-```bash
-# Login
-az login
-
-# Crear resource group
-az group create --name rooftop-party-rg --location eastus
-
-# Crear Cosmos DB account (Serverless)
-az cosmosdb create \
-  --name rooftop-party-db \
-  --resource-group rooftop-party-rg \
-  --capabilities EnableServerless \
-  --default-consistency-level Session
-
-# Obtener connection string
-az cosmosdb keys list \
-  --name rooftop-party-db \
-  --resource-group rooftop-party-rg \
-  --type connection-strings
-
-# Crear base de datos
-az cosmosdb sql database create \
-  --account-name rooftop-party-db \
-  --resource-group rooftop-party-rg \
-  --name rooftop-party-db
-
-# Crear container
-az cosmosdb sql container create \
-  --account-name rooftop-party-db \
-  --database-name rooftop-party-db \
-  --name rsvps \
-  --partition-key-path "/email" \
-  --resource-group rooftop-party-rg
-```
-
----
-
-## 📊 Consultas útiles a la API
-
-### Obtener todos los RSVPs
-```bash
-# Local
-curl http://localhost:3000/api/rsvp
-
-# Producción
-curl https://tu-app.vercel.app/api/rsvp
-```
-
-### Obtener estadísticas
-```bash
-curl http://localhost:3000/api/stats
-```
-
-### Crear un RSVP de prueba
+### Crear RSVP
 ```bash
 curl -X POST http://localhost:3000/api/rsvp \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Juan Test",
     "email": "juan@test.com",
-    "phone": "+52 555 123 4567"
+    "phone": "+52 555 123 4567",
+    "eventId": "mi-evento"
   }'
 ```
 
+### Obtener RSVPs (necesita auth)
+```bash
+curl http://localhost:3000/api/rsvp?eventId=mi-evento \
+  -H "Cookie: session=TU_SESSION_COOKIE"
+```
+
+### Probar cron de recordatorios
+```bash
+curl http://localhost:3000/api/cron/send-reminders \
+  -H "Authorization: Bearer TU_CRON_SECRET"
+```
+
+### Obtener info de evento
+```bash
+curl http://localhost:3000/api/events/mi-evento
+```
+
 ---
 
-## 🔍 Debugging
+## 👤 Scripts de Admin
 
-### Ver logs en tiempo real (Vercel)
+### Crear super admin
 ```bash
-vercel logs
+npx ts-node scripts/create-super-admin.ts
 ```
 
-### Ver logs de una función específica
+### Agregar datos demo
 ```bash
-vercel logs /api/rsvp
-```
-
-### Ver logs en producción
-```bash
-vercel logs --prod
+npx ts-node scripts/add-demo-data.ts
 ```
 
 ---
 
-## 🎨 Personalización Rápida
+## 🔐 Generar Secrets
 
-### Cambiar colores del tema
-Edita `app/globals.css`:
-```css
-:root {
-  --primary-color: #FF1493;    /* Rosa neón */
-  --secondary-color: #00FFFF;  /* Cyan */
-  --accent-color: #FFD700;     /* Dorado */
-  --bg-color: #1a0033;         /* Morado oscuro */
-}
+### PowerShell
+```powershell
+$bytes = New-Object byte[] 32
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+[Convert]::ToBase64String($bytes)
 ```
 
-### Actualizar información del evento
-Edita `event-config.json`:
-```json
-{
-  "event": {
-    "id": "nuevo-evento-2024",
-    "title": "MI NUEVO EVENTO",
-    "date": "VIERNES, 15 NOV",
-    ...
-  }
-}
+### Bash/Unix
+```bash
+openssl rand -base64 32
 ```
-
-### Cambiar imagen de fondo
-Reemplaza: `public/background.jpg`
 
 ---
 
@@ -180,6 +148,7 @@ Reemplaza: `public/background.jpg`
 
 ### Limpiar node_modules y reinstalar
 ```bash
+# PowerShell
 Remove-Item -Recurse -Force node_modules
 Remove-Item package-lock.json
 npm install
@@ -187,60 +156,26 @@ npm install
 
 ### Limpiar cache de Next.js
 ```bash
+# PowerShell
 Remove-Item -Recurse -Force .next
 npm run dev
 ```
 
 ---
 
-## 📱 Testing en dispositivos
+## 📱 Testing en Mobile
 
 ### Obtener IP local
 ```bash
-ipconfig
-# Busca "IPv4 Address" en tu adaptador de red WiFi
-```
-
-### Probar en mobile (misma red WiFi)
-Abre en tu celular: `http://TU-IP:3000`
-
-Ejemplo: `http://192.168.1.100:3000`
-
----
-
-## 🔒 Seguridad
-
-### Generar secret para Cron Jobs
-```bash
 # PowerShell
-$bytes = New-Object byte[] 32
-[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
-[Convert]::ToBase64String($bytes)
+ipconfig
+# Busca "IPv4 Address"
 ```
 
-### Agregar a .env.local
-```env
-CRON_SECRET=el-string-generado-arriba
+### Probar en celular
+Abre en tu celular (misma red WiFi):
 ```
-
----
-
-## 📦 Backup de RSVPs
-
-### Exportar desde Cosmos DB
-```bash
-# Usando Azure CLI
-az cosmosdb sql container query \
-  --account-name rooftop-party-db \
-  --database-name rooftop-party-db \
-  --container-name rsvps \
-  --query-text "SELECT * FROM c" \
-  --resource-group rooftop-party-rg > rsvps-backup.json
-```
-
-### O desde la API
-```bash
-curl https://tu-app.vercel.app/api/rsvp > rsvps-backup.json
+http://TU-IP:3000
 ```
 
 ---
@@ -251,48 +186,37 @@ curl https://tu-app.vercel.app/api/rsvp > rsvps-backup.json
 ```bash
 git init
 git add .
-git commit -m "Initial commit - Rooftop Party Invitation"
+git commit -m "Initial commit"
 git branch -M main
-git remote add origin https://github.com/tu-usuario/rooftop-party.git
+git remote add origin https://github.com/tu-usuario/repo.git
 git push -u origin main
 ```
 
-### Crear un nuevo evento (branch)
+### Crear branch para evento
 ```bash
-git checkout -b evento-diciembre-2024
-# Hacer cambios en event-config.json y public/
+git checkout -b evento-febrero-2026
 git add .
-git commit -m "Configuración evento Diciembre 2024"
-git push origin evento-diciembre-2024
+git commit -m "Configuración evento Febrero"
+git push -u origin evento-febrero-2026
+```
+
+### Trigger redeploy vacío
+```bash
+git commit --allow-empty -m "Trigger redeploy"
+git push
 ```
 
 ---
 
-## 📧 SendGrid Setup (Opcional)
+## 📧 Testing de Emails
 
-### Instalar dependencia
-```bash
-npm install @sendgrid/mail
-```
-
-### Configurar
-```env
-# .env.local
-SENDGRID_API_KEY=SG.xxxxxxxxxxxxx
-FROM_EMAIL=noreply@tudominio.com
-```
-
-### Test email
+### Enviar email de prueba (desde código)
 ```typescript
-// test-email.ts
-import sgMail from '@sendgrid/mail'
+import { sendEmail } from '@/lib/resend'
 
-sgMail.setApiKey(process.env.SENDGRID_API_KEY!)
-
-await sgMail.send({
+await sendEmail({
   to: 'test@example.com',
-  from: process.env.FROM_EMAIL!,
-  subject: 'Test Email',
+  subject: 'Test',
   html: '<h1>¡Funciona!</h1>'
 })
 ```
@@ -301,47 +225,30 @@ await sgMail.send({
 
 ## 🐛 Troubleshooting
 
-### Error: Cannot find module '@azure/cosmos'
+### Puerto en uso
 ```bash
-npm install
-```
-
-### Error: Port 3000 already in use
-```bash
-# Encontrar proceso usando puerto 3000
+# PowerShell - Ver proceso usando puerto
 Get-Process -Id (Get-NetTCPConnection -LocalPort 3000).OwningProcess
 
-# O usar otro puerto
+# Usar otro puerto
 $env:PORT=3001; npm run dev
 ```
 
-### Error: COSMOS_ENDPOINT not defined
+### Error de TypeScript
 ```bash
-# Verificar que .env.local existe
+# Verificar tipos
+npx tsc --noEmit
+```
+
+### Ver variables de entorno
+```bash
+# PowerShell
 Get-Content .env.local
-
-# Si no existe, crear desde ejemplo
-Copy-Item .env.example .env.local
-# Luego editar con tus credenciales
 ```
 
 ---
 
-## 📊 Monitoreo
-
-### Ver performance en Vercel
-```bash
-vercel inspect tu-deployment-url
-```
-
-### Analytics (si está configurado)
-```bash
-vercel analytics
-```
-
----
-
-## 🎉 Quick Commands Favoritos
+## 💡 Tips Rápidos
 
 ```bash
 # Desarrollo rápido
@@ -350,39 +257,16 @@ npm run dev
 # Deploy rápido
 vercel --prod
 
-# Ver todo (logs + status)
+# Ver logs en tiempo real
 vercel logs --follow
 
-# Backup rápido
-curl https://tu-app.vercel.app/api/rsvp > backup-$(Get-Date -Format "yyyy-MM-dd").json
+# Build local + verificar
+npm run build && npm start
 ```
 
 ---
 
-## 💡 Tips
-
-1. **Siempre hacer backup antes del evento:**
-   ```bash
-   curl https://tu-app.vercel.app/api/rsvp > backup-$(Get-Date -Format "yyyy-MM-dd").json
-   ```
-
-2. **Probar en mobile antes de compartir:**
-   ```bash
-   # Obtener IP
-   ipconfig
-   # Probar en celular: http://TU-IP:3000
-   ```
-
-3. **Usar branches para diferentes eventos:**
-   ```bash
-   git checkout -b evento-navidad-2024
-   ```
-
-4. **Monitorear logs durante el evento:**
-   ```bash
-   vercel logs --follow
-   ```
-
----
-
-¿Necesitas más comandos específicos? ¡Pregúntame! 🚀
+**¿Necesitas más comandos?** Revisa la documentación de cada herramienta:
+- [Next.js](https://nextjs.org/docs)
+- [Drizzle](https://orm.drizzle.team)
+- [Vercel CLI](https://vercel.com/docs/cli)

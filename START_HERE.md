@@ -1,50 +1,77 @@
-# ⚡ INICIO RÁPIDO - Rooftop Party Invitation
+# ⚡ INICIO RÁPIDO - Rooftop Party
 
-## 🚀 Para probar AHORA mismo (sin configurar nada):
+## 🚀 Para probar en 5 minutos
 
-1. **Agrega las imágenes:**
-   - Copia la imagen de fondo del flyer a: `public/background.jpg`
+### 1. Instalar dependencias
+```bash
+npm install
+```
 
-2. **Ejecuta:**
-   ```bash
-   npm run dev
-   ```
+### 2. Configurar base de datos
 
-3. **Abre:** http://localhost:3000
+Crea `.env.local`:
+```env
+DATABASE_URL=postgresql://tu-connection-string-de-neon
+```
 
-¡Eso es todo! La app funcionará en **modo demo** (los datos se guardan en memoria temporal).
+> 💡 Crea proyecto gratis en [neon.tech](https://neon.tech)
 
----
+### 3. Ejecutar migraciones
+```bash
+npx drizzle-kit push
+```
 
-## 💾 Para usar en PRODUCCIÓN:
+### 4. Iniciar
+```bash
+npm run dev
+```
 
-Configura Google Cloud Firestore siguiendo la guía: **SETUP_GUIDE.md**
-
----
-
-## 📱 Ver en tu celular:
-
-1. Encuentra tu IP: `ipconfig` en PowerShell
-2. En tu celular: `http://TU-IP:3000`
-   - Ejemplo: `http://192.168.1.5:3000`
-
----
-
-## 🎨 Cambiar información del evento:
-
-Edita: `event-config.json`
+### 5. Abrir
+- **Evento:** http://localhost:3000/mi-evento
+- **Admin:** http://localhost:3000/admin
 
 ---
 
-## 📖 Documentación Completa:
+## 📧 Para emails funcionales
 
-- **SETUP_GUIDE.md** - Guía paso a paso completa
-- **README.md** - Documentación técnica detallada
+Agrega a `.env.local`:
+```env
+RESEND_API_KEY=re_xxx
+FROM_EMAIL=test@tudominio.com
+```
+
+> 💡 Crea cuenta gratis en [resend.com](https://resend.com)
 
 ---
 
-## ❓ Ayuda:
+## 👤 Crear usuario admin
 
-¿No ves las imágenes? → Verifica que `public/background.jpg` existe
-¿Errores en consola? → Es normal sin Firestore, funcionará en modo demo
-¿Quieres producción? → Lee SETUP_GUIDE.md
+```bash
+npx ts-node scripts/create-super-admin.ts
+```
+
+---
+
+## 📖 Documentación completa
+
+- **SETUP_GUIDE.md** - Configuración paso a paso
+- **ADMIN_GUIDE.md** - Guía del panel admin
+- **README.md** - Documentación técnica
+
+---
+
+## ❓ Problemas comunes
+
+**No conecta a la DB:**
+→ Verifica DATABASE_URL en .env.local
+
+**Emails no llegan:**
+→ Verifica RESEND_API_KEY
+→ Revisa spam
+
+**401 en /admin:**
+→ Crea usuario con el script
+
+---
+
+¡Listo! 🎉

@@ -1,122 +1,194 @@
-# 📧 Sistema de Emails y Admin Dashboard
+# 📧 Guía del Panel de Administración
 
-## ✨ Nuevas funcionalidades
+## ✨ Funcionalidades del Panel Admin
 
-### 1. Admin Dashboard (`/admin`)
-- **Login protegido** con usuario y contraseña
-- **Tabla completa** de RSVPs con toda la información
-- **Filtros avanzados**: por estado, +1, búsqueda por texto
-- **Estadísticas en tiempo real**: total, confirmados, cancelados, con +1, emails enviados
-- **Envío de emails**: individual o masivo
-- **Tracking**: ver quién ya recibió email de confirmación
+### 1. Dashboard Principal (`/admin`)
+
+Al iniciar sesión como administrador, verás:
+
+- **Estadísticas en tiempo real**:
+  - Total de RSVPs
+  - Confirmados / Cancelados
+  - RSVPs con +1
+  - Emails enviados
+
+- **Selector de evento** (si tienes acceso a múltiples eventos)
+
+- **Tabla de RSVPs** con toda la información:
+  - Nombre, Email, Teléfono
+  - Estado (+1, confirmado, cancelado)
+  - Historial de emails
+  - Acciones (editar, enviar email)
+
+- **Filtros y búsqueda**:
+  - Por estado (confirmados, cancelados, todos)
+  - Por +1 (con/sin acompañante)
+  - Búsqueda por texto
 
 ### 2. Sistema de Emails
-- **Emails HTML profesionales** con diseño del evento
-- **Información personalizada**: nombre, +1, detalles del evento
-- **Botón de cancelación** seguro con token único
-- **Resend integration**: 3000 emails gratis/mes
 
-### 3. Cancelación pública (`/cancel/[rsvpId]?token=xxx`)
-- Página para que usuarios cancelen desde el email
-- **Token seguro**: validación en servidor
-- **UX friendly**: confirmación y mensajes claros
+#### Envío Individual
+1. En la tabla de RSVPs, haz clic en "📧 Enviar" junto al registro
+2. El sistema envía email y registra en `emailHistory`
+
+#### Envío Masivo
+1. Aplica filtros para seleccionar destinatarios
+2. Haz clic en "📧 Enviar a Todos (X)"
+3. Confirma el envío
+
+#### Tipos de Email Disponibles:
+- **Confirmación**: Enviado al registrarse (si está habilitado)
+- **Recordatorio**: Programable o manual
+- **Re-invitación**: Para quienes cancelaron
+
+### 3. Configuración del Evento
+
+Accede haciendo clic en **"⚙️ Config"** en el header.
+
+#### Información del Evento
+- Título y subtítulo
+- Fecha y hora
+- Ubicación y detalles
+- Imagen de fondo (URL)
+
+#### Configuración de Emails ⭐ NUEVO
+
+**Email de Confirmación Automática:**
+- Toggle para activar/desactivar
+- Cuando está activo: se envía email automáticamente al hacer RSVP
+- Cuando está inactivo: los RSVPs se guardan sin enviar email
+
+**Recordatorio Programado:**
+- Toggle para activar/desactivar
+- Selector de fecha y hora
+- El sistema envía automáticamente cuando llega la hora programada
+- Solo se envía una vez (campo `reminderSentAt` controla esto)
+- Destinatarios: solo RSVPs confirmados del evento
+
+### 4. Gestión de Usuarios
+
+Solo visible para **Super Admins**:
+
+- Ver lista de usuarios del sistema
+- Roles disponibles:
+  - **super_admin**: Acceso total a todo
+  - **manager**: Gestiona eventos asignados
+  - **viewer**: Solo lectura
 
 ---
 
-## 🔧 Configuración en Vercel
+## 🔧 Configuración Inicial
 
-### Paso 1: Configurar Resend
+### Paso 1: Variables de Entorno en Vercel
 
-1. Crea una cuenta en [Resend](https://resend.com)
-2. Verifica tu dominio (o usa el dominio de prueba `onboarding@resend.dev`)
-3. Copia tu API Key
-
-### Paso 2: Variables de entorno en Vercel
-
-Ve a tu proyecto en Vercel → Settings → Environment Variables y agrega:
+Ve a tu proyecto en Vercel → Settings → Environment Variables:
 
 ```bash
-# Admin Dashboard
-ADMIN_USERNAME=tu_usuario_admin
-ADMIN_PASSWORD=tu_password_seguro_123
+# Base de datos
+DATABASE_URL=postgresql://...
 
-# Resend Email
+# Emails (Resend)
 RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxx
 FROM_EMAIL=noreply@tudominio.com
 
-# Security
-CANCEL_TOKEN_SECRET=un-string-aleatorio-muy-largo-y-seguro-123456
+# Seguridad
+CANCEL_TOKEN_SECRET=un-string-aleatorio-muy-largo-y-seguro
+CRON_SECRET=otro-string-aleatorio-para-cron
 
-# Public URL
+# URL Pública
 NEXT_PUBLIC_APP_URL=https://tu-dominio.vercel.app
 ```
 
-### Paso 3: Redeploy
-
-Después de agregar las variables, haz un redeploy desde Vercel Dashboard o push un commit vacío:
+### Paso 2: Crear Super Admin
 
 ```bash
-git commit --allow-empty -m "Trigger redeploy with new env vars"
+npx ts-node scripts/create-super-admin.ts
+```
+
+O crear directamente en la base de datos con el schema correcto.
+
+### Paso 3: Redeploy
+
+```bash
+git commit --allow-empty -m "Trigger redeploy"
 git push
 ```
 
 ---
 
-## 📖 Cómo usar
+## 📖 Cómo Usar
 
-### Acceder al Admin Dashboard
+### Acceder al Panel
 
 1. Ve a: `https://tu-dominio.vercel.app/admin`
-2. Ingresa usuario y contraseña configurados en Vercel
-3. Verás la tabla completa de RSVPs
+2. Ingresa usuario y contraseña
+3. Selecciona el evento a gestionar
 
-### Enviar emails de confirmación
+### Configurar Emails Automáticos
+
+1. Ve a **Config** → sección "Configuración de Emails"
+2. **Confirmación automática**: activa el toggle
+3. **Recordatorio**: activa el toggle y selecciona fecha/hora
+4. Haz clic en **"Guardar Configuración"**
+
+### Enviar Emails Manualmente
 
 **Individual:**
-1. En la tabla, click en "📧 Enviar" junto al RSVP
-2. El sistema enviará el email y registrará el envío
+1. Encuentra el RSVP en la tabla
+2. Haz clic en "📧 Enviar"
 
 **Masivo:**
-1. Usa los filtros para seleccionar a quién enviar
-2. Click en "📧 Enviar a Todos (X)"
-3. Confirma el envío masivo
+1. Usa filtros para seleccionar grupo
+2. Haz clic en "📧 Enviar a Todos"
+3. Confirma la acción
 
-### Cancelar asistencia (para usuarios)
+### Exportar Lista de Invitados
 
-Los usuarios reciben un email con:
-- Detalles del evento
-- Su información (+1 si confirmaron)
-- **Botón "Cancelar mi asistencia"**
-
-Al hacer click:
-1. Van a `/cancel/[id]?token=xxx`
-2. Confirman la cancelación
-3. Su status cambia a "cancelled" en Firestore
+1. Haz clic en "📄 PDF" en la barra de acciones
+2. Se descarga automáticamente un PDF con todos los RSVPs
 
 ---
 
-## 🎨 Personalización del email
+## 🔄 Sistema de Recordatorios Automáticos
 
-Edita `lib/email-template.ts` para:
-- Cambiar colores
-- Modificar textos
-- Ajustar diseño HTML
-- Agregar más información
+### Cómo Funciona
+
+1. **Configuración**: En el panel, activas recordatorio y pones fecha/hora
+2. **Cron Job**: Vercel ejecuta `/api/cron/send-reminders` cada 12 horas
+3. **Verificación**: El sistema busca eventos donde:
+   - `reminderEnabled = true`
+   - `reminderScheduledAt <= ahora`
+   - `reminderSentAt IS NULL` (no enviado aún)
+4. **Envío**: Para cada evento que cumple, envía a todos los confirmados
+5. **Marcado**: Actualiza `reminderSentAt` para evitar reenvíos
+
+### Frecuencia del Cron
+
+Configurado en `vercel.json`:
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/send-reminders",
+      "schedule": "0 */12 * * *"
+    }
+  ]
+}
+```
+= Cada 12 horas (00:00 y 12:00 UTC)
+
+### Probar Manualmente
+
+```bash
+curl -H "Authorization: Bearer TU_CRON_SECRET" \
+  https://tu-dominio.vercel.app/api/cron/send-reminders
+```
 
 ---
 
-## 🔒 Seguridad
+## 📊 Tracking de Emails
 
-- **Tokens únicos**: Cada RSVP tiene un token de cancelación único
-- **Validación en servidor**: Los tokens se validan contra el email y ID
-- **Auth Basic**: Admin dashboard usa HTTP Basic Auth
-- **SessionStorage**: Credenciales solo en sesión del navegador
-
----
-
-## 📊 Tracking de emails
-
-En Firestore, cada RSVP ahora tiene:
+En la base de datos, cada RSVP tiene:
 
 ```typescript
 {
@@ -125,52 +197,78 @@ En Firestore, cada RSVP ahora tiene:
     {
       sentAt: "2024-11-04T12:00:00Z",
       type: "confirmation"
+    },
+    {
+      sentAt: "2024-11-05T09:00:00Z",
+      type: "reminder"
     }
   ],
-  cancelToken: "base64_encoded_token"  // Token para cancelar
+  cancelToken: "token_para_cancelar"
 }
 ```
+
+---
+
+## 🎨 Personalización del Email
+
+Edita `lib/email-template.ts` para:
+- Cambiar colores del template
+- Modificar textos y mensajes
+- Ajustar diseño HTML
+- Agregar información adicional
+
+---
+
+## 🔒 Seguridad
+
+- **Tokens únicos**: Cada RSVP tiene token de cancelación único
+- **Validación en servidor**: Tokens verificados con `CANCEL_TOKEN_SECRET`
+- **Sesiones seguras**: Cookies HTTP-only
+- **Permisos por evento**: Usuarios solo ven eventos asignados
 
 ---
 
 ## 🐛 Troubleshooting
 
 ### "No autorizado" en /admin
-- Verifica que ADMIN_USERNAME y ADMIN_PASSWORD estén en Vercel
-- Redeploy después de agregar las variables
+- Verifica credenciales en la base de datos
+- Asegúrate de tener un usuario creado
+- Verifica que la sesión no haya expirado
 
 ### Emails no se envían
-- Verifica RESEND_API_KEY en Vercel
-- Revisa que FROM_EMAIL esté verificado en Resend
-- Chequea los logs de Vercel Runtime
+- Verifica `RESEND_API_KEY` en Vercel
+- Revisa que `FROM_EMAIL` esté verificado en Resend
+- Chequea logs de Vercel Functions
+
+### Recordatorios no se envían
+- Verifica `CRON_SECRET` en Vercel
+- Asegúrate que la fecha del recordatorio ya pasó
+- Revisa que `reminderSentAt` sea NULL
+- Chequea logs del cron en Vercel
 
 ### Link de cancelación no funciona
-- Verifica NEXT_PUBLIC_APP_URL esté correctamente configurado
-- El token debe coincidir exactamente con el generado
-
-### RSVPs antiguos sin campo plusOne
-- No hay problema, el código maneja RSVPs sin el campo
-- En Google Sheets aparecerán como "No"
+- Verifica `NEXT_PUBLIC_APP_URL` esté correcto
+- El token debe coincidir exactamente
 
 ---
 
-## 📝 Notas importantes
+## 📝 Notas Importantes
 
 1. **Resend límites gratis**: 3000 emails/mes, 100 emails/día
-2. **FROM_EMAIL**: Usa tu dominio verificado para mejor deliverability
-3. **CANCEL_TOKEN_SECRET**: Usa un string largo y aleatorio para seguridad
-4. **Sesiones admin**: Se guardan en sessionStorage (se pierden al cerrar navegador)
+2. **FROM_EMAIL**: Usa dominio verificado para mejor deliverability
+3. **CANCEL_TOKEN_SECRET**: String largo y aleatorio
+4. **Cron jobs**: Solo funcionan en Vercel (no en desarrollo local)
 
 ---
 
-## 🚀 Próximos pasos opcionales
+## 🚀 Funcionalidades Futuras
 
-- [ ] Agregar 2FA al admin dashboard
-- [ ] Exportar RSVPs a CSV desde el dashboard
-- [ ] Emails de recordatorio automáticos (X días antes del evento)
-- [ ] Integración con calendario (iCal attachments)
-- [ ] Webhooks de Resend para tracking de opens/clicks
+- [ ] 2FA para admin dashboard
+- [ ] Integración con calendario (iCal)
+- [ ] Webhooks de Resend para tracking opens/clicks
+- [ ] WhatsApp notifications (Twilio)
+- [ ] Check-in con QR codes
 
 ---
 
-¿Dudas? Revisa los archivos de código fuente o contacta al desarrollador.
+¿Dudas? Revisa los logs en Vercel o el código fuente.

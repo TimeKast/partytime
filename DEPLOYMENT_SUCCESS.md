@@ -1,363 +1,183 @@
-# 🎉 ¡DEPLOY EXITOSO!
+# 🎉 Guía de Deploy - Rooftop Party
 
-## ✅ Tu aplicación está en línea
+## 🌐 Deploy en Vercel
 
-### 🌐 URLs de tu aplicación:
+### Paso 1: Preparar Repositorio
 
-- **URL Principal (Producción):** https://rooftop-party-invitation.vercel.app
-- **Repositorio GitHub:** https://github.com/joseassem/rooftop-party-invitation
-- **Dashboard Vercel:** https://vercel.com/brainergys-projects/rooftop-party-invitation
+Asegúrate de tener el código en GitHub:
+
+```bash
+git add .
+git commit -m "Ready for deploy"
+git push origin main
+```
+
+### Paso 2: Conectar con Vercel
+
+1. Ve a [vercel.com](https://vercel.com)
+2. "New Project"
+3. Importa tu repositorio de GitHub
+4. Framework: **Next.js** (auto-detectado)
+
+### Paso 3: Variables de Entorno
+
+En Vercel → Settings → Environment Variables:
+
+| Variable | Valor | Requerido |
+|----------|-------|-----------|
+| `DATABASE_URL` | Connection string de Neon | ✅ |
+| `RESEND_API_KEY` | API key de Resend | ✅ |
+| `FROM_EMAIL` | Email verificado en Resend | ✅ |
+| `CANCEL_TOKEN_SECRET` | String aleatorio largo | ✅ |
+| `CRON_SECRET` | String aleatorio largo | ✅ |
+| `NEXT_PUBLIC_APP_URL` | URL de tu app en Vercel | ✅ |
+
+### Paso 4: Deploy
+
+Vercel desplegará automáticamente al detectar el repositorio.
 
 ---
 
-## 📋 Lo que está funcionando:
+## ✅ Verificar Deploy
 
-✅ **Código en GitHub** - Repositorio creado exitosamente
-✅ **Deploy en Vercel** - Aplicación desplegada
-✅ **Modo Demo** - La app funciona sin Google Cloud Firestore configurado
-✅ **Responsive Design** - Funciona en mobile, tablet y desktop
-✅ **Formulario RSVP** - Modal funcional (guarda temporalmente)
+### URLs a probar:
 
----
-
-## ⚠️ SIGUIENTE PASO: Configurar Google Cloud Firestore
-
-### ¿Por qué necesitas esto?
-
-Actualmente tu app funciona en **modo demo**:
-- ✅ Todo se ve perfecto
-- ✅ El formulario funciona
-- ⚠️ **PERO:** Los RSVPs solo se guardan en memoria temporal (se pierden al reiniciar)
-
-Para **guardar los RSVPs permanentemente**, necesitas Google Cloud Firestore.
-
----
-
-## 🔧 Configurar Google Cloud Firestore (15 minutos)
-
-### Paso 1: Crear proyecto en Google Cloud
-
-1. **Ve a:** https://console.cloud.google.com
-2. **Click:** "Select a project" → "New Project"
-3. **Nombre:** "rooftop-party-app" (o el que prefieras)
-4. **Click:** "Create"
-5. **Espera:** 30 segundos mientras se crea
-
-### Paso 2: Habilitar Firestore
-
-1. **En el proyecto**, busca "Firestore" en la barra de búsqueda
-2. **Click:** "Cloud Firestore"
-3. **Click:** "Create Database"
-4. **Configura:**
-   - Mode: **Native mode**
-   - Location: Selecciona tu región (ejemplo: `us-central1`)
-   - Security rules: **Start in production mode**
-5. **Click:** "Create"
-6. **Espera:** 1-2 minutos mientras se crea
-
-### Paso 3: Crear Service Account
-
-1. **Ve a:** Menú lateral → IAM & Admin → Service Accounts
-2. **Click:** "Create Service Account"
-3. **Nombre:** `rooftop-party-app`
-4. **Description:** "Service account para app de invitaciones"
-5. **Click:** "Create and Continue"
-6. **Role:** Busca **"datastore"** y selecciona:
-   - En español: **"Editor de datos de Cloud Datastore"** ✅ (recomendado)
-   - En inglés: **"Cloud Datastore User"** o **"Cloud Datastore Owner"**
-7. **Click:** "Continue" → "Done"
-
-### Paso 4: Generar Clave JSON
-
-1. **En la lista de Service Accounts**, encuentra la que acabas de crear
-2. **Click** en los 3 puntos (⋮) → "Manage Keys"
-3. **Click:** "Add Key" → "Create new key"
-4. **Tipo:** JSON
-5. **Click:** "Create"
-6. **Se descarga** un archivo JSON - ¡guárdalo en lugar seguro!
-
-### Paso 5: Agregar Variables de Entorno en Vercel
-
-#### Opción A: Desde el Dashboard (Recomendado)
-
-1. **Ve a:** https://vercel.com/brainergys-projects/rooftop-party-invitation/settings/environment-variables
-
-2. **Abre el archivo JSON** descargado. Verás algo como:
-
-   ```json
-   {
-     "project_id": "party-rsvp-477219",
-     "private_key": "-----BEGIN PRIVATE KEY-----\nMIIE...\n-----END PRIVATE KEY-----\n",
-     "client_email": "rooftop@party-rsvp-477219.iam.gserviceaccount.com"
-   }
+1. **Página de evento:**
+   ```
+   https://tu-app.vercel.app/mi-evento
    ```
 
-3. **Agrega estas 4 variables:**
+2. **Panel admin:**
+   ```
+   https://tu-app.vercel.app/admin
+   ```
 
-   | Name | Value | ⚠️ ¿Con comillas? |
-   |------|-------|---------|
-   | `GOOGLE_CLOUD_PROJECT_ID` | `party-rsvp-477219` | ❌ NO |
-   | `GOOGLE_CLOUD_PRIVATE_KEY` | `"-----BEGIN PRIVATE KEY-----\n...` (TODO) | ✅ SÍ |
-   | `GOOGLE_CLOUD_CLIENT_EMAIL` | `rooftop@party-rsvp-477219.iam.gserviceaccount.com` | ❌ NO |
-   | `FIRESTORE_COLLECTION_NAME` | `rsvps` | ❌ NO |
+3. **API de salud:**
+   ```
+   https://tu-app.vercel.app/api/events/mi-evento
+   ```
 
-4. **Importante:** 
-   - Selecciona todos los ambientes (Production, Preview, Development)
-   - **SOLO `PRIVATE_KEY` lleva comillas** (las demás NO)
-   - La `PRIVATE_KEY` debe incluir los `\n` (saltos de línea)
+### Checklist post-deploy:
 
-5. **Click:** "Save"
-
-#### Opción B: Desde la Terminal
-
-```bash
-cd "c:\Users\josea\OneDrive\Documents\TimeKast\Rooftop Party"
-
-# Agregar variables
-vercel env add GOOGLE_CLOUD_PROJECT_ID
-# Pega el project_id cuando te lo pida
-
-vercel env add GOOGLE_CLOUD_PRIVATE_KEY
-# Pega la private_key (con comillas y \n)
-
-vercel env add GOOGLE_CLOUD_CLIENT_EMAIL
-# Pega el client_email
-
-vercel env add FIRESTORE_COLLECTION_NAME
-# Escribe: rsvps
-
-vercel env add COSMOS_DATABASE_NAME
-# Escribe: rooftop-party-db
-
-vercel env add COSMOS_CONTAINER_NAME
-# Escribe: rsvps
-```
-
-### Paso 4: Re-deployar
-
-Después de agregar las variables:
-
-```bash
-cd "c:\Users\josea\OneDrive\Documents\TimeKast\Rooftop Party"
-vercel --prod
-```
-
-O simplemente haz un nuevo commit (Vercel re-despliega automáticamente):
-
-```bash
-git commit --allow-empty -m "Trigger redeploy with Cosmos DB config"
-git push
-```
+- [ ] La página del evento carga
+- [ ] El formulario RSVP funciona
+- [ ] El login de admin funciona
+- [ ] Los emails se envían correctamente
+- [ ] El cron job aparece en Vercel Settings
 
 ---
 
-## 🎨 Personalizar tu Evento
+## ⏰ Cron Jobs
 
-### Cambiar Información
-
-Edita `event-config.json`:
+El archivo `vercel.json` ya configura el cron:
 
 ```json
 {
-  "event": {
-    "id": "tu-evento-unico",
-    "title": "MI FIESTA",
-    "subtitle": "CELEBRACIÓN",
-    "date": "VIERNES, 15 NOV",
-    "time": "8:00 PM",
-    "location": "TU UBICACIÓN"
-  }
+  "crons": [
+    {
+      "path": "/api/cron/send-reminders",
+      "schedule": "0 */12 * * *"
+    }
+  ]
 }
 ```
 
-Luego:
+**Frecuencia:** Cada 12 horas (00:00 y 12:00 UTC)
+
+### Verificar en Vercel:
+1. Settings → Cron Jobs
+2. Debe aparecer `/api/cron/send-reminders`
+
+### Probar manualmente:
+```bash
+curl -H "Authorization: Bearer TU_CRON_SECRET" \
+  https://tu-app.vercel.app/api/cron/send-reminders
+```
+
+---
+
+## 🔄 Actualizaciones
+
+Cada push a `main` despliega automáticamente:
 
 ```bash
 git add .
-git commit -m "Actualizar información del evento"
+git commit -m "Mis cambios"
 git push
 ```
 
-Vercel automáticamente desplegará los cambios en ~1 minuto.
-
----
-
-## 📱 Compartir tu Invitación
-
-### URL corta recomendada:
-
-En lugar de:
-```
-https://rooftop-party-invitation.vercel.app
-```
-
-Puedes usar un acortador como:
-- **Bitly:** https://bitly.com
-- **TinyURL:** https://tinyurl.com
-
-O configurar un dominio personalizado en Vercel (gratis):
-- Settings → Domains → Add Domain
-
-Ejemplo: `fiesta.tudominio.com`
-
----
-
-## 📊 Monitorear tu Evento
-
-### Ver RSVPs:
-
+### Trigger redeploy manual:
 ```bash
-# Desde tu computadora
-curl https://rooftop-party-invitation.vercel.app/api/rsvp
-
-# O abre en navegador:
-# https://rooftop-party-invitation.vercel.app/api/rsvp
-```
-
-### Ver Estadísticas:
-
-```
-https://rooftop-party-invitation.vercel.app/api/stats
-```
-
-### Analytics de Vercel:
-
-Ve a tu dashboard de Vercel para ver:
-- Número de visitantes
-- Páginas más vistas
-- Performance del sitio
-
----
-
-## 🔄 Actualizaciones Futuras
-
-Cada vez que quieras actualizar algo:
-
-```bash
-# 1. Edita los archivos que necesites
-
-# 2. Commit
-git add .
-git commit -m "Descripción de los cambios"
-
-# 3. Push (deploy automático)
+git commit --allow-empty -m "Redeploy"
 git push
 ```
 
-Vercel automáticamente:
-- ✅ Detecta el push
-- ✅ Hace build
-- ✅ Despliega a producción
-- ✅ Todo en ~2 minutos
+---
+
+## 🐛 Troubleshooting
+
+### Build falla
+- Revisa logs de build en Vercel
+- Verifica `npm run build` localmente
+- Chequea errores de TypeScript
+
+### Variables de entorno no funcionan
+- Verifica que estén en el ambiente correcto (Production)
+- Haz redeploy después de agregarlas
+- No uses comillas en los valores (excepto si tienen caracteres especiales)
+
+### Emails no se envían
+- Verifica `RESEND_API_KEY` en Vercel
+- Revisa que `FROM_EMAIL` esté verificado
+- Chequea logs de Functions en Vercel
+
+### Cron no ejecuta
+- Solo funciona en producción (no en preview)
+- Verifica `CRON_SECRET` configurado
+- Revisa logs del endpoint cron
 
 ---
 
-## 🎯 Checklist Final
+## 📊 Monitoreo
 
-### Para este evento:
-- [ ] ✅ Código en GitHub
-- [ ] ✅ Deploy en Vercel
-- [ ] ⚠️ Configurar Azure Cosmos DB (pendiente)
-- [ ] ⚠️ Agregar variables de entorno en Vercel
-- [ ] ⚠️ Re-deployar con configuración completa
-- [ ] 📱 Probar en celular
-- [ ] 🔗 Crear URL corta
-- [ ] 📤 Compartir invitación
+### Vercel Dashboard
+- Deployments: historial de deploys
+- Functions: logs de API routes
+- Analytics: tráfico y performance
+- Cron Jobs: ejecuciones programadas
 
-### Opcional:
-- [ ] Configurar dominio personalizado
-- [ ] Configurar SendGrid para emails
-- [ ] Crear panel de administración
-- [ ] Agregar Google Analytics
+### Neon Console
+- Queries: actividad de base de datos
+- Storage: uso de espacio
+- Branches: si usas branching
 
----
-
-## 💡 Tips Pro
-
-### 1. **Preview antes de publicar**
-
-Cada branch que pushees genera un preview URL:
-
-```bash
-git checkout -b test-cambios
-# Haz tus cambios
-git push -u origin test-cambios
-```
-
-Vercel te dará una URL de preview para probar.
-
-### 2. **Rollback si algo sale mal**
-
-En el dashboard de Vercel:
-- Ve a Deployments
-- Selecciona un deployment anterior
-- Click "Promote to Production"
-
-### 3. **Ver logs en tiempo real**
-
-```bash
-vercel logs --follow
-```
-
-### 4. **Variables locales**
-
-Ya tienes `.env.local` para desarrollo local. Úsalo con:
-
-```bash
-npm run dev
-```
+### Resend Dashboard
+- Emails: historial de envíos
+- Bounces: emails rechazados
+- Opens/Clicks: engagement
 
 ---
 
-## 🆘 Problemas Comunes
+## 🎯 URLs de tu Aplicación
 
-### "La imagen de fondo no se ve"
+Después del deploy exitoso:
 
-Asegúrate de agregar: `public/background.jpg`
-
-```bash
-# Verifica que existe
-ls public/
-```
-
-### "RSVPs no se guardan"
-
-1. Verifica que agregaste las variables de entorno en Vercel
-2. Re-despliega: `vercel --prod`
-3. Verifica en logs: `vercel logs`
-
-### "El sitio se ve diferente en producción"
-
-Limpia la caché del navegador:
-- Chrome: Ctrl + Shift + Delete
-- O abre en modo incógnito
+| Recurso | URL |
+|---------|-----|
+| App | `https://tu-app.vercel.app` |
+| Admin | `https://tu-app.vercel.app/admin` |
+| API RSVPs | `https://tu-app.vercel.app/api/rsvp` |
+| API Events | `https://tu-app.vercel.app/api/events/[slug]` |
 
 ---
 
-## 📞 Recursos
+## 🔒 Seguridad Post-Deploy
 
-- **Vercel Docs:** https://vercel.com/docs
-- **Azure Cosmos DB:** https://learn.microsoft.com/azure/cosmos-db/
-- **Next.js:** https://nextjs.org/docs
-- **Tu Repositorio:** https://github.com/joseassem/rooftop-party-invitation
-
----
-
-## 🎉 ¡Felicidades!
-
-Tu invitación está en línea y lista para compartir. 
-
-**Siguiente paso recomendado:**
-→ Configurar Azure Cosmos DB (arriba) para que los RSVPs se guarden permanentemente.
-
-¡Disfruta tu evento! 🎊
+- [ ] Cambiar secrets si fueron expuestos
+- [ ] Verificar que `/admin` requiere login
+- [ ] Probar que tokens de cancelación funcionan
+- [ ] Verificar que cron requiere `CRON_SECRET`
 
 ---
 
-**URLs Importantes:**
-
-- 🌐 **App:** https://rooftop-party-invitation.vercel.app
-- 📦 **GitHub:** https://github.com/joseassem/rooftop-party-invitation  
-- ⚙️ **Vercel:** https://vercel.com/brainergys-projects/rooftop-party-invitation
-- 📊 **API RSVPs:** https://rooftop-party-invitation.vercel.app/api/rsvp
-- 📈 **API Stats:** https://rooftop-party-invitation.vercel.app/api/stats
+**¡Tu aplicación está lista para recibir RSVPs! 🎉**

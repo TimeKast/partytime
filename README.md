@@ -1,18 +1,40 @@
-# 🎉 Rooftop Party - Invitación Web Interactiva
+# 🎉 Rooftop Party - Sistema de Invitaciones para Eventos
 
-Aplicación web elegante e impactante para invitaciones a eventos, diseñada con **Next.js 14**, **TypeScript**, y **Neon PostgreSQL** con **Drizzle ORM**. Optimizada para mobile-first y lista para desplegar en Vercel.
+Plataforma web profesional para gestión de invitaciones y RSVPs, diseñada con **Next.js 14**, **TypeScript**, y **Neon PostgreSQL** con **Drizzle ORM**. Incluye panel de administración completo, sistema de emails automáticos, y soporte multi-evento.
 
-## ✨ Características
+## ✨ Características Principales
 
-- 🎨 **Diseño impactante** inspirado en el flyer del evento
-- 📱 **Mobile-first** - Perfectamente adaptado para smartphones
-- 🎭 **Animaciones suaves** con Framer Motion
-- 💾 **Base de datos Neon PostgreSQL** serverless para almacenar RSVPs
-- 📧 **Emails de confirmación** con Resend
-- 🔄 **Template reutilizable** - Fácil de actualizar para futuros eventos
-- ⚡ **Deploy rápido** en Vercel
-- 📊 **API de estadísticas** para monitorear asistencia
-- 🔐 **Panel de administración** protegido
+### 🎨 Invitación Web
+- **Diseño impactante** mobile-first con animaciones Framer Motion
+- **Soporte multi-evento** - Cada evento tiene su URL única (`/mi-evento`)
+- **Temas personalizables** - Colores, imágenes de fondo, información
+- **OG Images dinámicas** para compartir en redes sociales
+
+### 📊 Panel de Administración (`/admin`)
+- **Dashboard completo** con estadísticas en tiempo real
+- **Gestión de RSVPs** - Ver, editar, filtrar, buscar
+- **Configuración de eventos** - Todo editable desde el panel
+- **Gestión de usuarios** - Roles y permisos por evento
+- **Envío de emails** - Individual o masivo
+- **Exportación a PDF** - Lista de invitados
+
+### 📧 Sistema de Emails (Resend)
+- **Confirmación automática** al hacer RSVP (configurable por evento)
+- **Recordatorios programados** - Fecha/hora configurable
+- **Re-invitaciones** a quienes cancelaron
+- **Templates HTML elegantes** con info del evento
+
+### 👥 Sistema de Usuarios
+- **Super Admin** - Acceso total a todos los eventos
+- **Manager** - Gestiona eventos asignados
+- **Viewer** - Solo lectura de eventos asignados
+
+### 🔄 Multi-Evento
+- Cada evento tiene su propio **slug** URL
+- RSVPs, configuración y emails **aislados por evento**
+- **Evento de inicio** configurable
+
+---
 
 ## 🚀 Inicio Rápido
 
@@ -22,26 +44,15 @@ Aplicación web elegante e impactante para invitaciones a eventos, diseñada con
 npm install
 ```
 
-### 2. Configurar Base de Datos (Neon PostgreSQL)
+### 2. Configurar Variables de Entorno
 
-#### Paso 1: Crear Proyecto en Neon
-1. Ve a [Neon Console](https://console.neon.tech)
-2. Crea un nuevo proyecto
-3. Copia la connection string
-
-#### Paso 2: Configurar Variables de Entorno
-
-Crea un archivo `.env.local` en la raíz del proyecto:
+Crea `.env.local`:
 
 ```env
-# Base de datos (REQUERIDO para producción)
-DATABASE_URL=postgresql://user:password@ep-xxx.us-east-1.aws.neon.tech/dbname?sslmode=require
+# Base de datos Neon PostgreSQL (REQUERIDO)
+DATABASE_URL=postgresql://user:password@ep-xxx.neon.tech/dbname?sslmode=require
 
-# Autenticación admin (REQUERIDO)
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=tu-contraseña-segura
-
-# Emails con Resend (opcional)
+# Emails con Resend (REQUERIDO para emails)
 RESEND_API_KEY=re_xxx
 FROM_EMAIL=invitaciones@tudominio.com
 
@@ -50,19 +61,22 @@ NEXT_PUBLIC_APP_URL=https://tudominio.com
 
 # Secret para tokens de cancelación
 CANCEL_TOKEN_SECRET=tu-secret-aleatorio
+
+# Secret para cron jobs (recordatorios automáticos)
+CRON_SECRET=tu-cron-secret
 ```
 
-#### Paso 3: Ejecutar Migraciones
+### 3. Ejecutar Migraciones
 
 ```bash
 npx drizzle-kit push
 ```
 
-### 4. Agregar Imágenes
+### 4. Crear Super Admin
 
-Copia las imágenes del flyer a la carpeta `public/`:
-- `public/background.jpg` - Imagen de fondo
-- `public/flyer.jpg` - Flyer completo (opcional)
+```bash
+npx ts-node scripts/create-super-admin.ts
+```
 
 ### 5. Ejecutar en Desarrollo
 
@@ -70,267 +84,176 @@ Copia las imágenes del flyer a la carpeta `public/`:
 npm run dev
 ```
 
-Abre [http://localhost:3000](http://localhost:3000) en tu navegador.
+Abre [http://localhost:3000](http://localhost:3000)
+
+---
 
 ## 📦 Deploy en Vercel
 
-### Deploy Automático (Recomendado)
+### 1. Conectar Repositorio
 
-1. Crea una cuenta en [Vercel](https://vercel.com)
-2. Conecta tu repositorio de GitHub
-3. Configura las variables de entorno en Vercel:
-   - `GOOGLE_CLOUD_PROJECT_ID`
-   - `GOOGLE_CLOUD_PRIVATE_KEY`
-   - `GOOGLE_CLOUD_CLIENT_EMAIL`
-   - `FIRESTORE_COLLECTION_NAME`
-4. ¡Deploy automático! 🚀
+1. Crea cuenta en [Vercel](https://vercel.com)
+2. Importa tu repositorio de GitHub
+3. Configura las variables de entorno
 
-### Deploy Manual
+### 2. Variables de Entorno en Vercel
 
-```bash
-# Instalar Vercel CLI
-npm i -g vercel
-
-# Login
-vercel login
-
-# Deploy
-vercel
-
-# Deploy a producción
-vercel --prod
+```
+DATABASE_URL
+RESEND_API_KEY
+FROM_EMAIL
+NEXT_PUBLIC_APP_URL
+CANCEL_TOKEN_SECRET
+CRON_SECRET
 ```
 
-## 🎨 Personalizar para Futuros Eventos
+### 3. Cron Jobs (Recordatorios Automáticos)
 
-### 1. Editar Información del Evento
-
-Modifica el archivo `event-config.json`:
+El archivo `vercel.json` ya está configurado para ejecutar el cron cada 12 horas:
 
 ```json
 {
-  "event": {
-    "id": "mi-nuevo-evento-2024",
-    "title": "NUEVO EVENTO",
-    "subtitle": "SUBTÍTULO",
-    "date": "VIERNES, 15 NOV",
-    "time": "DESDE LAS 8:00 PM",
-    "location": "DIRECCIÓN DEL EVENTO",
-    "details": "🎉 Detalles adicionales",
-    "backgroundImage": "/mi-nueva-imagen.jpg"
-  },
-  "theme": {
-    "primaryColor": "#FF1493",
-    "secondaryColor": "#00FFFF",
-    "accentColor": "#FFD700"
-  }
+  "crons": [
+    {
+      "path": "/api/cron/send-reminders",
+      "schedule": "0 */12 * * *"
+    }
+  ]
 }
 ```
 
-### 2. Cambiar Imágenes
-
-Reemplaza los archivos en `public/`:
-- `background.jpg` - Nueva imagen de fondo
-- `flyer.jpg` - Nuevo flyer
-
-### 3. Actualizar Colores (Opcional)
-
-Los colores también se pueden ajustar en `app/globals.css`:
-
-```css
-:root {
-  --primary-color: #FF1493;
-  --secondary-color: #00FFFF;
-  --accent-color: #FFD700;
-}
-```
+---
 
 ## 📊 API Endpoints
 
-### POST /api/rsvp
-Guardar un nuevo RSVP
+### Públicos
 
-```json
-{
-  "name": "Juan Pérez",
-  "email": "juan@example.com",
-  "phone": "+52 xxx xxx xxxx"
-}
-```
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/api/rsvp` | Crear nuevo RSVP |
+| GET | `/api/events/[slug]` | Info de evento público |
 
-### GET /api/rsvp
-Obtener todos los RSVPs del evento actual
+### Autenticados (Admin)
 
-### GET /api/stats
-Obtener estadísticas del evento
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/rsvp?eventId=X` | Listar RSVPs de evento |
+| GET | `/api/event-settings?eventId=X` | Configuración de evento |
+| POST | `/api/admin/event-settings/update` | Actualizar configuración |
+| POST | `/api/admin/send-email` | Enviar email individual |
+| POST | `/api/admin/send-bulk-email` | Enviar emails masivos |
+| GET | `/api/admin/users` | Listar usuarios |
+| POST | `/api/events` | Crear nuevo evento |
 
-```json
-{
-  "success": true,
-  "eventId": "rooftop-party-andras-oct2024",
-  "stats": {
-    "totalConfirmed": 45,
-    "confirmed": 45,
-    "cancelled": 0
-  }
-}
-```
+### Cron
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/cron/send-reminders` | Enviar recordatorios programados |
+
+---
 
 ## 🔧 Estructura del Proyecto
 
 ```
 rooftop-party/
 ├── app/
+│   ├── [slug]/              # Página dinámica de evento
+│   ├── admin/               # Panel de administración
+│   │   ├── page.tsx
+│   │   └── components/
 │   ├── api/
-│   │   ├── rsvp/route.ts      # API para guardar RSVPs
-│   │   └── stats/route.ts     # API de estadísticas
-│   ├── components/
-│   │   ├── RSVPModal.tsx      # Modal del formulario
-│   │   └── RSVPModal.module.css
-│   ├── globals.css            # Estilos globales
-│   ├── layout.tsx             # Layout principal
-│   ├── page.tsx               # Página principal
-│   └── page.module.css        # Estilos de la página
+│   │   ├── rsvp/            # CRUD de RSVPs
+│   │   ├── events/          # Gestión de eventos
+│   │   ├── admin/           # Endpoints admin
+│   │   ├── auth/            # Autenticación
+│   │   └── cron/            # Jobs programados
+│   ├── cancel/[rsvpId]/     # Página de cancelación
+│   ├── login/               # Login admin
+│   └── components/
 ├── lib/
-│   └── cosmosdb.ts            # Cliente de Cosmos DB
-├── public/
-│   ├── background.jpg         # Imagen de fondo
-│   └── flyer.jpg              # Flyer completo
-├── event-config.json          # 🎯 Configuración del evento
-├── .env.local                 # Variables de entorno (no versionado)
-├── .env.example               # Ejemplo de variables
-└── package.json
+│   ├── schema.ts            # Schema de base de datos
+│   ├── queries.ts           # Queries de DB
+│   ├── db.ts                # Conexión a Neon
+│   ├── auth.ts              # Utilidades de auth
+│   ├── email-template.ts    # Template de emails
+│   └── resend.ts            # Cliente de Resend
+├── types/
+│   └── event.ts             # Tipos TypeScript
+├── scripts/
+│   └── create-super-admin.ts
+├── event-config.json        # Configuración por defecto
+├── vercel.json              # Configuración de cron
+└── drizzle.config.ts
 ```
-
-## 💡 Gestión de Registros y Comunicación
-
-### Arquitectura Propuesta
-
-```
-Usuario → Formulario RSVP → API Next.js → Azure Cosmos DB
-                                ↓
-                          Confirmación Email (opcional)
-```
-
-### Funcionalidades Implementadas
-
-✅ **Almacenamiento de RSVPs** en Azure Cosmos DB
-✅ **Validación de duplicados** por email
-✅ **API de consulta** para ver todos los registros
-✅ **Estadísticas en tiempo real**
-
-### Funcionalidades Sugeridas (Próximos Pasos)
-
-#### 1. **Emails Automáticos con SendGrid**
-
-Instala SendGrid:
-```bash
-npm install @sendgrid/mail
-```
-
-Configura en `.env.local`:
-```env
-SENDGRID_API_KEY=tu-api-key
-FROM_EMAIL=noreply@tudominio.com
-```
-
-Implementa en `app/api/rsvp/route.ts`:
-```typescript
-import sgMail from '@sendgrid/mail'
-
-// Después de guardar el RSVP
-await sgMail.send({
-  to: email,
-  from: process.env.FROM_EMAIL!,
-  subject: '¡Confirmación de Asistencia - Rooftop Party!',
-  html: `<h1>¡Nos vemos ${name}!</h1>...`
-})
-```
-
-#### 2. **Recordatorios con Azure Functions**
-
-- Crea una Azure Function con timer trigger
-- Consulta Cosmos DB por eventos próximos
-- Envía emails 1 día y 3 horas antes del evento
-
-#### 3. **Panel de Administración**
-
-Crea `app/admin/page.tsx`:
-```typescript
-// Lista de RSVPs con búsqueda y filtros
-// Estadísticas visuales
-// Exportar a CSV/Excel
-```
-
-#### 4. **WhatsApp Notifications (Opcional)**
-
-Usa Twilio API para enviar mensajes de WhatsApp:
-```bash
-npm install twilio
-```
-
-#### 5. **Check-in en el Evento**
-
-- Genera QR codes únicos por invitado
-- App móvil o web para escanear en la entrada
-- Actualiza status en Cosmos DB
-
-## 🏗️ Ventajas de Azure Cosmos DB
-
-✅ **Escalabilidad automática** - De 10 a 10,000 invitados
-✅ **Modo Serverless** - Pagas solo por lo que usas
-✅ **Baja latencia** - < 10ms en lecturas/escrituras
-✅ **Distribución global** - Réplicas en múltiples regiones
-✅ **Sin migraciones** - Schema flexible para agregar campos
-✅ **Integración nativa** con Azure Functions y Logic Apps
-
-### Costos Estimados (Serverless)
-
-Para un evento con 200 invitados:
-- **Escrituras**: 200 RSVPs × $0.001 = $0.20
-- **Lecturas**: ~1,000 consultas × $0.0001 = $0.10
-- **Almacenamiento**: 1GB × $0.25/mes = $0.25
-
-**Total estimado por evento: < $1 USD** 🎯
-
-## 🛠️ Extensiones de VS Code Recomendadas
-
-- [Azure Cosmos DB](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-cosmosdb)
-- [Azure Functions](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-azurefunctions)
-- [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
-- [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
-
-## 📝 Notas Importantes
-
-- **Seguridad**: El endpoint GET /api/rsvp debería protegerse con autenticación en producción
-- **Imágenes**: Optimiza las imágenes antes de subirlas (recomendado < 500KB)
-- **CORS**: Configurado para cualquier origen, ajusta según necesites
-- **Rate Limiting**: Considera agregar límite de requests por IP
-
-## 🆘 Troubleshooting
-
-### Error: "Cannot find module '@azure/cosmos'"
-```bash
-npm install
-```
-
-### Error: "COSMOS_ENDPOINT is not defined"
-Verifica que `.env.local` existe y tiene las variables correctas.
-
-### Las imágenes no se ven
-Asegúrate de que las imágenes estén en la carpeta `public/` con los nombres correctos.
-
-### Error de CORS en desarrollo
-Next.js maneja CORS automáticamente, si tienes problemas revisa las variables de entorno.
-
-## 📄 Licencia
-
-Este proyecto es un template personal. Úsalo libremente para tus eventos.
-
-## 🤝 Soporte
-
-Para cualquier pregunta o problema, crea un issue en el repositorio o contacta al desarrollador.
 
 ---
 
-**¡Disfruta tu evento! 🎉🎊✨**
+## ⚙️ Configuración de Emails por Evento
+
+Cada evento puede configurar independientemente:
+
+### 1. Email de Confirmación Automática
+- **Toggle**: Activar/desactivar
+- **Comportamiento**: Se envía automáticamente cuando alguien hace RSVP
+- **Configurable desde**: Panel Admin → Config → Configuración de Emails
+
+### 2. Recordatorio Programado
+- **Toggle**: Activar/desactivar
+- **Fecha/Hora**: Configurable con date picker
+- **Comportamiento**: Cron job verifica cada 12 horas y envía si es momento
+- **Destinatarios**: Solo RSVPs confirmados del evento específico
+- **Anti-duplicado**: Campo `reminderSentAt` evita reenvíos
+
+---
+
+## 🔒 Seguridad
+
+- **Autenticación por sesión** con cookies HTTP-only
+- **Permisos por evento** para usuarios no super_admin
+- **Tokens de cancelación** firmados con secret
+- **Validación de cron** con `CRON_SECRET`
+- **Rate limiting** recomendado para producción
+
+---
+
+## 💰 Costos Estimados
+
+| Servicio | Plan | Costo |
+|----------|------|-------|
+| Vercel | Hobby | Gratis |
+| Neon PostgreSQL | Free tier | Gratis (hasta 3GB) |
+| Resend | Free tier | Gratis (3000 emails/mes) |
+
+**Total: $0 USD** para eventos pequeños/medianos
+
+---
+
+## 📝 Changelog Reciente
+
+### v2.0.0 (Enero 2026)
+- ✅ Configuración de emails por evento
+- ✅ Confirmación automática de RSVP (toggle)
+- ✅ Recordatorios programados con fecha/hora
+- ✅ Cron job para envío automático
+- ✅ UI mejorada en panel de configuración
+
+### v1.0.0
+- Panel de administración completo
+- Sistema multi-evento
+- Gestión de usuarios y roles
+- Emails con Resend
+- Deploy en Vercel
+
+---
+
+## 🆘 Soporte
+
+Para problemas o preguntas:
+1. Revisa los logs en Vercel
+2. Verifica las variables de entorno
+3. Consulta `ADMIN_GUIDE.md` para el panel de admin
+
+---
+
+**¡Disfruta creando eventos increíbles! 🎉🎊✨**

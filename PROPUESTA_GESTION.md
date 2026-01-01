@@ -1,455 +1,208 @@
-# 📋 PROPUESTA COMPLETA DE GESTIÓN DE EVENTOS
+# 📋 Sistema de Gestión de Eventos - Estado Actual
 
-## 🎯 Solución Implementada
-
-### Arquitectura Actual
+## 🎯 Arquitectura Implementada
 
 ```
-┌─────────────────┐
-│  Usuario Mobile │
-│   (Invitado)    │
-└────────┬────────┘
-         │ 1. Abre link
-         ↓
-┌─────────────────────────┐
-│   Next.js Web App       │
-│   (Vercel Hosting)      │
-│                         │
-│  • Landing Page         │
-│  • Formulario RSVP      │
-│  • Animaciones          │
-└────────┬────────────────┘
-         │ 2. Envía RSVP
-         ↓
-┌─────────────────────────┐
-│   API Routes (Next.js)  │
-│                         │
-│  • POST /api/rsvp       │
-│  • GET /api/rsvp        │
-│  • GET /api/stats       │
-└────────┬────────────────┘
-         │ 3. Guarda datos
-         ↓
-┌─────────────────────────┐
-│  Azure Cosmos DB        │
-│  (Serverless NoSQL)     │
-│                         │
-│  • Almacén permanente   │
-│  • Alta disponibilidad  │
-│  • Baja latencia        │
-└─────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                    USUARIOS                              │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+        ┌─────────────┴─────────────┐
+        │                           │
+        ▼                           ▼
+┌───────────────┐           ┌───────────────┐
+│   Invitado    │           │     Admin     │
+│   (Público)   │           │   (Privado)   │
+└───────┬───────┘           └───────┬───────┘
+        │                           │
+        ▼                           ▼
+┌───────────────┐           ┌───────────────┐
+│  /[slug]      │           │    /admin     │
+│  Página RSVP  │           │   Dashboard   │
+└───────┬───────┘           └───────┬───────┘
+        │                           │
+        └───────────┬───────────────┘
+                    │
+                    ▼
+        ┌───────────────────┐
+        │   API Routes      │
+        │   Next.js         │
+        └─────────┬─────────┘
+                  │
+        ┌─────────┴─────────┐
+        │                   │
+        ▼                   ▼
+┌───────────────┐   ┌───────────────┐
+│     Neon      │   │    Resend     │
+│  PostgreSQL   │   │    Emails     │
+└───────────────┘   └───────────────┘
 ```
 
 ---
 
 ## ✅ Funcionalidades Implementadas
 
-### 1. **Invitación Web Elegante**
+### 1. Invitación Web
 - ✅ Diseño mobile-first
-- ✅ Animaciones impactantes con Framer Motion
-- ✅ Estética del flyer original
-- ✅ Formulario RSVP en modal
+- ✅ Animaciones Framer Motion
+- ✅ URLs dinámicas por evento
+- ✅ Formulario RSVP con validación
+- ✅ Opción de +1 acompañante
+- ✅ OG Images para compartir
 
-### 2. **Gestión de Registros**
-- ✅ Almacenamiento en Azure Cosmos DB
-- ✅ Validación de datos (email, teléfono, nombre)
-- ✅ Prevención de duplicados por email
-- ✅ Timestamps automáticos
+### 2. Panel de Administración
+- ✅ Login seguro con sesiones
+- ✅ Dashboard con estadísticas
+- ✅ Tabla de RSVPs con filtros
+- ✅ Búsqueda por texto
+- ✅ Configuración de evento editable
+- ✅ Gestión de usuarios (super_admin)
+- ✅ Exportación a PDF
 
-### 3. **APIs Disponibles**
-- ✅ `POST /api/rsvp` - Registrar asistencia
-- ✅ `GET /api/rsvp` - Listar todos los RSVPs
-- ✅ `GET /api/stats` - Estadísticas del evento
+### 3. Sistema de Emails
+- ✅ Templates HTML profesionales
+- ✅ Información personalizada
+- ✅ Envío individual desde admin
+- ✅ Envío masivo con filtros
+- ✅ **Confirmación automática** (toggle por evento)
+- ✅ **Recordatorios programados** (fecha/hora configurable)
+- ✅ Tracking de emails enviados
+- ✅ Link de cancelación seguro
 
-### 4. **Template Reutilizable**
-- ✅ Configuración en `event-config.json`
-- ✅ Fácil cambio de imágenes
-- ✅ Personalización de colores
-- ✅ Sin código necesario para cambios básicos
+### 4. Automatización
+- ✅ Cron job cada 12 horas
+- ✅ Envío automático de recordatorios
+- ✅ Control anti-duplicados
+- ✅ Aislamiento por evento
 
----
+### 5. Multi-Evento
+- ✅ Cada evento tiene slug único
+- ✅ RSVPs separados por evento
+- ✅ Configuración independiente
+- ✅ Permisos por evento
 
-## 🔄 Propuesta de Comunicación y Recordatorios
-
-### Fase 1: Confirmación Automática (Recomendado) ⭐
-
-**Cuando:** Inmediatamente después del RSVP
-
-**Herramienta:** SendGrid (Email API)
-
-**Implementación:**
-
-```typescript
-// En app/api/rsvp/route.ts
-import sgMail from '@sendgrid/mail'
-
-// Después de guardar en Cosmos DB
-await sgMail.send({
-  to: email,
-  from: 'noreply@timekast.mx',
-  subject: '✅ Confirmación - Rooftop Party Andrreas',
-  html: `
-    <div style="font-family: Arial; text-align: center;">
-      <h1 style="color: #FF1493;">¡Confirmado ${name}!</h1>
-      <p>Tu asistencia ha sido registrada exitosamente.</p>
-      
-      <div style="background: #1a0033; padding: 20px; margin: 20px 0;">
-        <h2 style="color: #00FFFF;">ROOFTOP PARTY</h2>
-        <p style="color: #fff;">📅 Sábado, 26 Octubre</p>
-        <p style="color: #fff;">🕔 7:00 PM</p>
-        <p style="color: #fff;">📍 Hamburgo 108, Zona Rosa</p>
-      </div>
-      
-      <p>¡Nos vemos ahí! 🎉</p>
-      <p style="font-size: 12px; color: #666;">
-        ¿No puedes asistir? <a href="https://go.timekast.mx/andrreas/cancel?email=${email}">Cancelar RSVP</a>
-      </p>
-    </div>
-  `
-})
-```
-
-**Costo:** ~$0.001 por email (200 invitados = $0.20)
+### 6. Sistema de Usuarios
+- ✅ Roles: super_admin, manager, viewer
+- ✅ Permisos granulares por evento
+- ✅ Gestión desde panel admin
 
 ---
 
-### Fase 2: Recordatorios Programados (Azure Functions)
+## 📅 Funcionalidades Propuestas (Futuro)
 
-#### Opción A: Azure Functions con Timer Trigger
+### Fase 1: Comunicación Avanzada
+- [ ] **WhatsApp Notifications** (Twilio)
+  - Confirmación instantánea
+  - Recordatorios más directos
+  - Mayor tasa de apertura
 
-**Estructura:**
+- [ ] **Templates de Email Editables**
+  - Editor visual en admin
+  - Variables dinámicas
+  - Preview en tiempo real
 
-```
-azure-functions/
-├── reminder-1-week/
-│   └── function.json      # Trigger: 7 días antes
-├── reminder-1-day/
-│   └── function.json      # Trigger: 1 día antes
-└── reminder-3-hours/
-    └── function.json      # Trigger: 3 horas antes
-```
+### Fase 2: Check-in
+- [ ] **QR Codes únicos**
+  - Generados por RSVP
+  - Incluidos en email de confirmación
 
-**Flujo:**
+- [ ] **App de Escaneo**
+  - PWA para check-in
+  - Dashboard en tiempo real
+  - Estadísticas de entrada
 
-1. Azure Function se ejecuta automáticamente
-2. Consulta Cosmos DB por evento con fecha próxima
-3. Obtiene lista de confirmados
-4. Envía emails masivos con SendGrid
+### Fase 3: Analytics
+- [ ] **Dashboard Avanzado**
+  - Gráficos de conversión
+  - Fuentes de tráfico
+  - Engagement con emails
 
-**Implementación:**
+- [ ] **Integración Analytics**
+  - Google Analytics
+  - Vercel Analytics
 
-```typescript
-// reminder-1-day/index.ts
-import { CosmosClient } from '@azure/cosmos'
-import sgMail from '@sendgrid/mail'
+### Fase 4: Integraciones
+- [ ] **Calendarios**
+  - Archivo .ics adjunto
+  - Google Calendar link
+  - Apple Calendar link
 
-export default async function (context: any) {
-  const client = new CosmosClient({...})
-  const container = client.database('rooftop-party-db').container('rsvps')
-  
-  // Obtener RSVPs del evento
-  const { resources: rsvps } = await container.items
-    .query({
-      query: 'SELECT * FROM c WHERE c.eventId = @eventId AND c.status = "confirmed"',
-      parameters: [{ name: '@eventId', value: 'rooftop-party-andras-oct2024' }]
-    })
-    .fetchAll()
-  
-  // Enviar recordatorios
-  for (const rsvp of rsvps) {
-    await sgMail.send({
-      to: rsvp.email,
-      from: 'noreply@timekast.mx',
-      subject: '⏰ ¡Mañana es el Rooftop Party!',
-      html: `
-        <h1>¡Hola ${rsvp.name}!</h1>
-        <p>Te recordamos que mañana es el gran día 🎉</p>
-        <p><strong>Sábado 26 Oct - 7:00 PM</strong></p>
-        <p>Hamburgo 108, Zona Rosa</p>
-        <p>¡No lo olvides! Nos vemos ahí 🎊</p>
-      `
-    })
-  }
-  
-  context.log(`Enviados ${rsvps.length} recordatorios`)
-}
-```
-
-**Costo:** Gratis (1M ejecuciones/mes en plan gratuito)
+- [ ] **Webhooks**
+  - Notificar sistemas externos
+  - Integración con CRMs
+  - Automatizaciones
 
 ---
 
-#### Opción B: Vercel Cron Jobs (Más Simple)
+## 💰 Estimación de Costos Actuales
 
-**Para proyectos en Vercel:**
+### Plan Actual (Gratis)
 
-```typescript
-// app/api/cron/reminders/route.ts
-import { NextRequest } from 'next/server'
+| Servicio | Límites | Costo |
+|----------|---------|-------|
+| Vercel Hobby | 100GB/mes | $0 |
+| Neon Free | 3GB storage | $0 |
+| Resend Free | 3000 emails/mes | $0 |
 
-export async function GET(request: NextRequest) {
-  // Verificar que la request viene de Vercel Cron
-  const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return new Response('Unauthorized', { status: 401 })
-  }
-  
-  // Lógica de envío de recordatorios
-  // ...
-  
-  return Response.json({ sent: 42 })
-}
-```
+**Total: $0 USD** para eventos pequeños/medianos
 
-**Configurar en `vercel.json`:**
+### Si se agregan features de pago
 
-```json
-{
-  "crons": [
-    {
-      "path": "/api/cron/reminders",
-      "schedule": "0 9 * * *"
-    }
-  ]
-}
-```
-
-**Costo:** Incluido en planes Pro de Vercel ($20/mes)
+| Feature | Servicio | Costo Est. |
+|---------|----------|------------|
+| WhatsApp | Twilio | ~$0.005/msg |
+| Más emails | Resend Pro | $20/mes |
+| Más storage | Neon Pro | $19/mes |
 
 ---
 
-### Fase 3: WhatsApp (Opcional)
+## 🎯 Recomendaciones
 
-**Herramienta:** Twilio WhatsApp API
+### Para un evento típico:
+1. ✅ Usar la configuración actual (gratis)
+2. ✅ Activar confirmación automática
+3. ✅ Programar recordatorio 1 día antes
+4. ✅ Exportar PDF antes del evento
 
-**Casos de uso:**
-- Confirmación instantánea
-- Recordatorios más directos
-- Mayor tasa de apertura que email
+### Para eventos grandes (500+ invitados):
+1. Considerar plan Pro de Resend
+2. Implementar WhatsApp como canal adicional
+3. Agregar sistema de check-in
 
-**Implementación:**
-
-```typescript
-import twilio from 'twilio'
-
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-)
-
-await client.messages.create({
-  from: 'whatsapp:+14155238886',  // Número de Twilio
-  to: `whatsapp:${phone}`,
-  body: `
-¡Hola ${name}! 🎉
-
-Tu asistencia al Rooftop Party está confirmada.
-
-📅 Sábado, 26 Oct
-🕔 7:00 PM
-📍 Hamburgo 108, Zona Rosa
-
-¡Nos vemos ahí!
-  `.trim()
-})
-```
-
-**Costo:** ~$0.005 por mensaje (200 invitados = $1.00)
+### Para eventos recurrentes:
+1. Crear eventos separados por fecha
+2. Reutilizar configuración base
+3. Mantener historial de RSVPs
 
 ---
 
-## 📊 Panel de Administración Propuesto
+## 📊 Métricas Sugeridas
 
-### Funcionalidades Sugeridas:
+### KPIs del Evento
+- Tasa de conversión (visitantes → RSVPs)
+- Tasa de apertura de emails
+- Tasa de cancelación
+- Confirmaciones por día
 
-#### 1. **Dashboard de Estadísticas**
-
-```
-┌─────────────────────────────────────┐
-│     ROOFTOP PARTY - Dashboard       │
-├─────────────────────────────────────┤
-│                                     │
-│  📊 Total Confirmados: 127          │
-│  ✅ Activos: 120                    │
-│  ❌ Cancelados: 7                   │
-│  📈 Tasa conversión: 85%            │
-│                                     │
-│  ┌─────────────────────────────┐   │
-│  │  Registros por día          │   │
-│  │  📊 [Gráfico de líneas]     │   │
-│  └─────────────────────────────┘   │
-│                                     │
-└─────────────────────────────────────┘
-```
-
-#### 2. **Lista de Invitados**
-
-```
-┌──────────────────────────────────────────────┐
-│  🔍 Buscar: [________]  📥 Exportar CSV      │
-├──────────────────────────────────────────────┤
-│  Nombre          Email              Estado   │
-├──────────────────────────────────────────────┤
-│  Juan Pérez      juan@email.com     ✅       │
-│  María García    maria@email.com    ✅       │
-│  Pedro López     pedro@email.com    ❌       │
-└──────────────────────────────────────────────┘
-```
-
-#### 3. **Acciones Masivas**
-
-- ✉️ Enviar email a todos
-- 📱 Enviar WhatsApp a seleccionados
-- 📊 Generar reporte PDF
-- 📧 Enviar recordatorio manual
-
-#### 4. **Check-in en Vivo**
-
-```
-┌──────────────────────────────────────┐
-│  QR Scanner - Check-in               │
-├──────────────────────────────────────┤
-│                                      │
-│     [📷 Cámara activa]              │
-│                                      │
-│  Último check-in:                   │
-│  ✅ Juan Pérez - 7:15 PM            │
-│                                      │
-│  Total ingresados: 45 / 127         │
-└──────────────────────────────────────┘
-```
+### KPIs del Sistema
+- Tiempo de respuesta de APIs
+- Errores de envío de email
+- Uso de base de datos
 
 ---
 
-## 💰 Estimación de Costos Totales
+## 🚀 Siguiente Paso Recomendado
 
-### Evento con 200 invitados:
+El sistema actual cubre el **95% de las necesidades** de un evento típico.
 
-| Servicio | Uso | Costo Mensual | Por Evento |
-|----------|-----|---------------|------------|
-| **Azure Cosmos DB** (Serverless) | 200 writes, 1K reads, 1GB storage | $0.50 | $0.50 |
-| **Vercel** (Hobby) | Hosting + Deploy | Gratis | Gratis |
-| **SendGrid** | 600 emails (confirmación + 2 recordatorios) | Gratis (hasta 100/día) o $0.60 | $0.60 |
-| **Twilio WhatsApp** (Opcional) | 200 mensajes | $1.00 | $1.00 |
-| **Azure Functions** (Opcional) | 3 ejecuciones | Gratis | Gratis |
-| **TOTAL** | | **$1.10 - $2.10** | **< $3 USD** |
+**Para la mayoría de eventos:**
+→ No se necesitan más features, solo configurar y usar.
 
-### Eventos recurrentes (5 fiestas/año):
-
-- **Costo anual:** ~$10 - $15 USD
-- **Por invitado:** $0.01 - $0.015 USD
+**Si necesitas WhatsApp o check-in:**
+→ Contactar para implementación (estimado: 1-2 días por feature)
 
 ---
 
-## 🚀 Roadmap de Implementación
-
-### ✅ FASE 1: COMPLETADA
-- [x] Web app con formulario RSVP
-- [x] Integración Azure Cosmos DB
-- [x] API endpoints
-- [x] Deploy en Vercel
-- [x] Template reutilizable
-
-### 📅 FASE 2: Emails Automáticos (2-3 horas)
-- [ ] Integrar SendGrid
-- [ ] Email de confirmación
-- [ ] Template de email elegante
-
-### 📅 FASE 3: Recordatorios (3-4 horas)
-- [ ] Azure Function o Vercel Cron
-- [ ] Email 1 día antes
-- [ ] Email 3 horas antes
-
-### 📅 FASE 4: Panel Admin (1 día)
-- [ ] Dashboard con estadísticas
-- [ ] Lista de invitados
-- [ ] Exportar a Excel/CSV
-- [ ] Búsqueda y filtros
-
-### 📅 FASE 5: WhatsApp (Opcional, 2-3 horas)
-- [ ] Integrar Twilio
-- [ ] Confirmación por WhatsApp
-- [ ] Recordatorios por WhatsApp
-
-### 📅 FASE 6: Check-in (Opcional, 1 día)
-- [ ] Generar QR codes únicos
-- [ ] App de escaneo
-- [ ] Dashboard de entrada en tiempo real
-
----
-
-## 🎯 Recomendación Final
-
-### Para tu evento actual (26 Octubre):
-
-**MÍNIMO VIABLE:**
-1. ✅ Usar la web actual (ya está lista)
-2. ✅ Configurar Azure Cosmos DB
-3. ✅ Desplegar en Vercel
-4. ✅ Compartir link: `go.timekast.mx/andrreas`
-
-**MEJORADO (recomendado):**
-1. ✅ Todo lo anterior
-2. ➕ Agregar SendGrid para confirmaciones automáticas
-3. ➕ Recordatorio manual 1 día antes (enviar desde panel)
-
-**COMPLETO (futuro):**
-1. ✅ Todo lo anterior
-2. ➕ Panel de administración
-3. ➕ Recordatorios automáticos
-4. ➕ WhatsApp notifications
-5. ➕ Check-in con QR
-
----
-
-## 📞 Próximos Pasos Inmediatos
-
-1. **HOY:**
-   - [ ] Copiar imágenes a `public/`
-   - [ ] Crear cuenta Azure Cosmos DB
-   - [ ] Configurar `.env.local`
-   - [ ] Probar localmente
-
-2. **MAÑANA:**
-   - [ ] Deploy a Vercel
-   - [ ] Configurar dominio personalizado
-   - [ ] Probar en mobile
-   - [ ] Compartir link
-
-3. **ESTA SEMANA:**
-   - [ ] Configurar SendGrid
-   - [ ] Preparar plantilla de emails
-   - [ ] Probar confirmaciones automáticas
-
-4. **OPCIONAL:**
-   - [ ] Crear panel de admin
-   - [ ] Configurar recordatorios automáticos
-   - [ ] Agregar WhatsApp
-
----
-
-## 💡 Tips Profesionales
-
-1. **Dominio Personalizado:**
-   - Usa `go.timekast.mx/andrreas` en lugar de `vercel.app`
-   - Configuración en Vercel: Settings → Domains
-
-2. **Analytics:**
-   - Agregar Google Analytics o Vercel Analytics
-   - Medir conversión de visitantes a registros
-
-3. **A/B Testing:**
-   - Probar diferentes CTA buttons
-   - Optimizar textos del formulario
-
-4. **Social Sharing:**
-   - Agregar Open Graph tags
-   - Preview bonito en WhatsApp/Instagram
-
-5. **Backup:**
-   - Exportar RSVPs regularmente
-   - Tener copia local antes del evento
-
----
-
-¿Tienes preguntas sobre alguna fase específica? ¡Pregúntame! 🚀
+**Estado:** Sistema completo y funcional  
+**Versión:** 2.0.0  
+**Última actualización:** Enero 2026

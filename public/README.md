@@ -1,10 +1,46 @@
-# Instrucciones para agregar imágenes
+# 🖼️ Carpeta Public
 
-Por favor, copia manualmente las imágenes del flyer a esta carpeta:
+## Archivos en esta carpeta
 
-1. **background.jpg** - La imagen de fondo con los remolinos coloridos
-2. **flyer.jpg** - La imagen completa del flyer (opcional, para compartir)
+### Imágenes de Fondo
 
-Las imágenes deben estar en formato JPG o PNG y se referencian desde `event-config.json`.
+Los eventos pueden usar imágenes de fondo personalizadas.
 
-Para usar diferentes imágenes en futuros eventos, simplemente reemplaza estos archivos o actualiza las rutas en `event-config.json`.
+- Coloca las imágenes aquí con nombres descriptivos
+- Usa la URL relativa en la configuración del evento
+
+**Ejemplo:**
+- Archivo: `public/mi-evento-bg.png`
+- URL en config: `/mi-evento-bg.png`
+
+### Imágenes OG (Open Graph)
+
+Para la previsualización al compartir en redes sociales:
+
+- `og-[slug].png` - Imagen OG personalizada por evento
+- Tamaño recomendado: 1200x630 pixels
+
+### Favicon
+
+- `favicon.ico` - Icono del sitio
+
+---
+
+## 💡 Tips
+
+1. **Optimiza las imágenes** antes de subirlas (< 500KB ideal)
+2. **Usa nombres descriptivos** sin espacios
+3. **Formatos recomendados:** PNG, JPG, WebP
+
+---
+
+## 📂 Estructura típica
+
+```
+public/
+├── favicon.ico
+├── background.png          # Fondo por defecto
+├── og-mi-evento.png        # OG image evento 1
+├── og-otro-evento.png      # OG image evento 2
+└── README.md               # Este archivo
+```
