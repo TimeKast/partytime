@@ -3,8 +3,45 @@ import { isDatabaseConfigured } from '@/lib/db'
 import { cookies } from 'next/headers'
 import { validateSession } from '@/lib/auth-utils'
 import { userHasEventAccess } from '@/lib/user-queries'
+import { existsSync, renameSync } from 'fs'
+import { join } from 'path'
 
 export const dynamic = 'force-dynamic'
+
+/**
+ * Rename OG images in /public when slug changes
+ * Looks for og-[oldSlug].png and og-[oldSlug].jpg
+ */
+function renameOgImages(oldSlug: string, newSlug: string): { renamed: string[], errors: string[] } {
+    const publicDir = join(process.cwd(), 'public')
+    const extensions = ['.png', '.jpg', '.jpeg', '.webp']
+    const renamed: string[] = []
+    const errors: string[] = []
+
+    for (const ext of extensions) {
+        const oldPath = join(publicDir, `og-${oldSlug}${ext}`)
+        const newPath = join(publicDir, `og-${newSlug}${ext}`)
+
+        if (existsSync(oldPath)) {
+            try {
+                // Check if destination already exists
+                if (existsSync(newPath)) {
+                    errors.push(`og-${newSlug}${ext} already exists, skipping rename`)
+                    continue
+                }
+                renameSync(oldPath, newPath)
+                renamed.push(`og-${oldSlug}${ext} → og-${newSlug}${ext}`)
+                console.log(`[Slug Change] Renamed OG image: og-${oldSlug}${ext} → og-${newSlug}${ext}`)
+            } catch (err) {
+                const errorMsg = `Failed to rename og-${oldSlug}${ext}: ${err}`
+                errors.push(errorMsg)
+                console.error(`[Slug Change] ${errorMsg}`)
+            }
+        }
+    }
+
+    return { renamed, errors }
+}
 
 // Default theme colors (used when event has no theme set)
 const DEFAULT_THEME = {
@@ -137,6 +174,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         // Handle slug change separately (requires updating RSVPs too)
         let updatedRsvpsCount = 0
         let finalEvent = existingEvent
+        let ogImagesRenamed: string[] = []
+        let ogImagesErrors: string[] = []
+        
         if (body.newSlug !== undefined && body.newSlug !== slug) {
             // Only super_admin can change slugs (it's a more sensitive operation)
             if (currentUser.role !== 'super_admin') {
@@ -150,6 +190,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                 const result = await updateEventSlug(existingEvent.id, body.newSlug)
                 finalEvent = result.event
                 updatedRsvpsCount = result.updatedRsvps
+
+                // Rename OG images in /public if they exist
+                const ogResult = renameOgImages(slug, body.newSlug)
+                ogImagesRenamed = ogResult.renamed
+                ogImagesErrors = ogResult.errors
             } catch (error: any) {
                 return NextResponse.json({
                     success: false,
@@ -185,10 +230,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         return NextResponse.json({
             success: true,
             event: finalEvent,
-            ...(updatedRsvpsCount > 0 && { 
+            ...(body.newSlug && body.newSlug !== slug && { 
                 slugChanged: true,
                 updatedRsvps: updatedRsvpsCount,
-                newSlug: body.newSlug 
+                newSlug: body.newSlug,
+                ogImages: {
+                    renamed: ogImagesRenamed,
+                    errors: ogImagesErrors
+                }
             })
         })
     } catch (error) {

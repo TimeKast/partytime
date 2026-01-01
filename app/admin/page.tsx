@@ -709,6 +709,13 @@ export default function AdminDashboard() {
         if (data.updatedRsvps > 0) {
           msg += ` | ${data.updatedRsvps} RSVP(s) actualizados`
         }
+        if (data.ogImages?.renamed?.length > 0) {
+          msg += ` | ${data.ogImages.renamed.length} imagen(es) OG renombrada(s)`
+        }
+        if (data.ogImages?.errors?.length > 0) {
+          msg += ` | ⚠️ ${data.ogImages.errors.length} error(es) en imágenes`
+          console.warn('OG Image rename errors:', data.ogImages.errors)
+        }
         setMessage(msg)
 
         // Actualizar el evento seleccionado si era el que cambiamos
@@ -1904,6 +1911,7 @@ export default function AdminDashboard() {
                     <li>Los enlaces compartidos anteriormente dejarán de funcionar</li>
                     <li>La metadata para redes sociales se actualizará automáticamente</li>
                     <li>Todos los RSVPs serán actualizados al nuevo slug</li>
+                    <li>Las imágenes OG personalizadas (<code>og-{editingSlugEvent.slug}.*</code>) serán renombradas</li>
                   </ul>
                 </div>
               )}
