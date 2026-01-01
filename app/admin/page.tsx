@@ -1030,10 +1030,12 @@ export default function AdminDashboard() {
 
                 <button
                   onClick={sendBulkEmails}
-                  disabled={loading || emailTargetRsvps.length === 0}
+                  disabled={loading || emailTargetRsvps.length === 0 || isEventPast()}
                   className={styles.bulkBtn}
+                  title={isEventPast() ? "No se pueden enviar emails - evento pasado" : undefined}
+                  style={isEventPast() ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                 >
-                  📧 Enviar Emails ({emailTargetRsvps.length})
+                  📧 Enviar Emails ({isEventPast() ? 'Evento pasado' : emailTargetRsvps.length})
                 </button>
               </div>
             </div>
@@ -1062,9 +1064,10 @@ export default function AdminDashboard() {
                       <td className={styles.actionCell}>
                         <button
                           onClick={() => sendEmail(rsvp)}
-                          disabled={loading}
+                          disabled={loading || isEventPast()}
                           className={styles.sendBtn}
-                          title="Enviar email"
+                          title={isEventPast() ? "No se pueden enviar emails - evento pasado" : "Enviar email"}
+                          style={isEventPast() ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                         >
                           📧
                         </button>
@@ -1135,9 +1138,10 @@ export default function AdminDashboard() {
                       <td className={styles.actionCell}>
                         <button
                           onClick={() => sendEmail(rsvp)}
-                          disabled={loading}
+                          disabled={loading || isEventPast()}
                           className={styles.sendBtn}
-                          title="Enviar email de re-invitación"
+                          title={isEventPast() ? "No se pueden enviar emails - evento pasado" : "Enviar email de re-invitación"}
+                          style={isEventPast() ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                         >
                           📧
                         </button>
