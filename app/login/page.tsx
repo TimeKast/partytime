@@ -71,7 +71,7 @@ export default function LoginPage() {
                 {/* Logo/Brand */}
                 <div className={styles.brand}>
                     <div className={styles.logo}>🎉</div>
-                    <h1 className={styles.title}>Rooftop Party</h1>
+                    <h1 className={styles.title}>Party Time!</h1>
                     <p className={styles.subtitle}>Panel de Administración</p>
                 </div>
 

@@ -6,8 +6,9 @@ const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://party.timekast.mx'
 
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
-  title: eventConfig.event.title,
-  description: eventConfig.event.subtitle,
+  title: 'Party Time!',
+  applicationName: 'Party Time!',
+  description: 'Party Time! — Invitaciones y RSVP',
 }
 
 export const viewport: Viewport = {

@@ -1623,7 +1623,7 @@ export default function AdminDashboard() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Título *</label>
-                  <input name="title" type="text" required placeholder="ROOFTOP PARTY" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} />
+                  <input name="title" type="text" required placeholder="Party Time!" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Subtítulo</label>

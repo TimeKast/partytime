@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
 
     // Enviar email con Resend
     const { data, error } = await resend.emails.send({
-      from: `Rooftop Party <${FROM_EMAIL}>`,
+      from: `Party Time! <${FROM_EMAIL}>`,
       to: email,
       subject,
       html: htmlContent

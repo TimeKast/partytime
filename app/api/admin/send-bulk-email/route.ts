@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
         }
 
         const { error } = await resend.emails.send({
-          from: FROM_EMAIL,
+          from: `Party Time! <${FROM_EMAIL}>`,
           to: rsvp.email,
           subject,
           html: htmlContent
