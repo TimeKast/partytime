@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isDatabaseConfigured } from '@/lib/db'
 import { cookies } from 'next/headers'
 import { validateSession } from '@/lib/auth-utils'
-import { getUserAccessibleEventIds } from '@/lib/user-queries'
+import { getUserEventAssignments } from '@/lib/user-queries'
 import type { Event } from '@/lib/schema'
 
 export const dynamic = 'force-dynamic'
@@ -38,8 +38,14 @@ export async function GET(request: NextRequest) {
 
             // Filter for non-super-admins
             if (currentUser.role !== 'super_admin') {
-                const accessibleIds = await getUserAccessibleEventIds(currentUser.id)
-                events = events.filter(e => accessibleIds.includes(e.id))
+                const assignments = await getUserEventAssignments(currentUser.id)
+                const roleByEventId = new Map(assignments.map(a => [a.event.id, a.assignment.role]))
+                events = events
+                    .filter(e => roleByEventId.has(e.id))
+                    .map(e => ({ ...e, accessRole: roleByEventId.get(e.id) }))
+            } else {
+                // For UI gating convenience, treat super_admin as manager everywhere
+                events = events.map(e => ({ ...e, accessRole: 'manager' }))
             }
 
             return NextResponse.json({

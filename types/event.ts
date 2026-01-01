@@ -4,6 +4,11 @@
 export interface Event {
     id?: string
     slug: string           // URL-friendly identifier (e.g., 'andrreas')
+    /**
+     * Access role of the current authenticated user for this event.
+     * Returned by `/api/events` for non-super-admin users.
+     */
+    accessRole?: 'manager' | 'viewer'
     title: string
     subtitle: string
     date: string

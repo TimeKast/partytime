@@ -814,6 +814,22 @@ export default function AdminDashboard() {
     emailsSent: rsvps.filter(r => r.emailSent).length,
   }
 
+  // Permissions (per selected event)
+  const selectedEvent = events.find(e => e.slug === selectedEventId)
+  const accessRole = selectedEvent?.accessRole // 'manager' | 'viewer' | undefined
+  const canManageSelectedEvent = currentUser?.role === 'super_admin' || accessRole === 'manager'
+  const isReadOnly = !canManageSelectedEvent
+
+  // Prevent navigating to tabs the user shouldn't access
+  useEffect(() => {
+    if (activeTab === 'eventos' && currentUser?.role !== 'super_admin') {
+      setActiveTab('dashboard')
+    }
+    if (activeTab === 'config' && !canManageSelectedEvent) {
+      setActiveTab('dashboard')
+    }
+  }, [activeTab, canManageSelectedEvent, currentUser?.role])
+
   // While checking auth, show loading
   if (checkingAuth) {
     return <div className={styles.loadingContainer}>Validando sesión...</div>
@@ -877,25 +893,28 @@ export default function AdminDashboard() {
         </select>
 
         <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-          <button
-            onClick={() => setActiveTab('eventos')}
-            style={{
-              padding: '6px 12px',
-              background: activeTab === 'eventos' ? 'white' : 'rgba(255,255,255,0.2)',
-              color: activeTab === 'eventos' ? '#667eea' : 'white',
-              border: '2px solid white',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: '600',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
-            title="Gestionar Eventos"
-          >
-            📂 <span style={{ display: 'none' }}>Eventos</span>
-          </button>
+          {/* Solo super_admin puede gestionar eventos */}
+          {currentUser?.role === 'super_admin' && (
+            <button
+              onClick={() => setActiveTab('eventos')}
+              style={{
+                padding: '6px 12px',
+                background: activeTab === 'eventos' ? 'white' : 'rgba(255,255,255,0.2)',
+                color: activeTab === 'eventos' ? '#667eea' : 'white',
+                border: '2px solid white',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              title="Gestionar Eventos"
+            >
+              📂 <span style={{ display: 'none' }}>Eventos</span>
+            </button>
+          )}
 
           <a
             href={`/${selectedEventId}`}
@@ -926,12 +945,15 @@ export default function AdminDashboard() {
         >
           📊 Dashboard
         </button>
-        <button
-          className={`${styles.tab} ${activeTab === 'config' ? styles.tabActive : ''}`}
-          onClick={() => setActiveTab('config')}
-        >
-          ⚙️ Config
-        </button>
+        {/* Config solo para super_admin o manager del evento seleccionado */}
+        {canManageSelectedEvent && (
+          <button
+            className={`${styles.tab} ${activeTab === 'config' ? styles.tabActive : ''}`}
+            onClick={() => setActiveTab('config')}
+          >
+            ⚙️ Config
+          </button>
+        )}
       </div>
 
       {/* Contenido del Dashboard */}
@@ -982,32 +1004,35 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className={styles.filterSection}>
-              <h3>📧 Envío de Emails</h3>
-              <div className={styles.filterRow}>
-                <select value={emailFilterStatus} onChange={(e) => setEmailFilterStatus(e.target.value as any)}>
-                  <option value="all">Todos los estados</option>
-                  <option value="confirmed">✅ Confirmados</option>
-                  <option value="cancelled">❌ Cancelados</option>
-                </select>
+            {/* Viewer (solo lectura) NO debe ver sección de envío de emails */}
+            {!isReadOnly && (
+              <div className={styles.filterSection}>
+                <h3>📧 Envío de Emails</h3>
+                <div className={styles.filterRow}>
+                  <select value={emailFilterStatus} onChange={(e) => setEmailFilterStatus(e.target.value as any)}>
+                    <option value="all">Todos los estados</option>
+                    <option value="confirmed">✅ Confirmados</option>
+                    <option value="cancelled">❌ Cancelados</option>
+                  </select>
 
-                <select value={emailFilterEmail} onChange={(e) => setEmailFilterEmail(e.target.value as any)} className={styles.emailFilter}>
-                  <option value="all">Todos</option>
-                  <option value="sent">✉️ Ya enviados</option>
-                  <option value="not-sent">📭 Sin enviar</option>
-                </select>
+                  <select value={emailFilterEmail} onChange={(e) => setEmailFilterEmail(e.target.value as any)} className={styles.emailFilter}>
+                    <option value="all">Todos</option>
+                    <option value="sent">✉️ Ya enviados</option>
+                    <option value="not-sent">📭 Sin enviar</option>
+                  </select>
 
-                <button
-                  onClick={sendBulkEmails}
-                  disabled={loading || emailTargetRsvps.length === 0 || isEventPast()}
-                  className={styles.bulkBtn}
-                  title={isEventPast() ? "No se pueden enviar emails - evento pasado" : undefined}
-                  style={isEventPast() ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                >
-                  📧 Enviar Emails ({isEventPast() ? 'Evento pasado' : emailTargetRsvps.length})
-                </button>
+                  <button
+                    onClick={sendBulkEmails}
+                    disabled={loading || emailTargetRsvps.length === 0 || isEventPast()}
+                    className={styles.bulkBtn}
+                    title={isEventPast() ? "No se pueden enviar emails - evento pasado" : undefined}
+                    style={isEventPast() ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                  >
+                    📧 Enviar Emails ({isEventPast() ? 'Evento pasado' : emailTargetRsvps.length})
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {message && <div className={styles.message}>{message}</div>}
@@ -1019,7 +1044,7 @@ export default function AdminDashboard() {
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>Acciones</th>
+                    {!isReadOnly && <th>Acciones</th>}
                     <th>Email Enviado</th>
                     <th>Nombre</th>
                     <th>Email</th>
@@ -1030,33 +1055,35 @@ export default function AdminDashboard() {
                 <tbody>
                   {filteredRsvps.filter(r => r.status === 'confirmed').map((rsvp) => (
                     <tr key={rsvp.id} className={styles.rsvpRow}>
-                      <td className={styles.actionCell}>
-                        <button
-                          onClick={() => sendEmail(rsvp)}
-                          disabled={loading || isEventPast()}
-                          className={styles.sendBtn}
-                          title={isEventPast() ? "No se pueden enviar emails - evento pasado" : "Enviar email"}
-                          style={isEventPast() ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                        >
-                          📧
-                        </button>
-                        <button
-                          onClick={() => openEditModal(rsvp)}
-                          disabled={loading}
-                          className={styles.editBtn}
-                          title="Editar datos"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => toggleStatus(rsvp)}
-                          disabled={loading}
-                          className={styles.toggleBtn}
-                          title="Cancelar asistencia"
-                        >
-                          ❌
-                        </button>
-                      </td>
+                      {!isReadOnly && (
+                        <td className={styles.actionCell}>
+                          <button
+                            onClick={() => sendEmail(rsvp)}
+                            disabled={loading || isEventPast()}
+                            className={styles.sendBtn}
+                            title={isEventPast() ? "No se pueden enviar emails - evento pasado" : "Enviar email"}
+                            style={isEventPast() ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                          >
+                            📧
+                          </button>
+                          <button
+                            onClick={() => openEditModal(rsvp)}
+                            disabled={loading}
+                            className={styles.editBtn}
+                            title="Editar datos"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => toggleStatus(rsvp)}
+                            disabled={loading}
+                            className={styles.toggleBtn}
+                            title="Cancelar asistencia"
+                          >
+                            ❌
+                          </button>
+                        </td>
+                      )}
                       <td className={styles.emailSentCell}>
                         {rsvp.emailSent ? (
                           <>Mail: {new Date(rsvp.emailSent).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}</>
@@ -1093,7 +1120,7 @@ export default function AdminDashboard() {
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>Acciones</th>
+                    {!isReadOnly && <th>Acciones</th>}
                     <th>Email Enviado</th>
                     <th>Nombre</th>
                     <th>Email</th>
@@ -1104,33 +1131,35 @@ export default function AdminDashboard() {
                 <tbody>
                   {filteredRsvps.filter(r => r.status === 'cancelled').map((rsvp) => (
                     <tr key={rsvp.id} className={styles.rsvpRow}>
-                      <td className={styles.actionCell}>
-                        <button
-                          onClick={() => sendEmail(rsvp)}
-                          disabled={loading || isEventPast()}
-                          className={styles.sendBtn}
-                          title={isEventPast() ? "No se pueden enviar emails - evento pasado" : "Enviar email de re-invitación"}
-                          style={isEventPast() ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                        >
-                          📧
-                        </button>
-                        <button
-                          onClick={() => openEditModal(rsvp)}
-                          disabled={loading}
-                          className={styles.editBtn}
-                          title="Editar datos"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => toggleStatus(rsvp)}
-                          disabled={loading}
-                          className={styles.toggleBtn}
-                          title="Reconfirmar asistencia"
-                        >
-                          ✅
-                        </button>
-                      </td>
+                      {!isReadOnly && (
+                        <td className={styles.actionCell}>
+                          <button
+                            onClick={() => sendEmail(rsvp)}
+                            disabled={loading || isEventPast()}
+                            className={styles.sendBtn}
+                            title={isEventPast() ? "No se pueden enviar emails - evento pasado" : "Enviar email de re-invitación"}
+                            style={isEventPast() ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                          >
+                            📧
+                          </button>
+                          <button
+                            onClick={() => openEditModal(rsvp)}
+                            disabled={loading}
+                            className={styles.editBtn}
+                            title="Editar datos"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => toggleStatus(rsvp)}
+                            disabled={loading}
+                            className={styles.toggleBtn}
+                            title="Reconfirmar asistencia"
+                          >
+                            ✅
+                          </button>
+                        </td>
+                      )}
                       <td className={styles.emailSentCell}>
                         {rsvp.emailSent ? (
                           <>Mail: {new Date(rsvp.emailSent).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}</>
@@ -1169,7 +1198,7 @@ export default function AdminDashboard() {
       )}
 
       {/* Contenido de Configuración */}
-      {activeTab === 'config' && (
+      {activeTab === 'config' && canManageSelectedEvent && (
         <div className={styles.configContainer}>
           <h2>⚙️ Configuración del Evento</h2>
           <p className={styles.configDescription}>
@@ -1446,7 +1475,7 @@ export default function AdminDashboard() {
       )}
 
       {/* Contenido de Eventos */}
-      {activeTab === 'eventos' && (
+      {activeTab === 'eventos' && currentUser?.role === 'super_admin' && (
         <div className={styles.configContainer}>
           <h2>🎉 Gestión de Eventos</h2>
           <p className={styles.configDescription}>
@@ -1497,10 +1526,9 @@ export default function AdminDashboard() {
                       </a>
                       <button
                         onClick={() => {
-                          if (evt.id) {
-                            setSelectedEventId(evt.id)
-                            loadRSVPs(evt.id)
-                          }
+                          // Always store the slug in state to keep selector + API calls consistent
+                          setSelectedEventId(evt.slug)
+                          loadRSVPs(evt.slug)
                         }}
                         style={{
                           padding: '8px 15px',

@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { validateSession } from '@/lib/auth-utils'
+import { userHasEventAccess } from '@/lib/user-queries'
 import eventConfig from '@/event-config.json'
 
 export const dynamic = 'force-dynamic'
@@ -7,9 +10,23 @@ export const dynamic = 'force-dynamic'
  * GET /api/event-settings?eventId=X
  * Obtiene la configuración de un evento específico
  * Now reads directly from the 'events' table (consolidated)
+ * Requiere autenticación y verifica permisos para usuarios no super_admin
  */
 export async function GET(request: NextRequest) {
   try {
+    // Check auth
+    const cookieStore = await cookies()
+    const token = cookieStore.get('rp_session')?.value
+
+    if (!token) {
+      return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+    }
+
+    const currentUser = await validateSession(token)
+    if (!currentUser) {
+      return NextResponse.json({ success: false, error: 'Sesión inválida' }, { status: 401 })
+    }
+
     // Get eventId from query params, or use default
     const { searchParams } = new URL(request.url)
     const eventId = searchParams.get('eventId') || eventConfig.event.id
@@ -18,6 +35,17 @@ export async function GET(request: NextRequest) {
     const event = await getEventBySlug(eventId)
 
     if (event) {
+      // Check permissions for non-super-admin users
+      if (currentUser.role !== 'super_admin') {
+        const { hasAccess } = await userHasEventAccess(currentUser.id, event.id, 'viewer')
+        if (!hasAccess) {
+          return NextResponse.json({ 
+            success: false, 
+            error: 'No tienes permiso para ver la configuración de este evento' 
+          }, { status: 403 })
+        }
+      }
+
       // Extract theme from jsonb or use defaults
       const theme = (event.theme as any) || {}
 
