@@ -127,7 +127,7 @@ export function generateConfirmationEmail({
                     ${headerBadge ? `
                     <table role="presentation" style="margin: 0 auto 16px auto; border-collapse: collapse;">
                       <tr>
-                        <td style="background: linear-gradient(135deg, rgba(251,191,36,0.15) 0%, rgba(251,191,36,0.05) 100%); border: 1px solid rgba(251,191,36,0.3); border-radius: 20px; padding: 6px 16px;">
+                        <td style="background-color: #3d3520; border: 1px solid #5c4f30; border-radius: 20px; padding: 6px 16px;">
                           <p style="margin: 0; color: #fbbf24; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px;">
                             ${headerBadge}
                           </p>
@@ -138,7 +138,7 @@ export function generateConfirmationEmail({
                     <h1 style="margin: 0; color: #ffffff; font-size: 36px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase;">
                       ${event.title}
                     </h1>
-                    <h2 style="margin: 8px 0 0 0; color: rgba(255,255,255,0.8); font-size: 18px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase;">
+                    <h2 style="margin: 8px 0 0 0; color: #cccccc; font-size: 18px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase;">
                       ${event.subtitle}
                     </h2>
                   </td>
