@@ -322,10 +322,10 @@ export function generateConfirmationEmail({
                 <!-- Footer -->
                 <tr>
                   <td style="padding: 32px 20px; text-align: center;">
-                    <p style="margin: 0 0 8px 0; font-size: 13px; color: rgba(255,255,255,0.6);">
-                      ¿Preguntas? Contáctanos: <span style="color: rgba(255,255,255,0.8);">${contactEmail}</span>
+                    <p style="margin: 0 0 8px 0; font-size: 13px; color: #999999;">
+                      ¿Preguntas? Contáctanos: <span style="color: #cccccc;">${contactEmail}</span>
                     </p>
-                    <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.4);">
+                    <p style="margin: 0; font-size: 11px; color: #777777;">
                       Este email fue enviado porque confirmaste tu asistencia a ${event.title}
                     </p>
                   </td>
