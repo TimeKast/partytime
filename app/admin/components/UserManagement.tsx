@@ -38,12 +38,11 @@ export default function UserManagement({ events }: UserManagementProps) {
     const [selectedUser, setSelectedUser] = useState<User | null>(null)
     const [userAssignments, setUserAssignments] = useState<EventAssignment[]>([])
 
-    // Form state
     const [newUserForm, setNewUserForm] = useState({
         email: '',
         password: '',
         name: '',
-        role: 'viewer' as 'manager' | 'viewer',
+        role: 'user' as 'super_admin' | 'user',
     })
 
     // Load users on mount
@@ -97,7 +96,7 @@ export default function UserManagement({ events }: UserManagementProps) {
             if (data.success) {
                 setMessage('✅ Usuario creado exitosamente')
                 setShowCreateForm(false)
-                setNewUserForm({ email: '', password: '', name: '', role: 'viewer' })
+                setNewUserForm({ email: '', password: '', name: '', role: 'user' })
                 await loadUsers()
             } else {
                 setMessage(`❌ ${data.error}`)
@@ -224,12 +223,8 @@ export default function UserManagement({ events }: UserManagementProps) {
         switch (role) {
             case 'super_admin':
                 return <span style={{ background: '#dc2626', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem' }}>Super Admin</span>
-            case 'manager':
-                return <span style={{ background: '#2563eb', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem' }}>Manager</span>
-            case 'viewer':
-                return <span style={{ background: '#6b7280', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem' }}>Viewer</span>
             default:
-                return <span>{role}</span>
+                return null // No global badge for regular users to avoid confusion
         }
     }
 
@@ -304,17 +299,7 @@ export default function UserManagement({ events }: UserManagementProps) {
                                 style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db' }}
                             />
                         </div>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Rol</label>
-                            <select
-                                value={newUserForm.role}
-                                onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value as 'manager' | 'viewer' })}
-                                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db' }}
-                            >
-                                <option value="viewer">Viewer (solo lectura)</option>
-                                <option value="manager">Manager (gestión de eventos asignados)</option>
-                            </select>
-                        </div>
+                        {/* Global role selection removed as it's redundant. Use assignments instead. */}
                         <button
                             type="submit"
                             disabled={loading}
@@ -385,164 +370,143 @@ export default function UserManagement({ events }: UserManagementProps) {
                 {/* Selected User Details */}
                 {selectedUser && (
                     <div style={{ background: '#f9fafb', padding: '20px', borderRadius: '12px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                            <h3>{selectedUser.name}</h3>
-                            <button
-                                onClick={() => setSelectedUser(null)}
-                                style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}
-                            >
-                                ✕
-                            </button>
-                        </div>
-
-                        <div style={{ marginBottom: '20px' }}>
-                            <p><strong>Email:</strong> {selectedUser.email}</p>
-                            <p><strong>Rol:</strong> {getRoleBadge(selectedUser.role)}</p>
-                            <p><strong>Estado:</strong> {selectedUser.isActive ? '🟢 Activo' : '🔴 Inactivo'}</p>
-                        </div>
-
-                        {/* Actions */}
-                        {selectedUser.role !== 'super_admin' && (
-                            <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                <button
-                                    onClick={() => handleToggleActive(selectedUser)}
-                                    style={{
-                                        padding: '8px 16px',
-                                        background: selectedUser.isActive ? '#ef4444' : '#10b981',
-                                        color: 'white',
-                                        border: 'none',
-                                        borderRadius: '6px',
-                                        cursor: 'pointer',
-                                    }}
-                                >
-                                    {selectedUser.isActive ? '🚫 Desactivar' : '✅ Activar'}
-                                </button>
-                                {selectedUser.role === 'viewer' && (
-                                    <button
-                                        onClick={() => handleChangeRole(selectedUser, 'manager')}
-                                        style={{
-                                            padding: '8px 16px',
-                                            background: '#2563eb',
-                                            color: 'white',
-                                            border: 'none',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                        }}
-                                    >
-                                        ⬆️ Promover a Manager
-                                    </button>
-                                )}
-                                {selectedUser.role === 'manager' && (
-                                    <button
-                                        onClick={() => handleChangeRole(selectedUser, 'viewer')}
-                                        style={{
-                                            padding: '8px 16px',
-                                            background: '#6b7280',
-                                            color: 'white',
-                                            border: 'none',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                        }}
-                                    >
-                                        ⬇️ Cambiar a Viewer
-                                    </button>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Event Assignments */}
-                        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '20px' }}>
-                            <h4 style={{ marginBottom: '15px' }}>🎫 Eventos Asignados</h4>
-
-                            {userAssignments.length === 0 ? (
-                                <p style={{ color: '#6b7280', fontStyle: 'italic' }}>No tiene eventos asignados</p>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '15px' }}>
-                                    {userAssignments.map((assignment) => (
-                                        <div
-                                            key={assignment.eventId}
-                                            style={{
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'center',
-                                                padding: '10px',
-                                                background: 'white',
-                                                borderRadius: '6px',
-                                                border: '1px solid #e5e7eb',
-                                            }}
-                                        >
-                                            <div>
-                                                <div style={{ fontWeight: '500' }}>{assignment.eventTitle}</div>
-                                                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                                                    Rol: {assignment.role === 'manager' ? 'Manager' : 'Viewer'}
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={() => handleRemoveAssignment(selectedUser.id, assignment.eventId)}
-                                                style={{
-                                                    padding: '4px 8px',
-                                                    background: '#fee2e2',
-                                                    color: '#dc2626',
-                                                    border: 'none',
-                                                    borderRadius: '4px',
-                                                    cursor: 'pointer',
-                                                    fontSize: '0.875rem',
-                                                }}
-                                            >
-                                                ✕ Quitar
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Add Event Assignment */}
-                            {selectedUser.role !== 'super_admin' && (
-                                <div style={{ marginTop: '15px' }}>
-                                    <h5 style={{ marginBottom: '10px' }}>Asignar Evento</h5>
-                                    <div style={{ display: 'flex', gap: '10px' }}>
-                                        <select
-                                            id="assignEventSelect"
-                                            style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
-                                        >
-                                            <option value="">Seleccionar evento...</option>
-                                            {events
-                                                .filter(e => !userAssignments.some(a => a.eventId === e.id))
-                                                .map(event => (
-                                                    <option key={event.id} value={event.id}>{event.title}</option>
-                                                ))
-                                            }
-                                        </select>
-                                        <select
-                                            id="assignRoleSelect"
-                                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
-                                        >
-                                            <option value="viewer">Viewer</option>
-                                            <option value="manager">Manager</option>
-                                        </select>
+                        {(() => {
+                            const user = selectedUser; // Local constant for type narrowing
+                            return (
+                                <>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                        <h3>{user.name}</h3>
                                         <button
-                                            onClick={() => {
-                                                const eventSelect = document.getElementById('assignEventSelect') as HTMLSelectElement
-                                                const roleSelect = document.getElementById('assignRoleSelect') as HTMLSelectElement
-                                                if (eventSelect.value) {
-                                                    handleAssignEvent(selectedUser.id, eventSelect.value, roleSelect.value as 'manager' | 'viewer')
-                                                }
-                                            }}
-                                            style={{
-                                                padding: '8px 16px',
-                                                background: '#10b981',
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '6px',
-                                                cursor: 'pointer',
-                                            }}
+                                            onClick={() => setSelectedUser(null)}
+                                            style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}
                                         >
-                                            ➕ Asignar
+                                            ✕
                                         </button>
                                     </div>
-                                </div>
-                            )}
-                        </div>
+
+                                    <div style={{ marginBottom: '20px' }}>
+                                        <p><strong>Email:</strong> {user.email}</p>
+                                        <p><strong>Estado:</strong> {user.isActive ? '🟢 Activo' : '🔴 Inactivo'}</p>
+                                        {user.role === 'super_admin' && (
+                                            <p><strong>Rol Global:</strong> {getRoleBadge(user.role)}</p>
+                                        )}
+                                    </div>
+
+                                    {/* Actions */}
+                                    {user.role !== 'super_admin' && (
+                                        <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                            <button
+                                                onClick={() => handleToggleActive(user)}
+                                                style={{
+                                                    padding: '8px 16px',
+                                                    background: user.isActive ? '#ef4444' : '#10b981',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '6px',
+                                                    cursor: 'pointer',
+                                                }}
+                                            >
+                                                {user.isActive ? '🚫 Desactivar Cuenta' : '✅ Activar Cuenta'}
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Event Assignments */}
+                                    <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '20px' }}>
+                                        <h4 style={{ marginBottom: '15px' }}>🎫 Eventos Asignados</h4>
+
+                                        {userAssignments.length === 0 ? (
+                                            <p style={{ color: '#6b7280', fontStyle: 'italic' }}>No tiene eventos asignados</p>
+                                        ) : (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '15px' }}>
+                                                {userAssignments.map((assignment) => (
+                                                    <div
+                                                        key={assignment.eventId}
+                                                        style={{
+                                                            display: 'flex',
+                                                            justifyContent: 'space-between',
+                                                            alignItems: 'center',
+                                                            padding: '10px',
+                                                            background: 'white',
+                                                            borderRadius: '6px',
+                                                            border: '1px solid #e5e7eb',
+                                                        }}
+                                                    >
+                                                        <div>
+                                                            <div style={{ fontWeight: '500' }}>{assignment.eventTitle}</div>
+                                                            <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                                                                Rol: {assignment.role === 'manager' ? 'Manager' : 'Viewer'}
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => handleRemoveAssignment(user.id, assignment.eventId)}
+                                                            style={{
+                                                                padding: '4px 8px',
+                                                                background: '#fee2e2',
+                                                                color: '#dc2626',
+                                                                border: 'none',
+                                                                borderRadius: '4px',
+                                                                cursor: 'pointer',
+                                                                fontSize: '0.875rem',
+                                                            }}
+                                                        >
+                                                            ✕ Quitar
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Add Event Assignment */}
+                                        {user.role !== 'super_admin' && (
+                                            <div style={{ marginTop: '15px' }}>
+                                                <h5 style={{ marginBottom: '10px' }}>Asignar Evento</h5>
+                                                <div style={{ display: 'flex', gap: '10px' }}>
+                                                    <select
+                                                        id="assignEventSelect"
+                                                        style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                                                    >
+                                                        <option value="">Seleccionar evento...</option>
+                                                        {events
+                                                            .filter(e => !userAssignments.some(a => a.eventId === e.id))
+                                                            .map(event => (
+                                                                <option key={event.id} value={event.id}>{event.title}</option>
+                                                            ))
+                                                        }
+                                                    </select>
+                                                    <select
+                                                        id="assignRoleSelect"
+                                                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                                                    >
+                                                        <option value="viewer">Viewer</option>
+                                                        <option value="manager">Manager</option>
+                                                    </select>
+                                                    <button
+                                                        onClick={() => {
+                                                            const eventSelect = document.getElementById('assignEventSelect') as HTMLSelectElement
+                                                            const roleSelect = document.getElementById('assignRoleSelect') as HTMLSelectElement
+                                                            if (eventSelect.value) {
+                                                                handleAssignEvent(user.id, eventSelect.value, roleSelect.value as 'manager' | 'viewer')
+                                                            }
+                                                        }}
+                                                        style={{
+                                                            padding: '8px 16px',
+                                                            background: '#10b981',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            borderRadius: '6px',
+                                                            cursor: 'pointer',
+                                                        }}
+                                                    >
+                                                        ➕ Asignar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            );
+                        })()}
                     </div>
                 )}
             </div>
