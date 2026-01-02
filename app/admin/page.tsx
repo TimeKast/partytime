@@ -284,8 +284,8 @@ export default function AdminDashboard() {
             // Email configuration
             emailConfirmationEnabled: data.settings.emailConfig?.confirmationEnabled || false,
             reminderEnabled: data.settings.emailConfig?.reminderEnabled || false,
-            reminderScheduledAt: data.settings.emailConfig?.reminderScheduledAt 
-              ? new Date(data.settings.emailConfig.reminderScheduledAt).toISOString().slice(0, 16) 
+            reminderScheduledAt: data.settings.emailConfig?.reminderScheduledAt
+              ? new Date(data.settings.emailConfig.reminderScheduledAt).toISOString().slice(0, 16)
               : '',
             reminderSentAt: data.settings.emailConfig?.reminderSentAt || null
           })
@@ -789,11 +789,11 @@ export default function AdminDashboard() {
         emailConfig: {
           confirmationEnabled: configForm.emailConfirmationEnabled,
           reminderEnabled: configForm.reminderEnabled,
-          reminderScheduledAt: configForm.reminderEnabled && configForm.reminderScheduledAt 
-            ? new Date(configForm.reminderScheduledAt).toISOString() 
+          reminderScheduledAt: configForm.reminderEnabled && configForm.reminderScheduledAt
+            ? new Date(configForm.reminderScheduledAt).toISOString()
             : null,
           // If user changes the reminder date after it was sent, allow re-sending
-          clearSentStatus: configForm.reminderSentAt && configForm.reminderScheduledAt && 
+          clearSentStatus: configForm.reminderSentAt && configForm.reminderScheduledAt &&
             new Date(configForm.reminderScheduledAt).toISOString() !== configForm.reminderSentAt
         }
       }
@@ -849,17 +849,17 @@ export default function AdminDashboard() {
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(24)
     doc.setFont('helvetica', 'bold')
-    doc.text(eventConfig.event.title, 105, 18, { align: 'center' })
+    doc.text(configForm.title, 105, 18, { align: 'center' })
 
     doc.setFontSize(12)
     doc.setFont('helvetica', 'normal')
-    doc.text(eventConfig.event.subtitle, 105, 27, { align: 'center' })
-    doc.text(`${eventConfig.event.date} - ${eventConfig.event.time}`, 105, 34, { align: 'center' })
+    doc.text(configForm.subtitle, 105, 27, { align: 'center' })
+    doc.text(`${configForm.date} - ${configForm.time}`, 105, 34, { align: 'center' })
 
     // Información del evento
     doc.setTextColor(0, 0, 0)
     doc.setFontSize(10)
-    doc.text(eventConfig.event.location, 105, 48, { align: 'center' })
+    doc.text(configForm.location, 105, 48, { align: 'center' })
 
     // Stats
     const totalGuests = confirmedRsvps.length + confirmedRsvps.filter(r => r.plusOne).length
@@ -894,7 +894,7 @@ export default function AdminDashboard() {
         cellPadding: 4
       },
       columnStyles: {
-        0: { halign: 'center', cellWidth: 10 },
+        0: { halign: 'center', cellWidth: 15 },
         1: { cellWidth: 40 },
         2: { cellWidth: 50 },
         3: { cellWidth: 35 },
@@ -918,7 +918,7 @@ export default function AdminDashboard() {
     )
 
     // Nombre del archivo con subtitle normalizado (sin espacios ni caracteres especiales)
-    const fileName = `lista-invitados-${eventConfig.event.subtitle.toLowerCase().replace(/\s+/g, '-')}.pdf`
+    const fileName = `lista-invitados-${configForm.subtitle.toLowerCase().replace(/\s+/g, '-')}.pdf`
     doc.save(fileName)
   }
 
@@ -1588,10 +1588,10 @@ export default function AdminDashboard() {
               </p>
 
               {/* Email de Confirmación Automática */}
-              <div style={{ 
-                padding: '20px', 
-                background: '#f8fafc', 
-                borderRadius: '12px', 
+              <div style={{
+                padding: '20px',
+                background: '#f8fafc',
+                borderRadius: '12px',
                 marginBottom: '20px',
                 border: '1px solid #e2e8f0'
               }}>
@@ -1608,16 +1608,16 @@ export default function AdminDashboard() {
                   </label>
                 </div>
                 <p style={{ margin: '10px 0 0 28px', fontSize: '13px', color: '#64748b' }}>
-                  {configForm.emailConfirmationEnabled 
+                  {configForm.emailConfirmationEnabled
                     ? '✅ Se enviará un email automáticamente cuando alguien confirme su asistencia'
                     : '⏸️ Los emails de confirmación se enviarán manualmente desde el dashboard'}
                 </p>
               </div>
 
               {/* Recordatorio Programado */}
-              <div style={{ 
-                padding: '20px', 
-                background: configForm.reminderEnabled ? '#f0fdf4' : '#f8fafc', 
+              <div style={{
+                padding: '20px',
+                background: configForm.reminderEnabled ? '#f0fdf4' : '#f8fafc',
                 borderRadius: '12px',
                 border: `1px solid ${configForm.reminderEnabled ? '#86efac' : '#e2e8f0'}`,
                 transition: 'all 0.3s ease'
@@ -1628,8 +1628,8 @@ export default function AdminDashboard() {
                     id="reminderEnabled"
                     className={styles.configCheckbox}
                     checked={configForm.reminderEnabled}
-                    onChange={(e) => setConfigForm({ 
-                      ...configForm, 
+                    onChange={(e) => setConfigForm({
+                      ...configForm,
                       reminderEnabled: e.target.checked,
                       // Clear date if disabling
                       reminderScheduledAt: e.target.checked ? configForm.reminderScheduledAt : ''
@@ -1639,7 +1639,7 @@ export default function AdminDashboard() {
                     🔔 Programar recordatorio automático
                   </label>
                 </div>
-                
+
                 {configForm.reminderEnabled && (
                   <div style={{ marginTop: '15px', marginLeft: '28px' }}>
                     <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
@@ -1667,8 +1667,8 @@ export default function AdminDashboard() {
 
                 {/* Estado del recordatorio */}
                 {configForm.reminderSentAt && (
-                  <div style={{ 
-                    marginTop: '15px', 
+                  <div style={{
+                    marginTop: '15px',
                     marginLeft: '28px',
                     padding: '12px 16px',
                     background: '#dcfce7',
@@ -1695,15 +1695,15 @@ export default function AdminDashboard() {
               </div>
 
               {/* Nota informativa */}
-              <div style={{ 
-                marginTop: '20px', 
-                padding: '15px', 
-                background: '#fef3c7', 
+              <div style={{
+                marginTop: '20px',
+                padding: '15px',
+                background: '#fef3c7',
                 borderRadius: '8px',
                 border: '1px solid #fcd34d'
               }}>
                 <p style={{ margin: 0, fontSize: '13px', color: '#92400e' }}>
-                  <strong>📌 Nota:</strong> Los recordatorios solo se envían a invitados <strong>confirmados</strong> de este evento específico. 
+                  <strong>📌 Nota:</strong> Los recordatorios solo se envían a invitados <strong>confirmados</strong> de este evento específico.
                   Los cancelados no recibirán el recordatorio automático.
                 </p>
               </div>
@@ -2050,10 +2050,10 @@ export default function AdminDashboard() {
               </div>
 
               {newSlug && newSlug !== editingSlugEvent.slug && (
-                <div style={{ 
-                  marginBottom: '15px', 
-                  padding: '12px', 
-                  background: '#fff3cd', 
+                <div style={{
+                  marginBottom: '15px',
+                  padding: '12px',
+                  background: '#fff3cd',
                   borderRadius: '8px',
                   border: '1px solid #ffc107'
                 }}>
