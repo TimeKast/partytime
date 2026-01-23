@@ -124,9 +124,9 @@ export async function POST(request: NextRequest) {
                     console.log(`✅ [BULK-REMINDER] Reminder sent to ${rsvp.email}`)
                 }
 
-                // 60 second delay between emails
+                // 10 second delay between emails
                 if (rsvpIds.indexOf(rsvpId) < rsvpIds.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 60000))
+                    await new Promise(resolve => setTimeout(resolve, 10000))
                 }
 
             } catch (rsvpError: any) {
