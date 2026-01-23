@@ -10,7 +10,7 @@ import eventConfig from '@/event-config.json'
 import styles from './admin.module.css'
 import type { Event } from '@/types/event'
 // H-008 FIX: Import extracted components to reduce monolithic file size
-import { StatsCards, UserManagement, type RSVP } from './components'
+import { StatsCards, UserManagement, ReminderStatusSection, type RSVP } from './components'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -1707,6 +1707,9 @@ export default function AdminDashboard() {
                   Los cancelados no recibirán el recordatorio automático.
                 </p>
               </div>
+
+              {/* Sección de Estado de Recordatorios */}
+              <ReminderStatusSection eventSlug={selectedEventId} />
             </div>
 
             <div className={styles.configFormButtons}>

@@ -7,6 +7,7 @@
 export { default as LoginForm } from './LoginForm'
 export { default as StatsCards } from './StatsCards'
 export { default as UserManagement } from './UserManagement'
+export { default as ReminderStatusSection } from './ReminderStatusSection'
 
 // Types for admin components
 export interface RSVP {
