@@ -32,6 +32,8 @@ export default function ReminderStatusSection({ eventSlug }: { eventSlug: string
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sendResult, setSendResult] = useState<{ success: boolean; message: string } | null>(null)
 
   const loadReminderStatus = async () => {
     if (!eventSlug) return
@@ -160,9 +162,70 @@ export default function ReminderStatusSection({ eventSlug }: { eventSlug: string
               marginBottom: '15px',
               border: '1px solid #fcd34d'
             }}>
-              <h5 style={{ margin: '0 0 10px 0', color: '#92400e', fontSize: '14px' }}>
-                ⚠️ Necesitan Recordatorio Manual ({data.needsManualReminder.length})
-              </h5>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
+                <h5 style={{ margin: 0, color: '#92400e', fontSize: '14px' }}>
+                  ⚠️ Necesitan Recordatorio Manual ({data.needsManualReminder.length})
+                </h5>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`¿Enviar recordatorio a ${data.needsManualReminder.length} persona(s)? Se enviarán con 60 segundos entre cada uno.`)) return
+                    
+                    setSending(true)
+                    setSendResult(null)
+                    
+                    try {
+                      const response = await fetch('/api/admin/send-bulk-reminder', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          eventSlug,
+                          rsvpIds: data.needsManualReminder.map(r => r.id)
+                        })
+                      })
+                      const result = await response.json()
+                      
+                      if (result.success) {
+                        setSendResult({ success: true, message: `✅ Enviados: ${result.sent} | ❌ Fallidos: ${result.failed}` })
+                        // Recargar estado
+                        setTimeout(() => loadReminderStatus(), 2000)
+                      } else {
+                        setSendResult({ success: false, message: `❌ Error: ${result.error}` })
+                      }
+                    } catch (err) {
+                      setSendResult({ success: false, message: '❌ Error de conexión' })
+                    } finally {
+                      setSending(false)
+                    }
+                  }}
+                  disabled={sending}
+                  style={{
+                    padding: '8px 16px',
+                    background: sending ? '#94a3b8' : '#f59e0b',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: sending ? 'wait' : 'pointer',
+                    fontWeight: '600',
+                    fontSize: '13px'
+                  }}
+                >
+                  {sending ? '⏳ Enviando...' : `📧 Enviar a Todos (${data.needsManualReminder.length})`}
+                </button>
+              </div>
+              
+              {sendResult && (
+                <div style={{
+                  padding: '10px',
+                  background: sendResult.success ? '#dcfce7' : '#fef2f2',
+                  borderRadius: '6px',
+                  marginBottom: '10px',
+                  fontSize: '13px',
+                  color: sendResult.success ? '#166534' : '#dc2626'
+                }}>
+                  {sendResult.message}
+                </div>
+              )}
+              
               <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
                 <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
                   <thead>
