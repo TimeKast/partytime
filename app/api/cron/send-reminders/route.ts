@@ -172,8 +172,8 @@ export async function GET(request: NextRequest) {
               console.log(`✅ [CRON] Reminder sent to ${rsvp.email}`);
             }
 
-            // 10 second delay between each email to ensure reliable delivery
-            await new Promise((resolve) => setTimeout(resolve, 10000));
+            // 5 second delay between each email to ensure reliable delivery
+            await new Promise((resolve) => setTimeout(resolve, 5000));
           } catch (rsvpError: any) {
             console.error(
               `❌ [CRON] Error processing RSVP ${rsvp.id}:`,
