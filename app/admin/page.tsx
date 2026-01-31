@@ -805,6 +805,7 @@ export default function AdminDashboard() {
         }
       }
 
+      console.log('🖼️ backgroundImage URL being sent:', configForm.backgroundImage)
       console.log('📦 Request body:', requestBody)
 
       const response = await fetch('/api/admin/event-settings/update', {
