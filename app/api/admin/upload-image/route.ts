@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile, mkdir } from 'fs/promises'
-import path from 'path'
-import { existsSync } from 'fs'
+import { put } from '@vercel/blob'
 
 // Maximum file size: 10MB
 const MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -50,34 +48,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get file extension
-    const originalName = file.name
-    const extension = path.extname(originalName).toLowerCase() || '.jpg'
-    
     // Create unique filename with event slug
     const timestamp = Date.now()
-    const filename = `${eventSlug}-${timestamp}${extension}`
+    const extension = file.name.split('.').pop() || 'jpg'
+    const filename = `events/${eventSlug}-${timestamp}.${extension}`
 
-    // Ensure uploads directory exists
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'events')
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true })
-    }
-
-    // Write file to disk
-    const filePath = path.join(uploadsDir, filename)
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    await writeFile(filePath, buffer)
-
-    // Return the public URL
-    const imageUrl = `/uploads/events/${filename}`
+    // Upload to Vercel Blob
+    const blob = await put(filename, file, {
+      access: 'public',
+      addRandomSuffix: false
+    })
 
     return NextResponse.json({
       success: true,
-      imageUrl,
-      filename,
-      originalName,
+      imageUrl: blob.url,
+      filename: blob.pathname,
       size: file.size
     })
 
