@@ -122,25 +122,24 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const customOgUrl = `${baseUrl}/og-${slug}.${ext}`
     try {
       console.log(`[OG-Image] Checking for custom OG image: ${customOgUrl}`)
+      
+      // Do GET directly instead of HEAD - Vercel Edge can return HTML for HEAD on static files
       const customRes = await fetch(customOgUrl, { 
-        method: 'HEAD',
+        method: 'GET',
         headers: { 'User-Agent': 'OG-Image-Generator/1.0' }
       })
       
       if (customRes.ok) {
-        // Verificar Content-Type del HEAD response
-        const headContentType = customRes.headers.get('content-type') || ''
-        if (!headContentType.startsWith('image/')) {
-          console.log(`[OG-Image] Custom file is not an image (Content-Type: ${headContentType}), skipping...`)
+        // Verificar Content-Type
+        const contentType = customRes.headers.get('content-type') || ''
+        if (!contentType.startsWith('image/')) {
+          console.log(`[OG-Image] Custom file is not an image (Content-Type: ${contentType}), skipping...`)
           continue // Intentar siguiente extensión o pasar a imagen de BD
         }
 
-        // La imagen existe, hacer fetch completo
+        // La imagen existe y es válida
         console.log(`[OG-Image] Found custom OG image at ${customOgUrl}`)
-        const fullRes = await fetch(customOgUrl, {
-          headers: { 'User-Agent': 'OG-Image-Generator/1.0' }
-        })
-        const imageBuffer = Buffer.from(await fullRes.arrayBuffer())
+        const imageBuffer = Buffer.from(await customRes.arrayBuffer())
         console.log(`[OG-Image] Custom image size: ${(imageBuffer.length/1024).toFixed(0)}KB`)
         
         // Validar que el buffer sea una imagen real (mínimo 10KB y magic bytes válidos)
@@ -155,19 +154,19 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         
         // Comprimir si es mayor a TARGET_SIZE_KB
         let finalBuffer: Buffer = imageBuffer
-        let contentType = ext === 'png' ? 'image/png' : 'image/jpeg'
+        let finalContentType = ext === 'png' ? 'image/png' : 'image/jpeg'
         
         if (imageBuffer.length > TARGET_SIZE_KB * 1024) {
           console.log(`[OG-Image] Compressing image for WhatsApp compatibility...`)
           const compressed = await compressForWhatsApp(imageBuffer)
           finalBuffer = Buffer.from(compressed)
-          contentType = 'image/jpeg' // Sharp convierte a JPEG
+          finalContentType = 'image/jpeg' // Sharp convierte a JPEG
         }
         
         return new NextResponse(new Uint8Array(finalBuffer), {
           status: 200,
           headers: {
-            'Content-Type': contentType,
+            'Content-Type': finalContentType,
             'Cache-Control': 'public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400',
           },
         })
