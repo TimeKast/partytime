@@ -144,32 +144,36 @@ export default function EventPage() {
                     transition={{ duration: 0.8, delay: 0.2 }}
                     className={styles.hero}
                 >
-                    {/* Main title with neon effect - single line */}
-                    <h1 className={styles.title}>
-                        <span
-                            className={styles.titleLine1}
+                    {/* Main title with neon effect - single line (hidden if empty) */}
+                    {event.title && (
+                        <h1 className={styles.title}>
+                            <span
+                                className={styles.titleLine1}
+                                style={{
+                                    color: theme.primaryColor,
+                                    textShadow: `0 0 10px ${theme.primaryColor}cc, 0 0 20px ${theme.primaryColor}99, 0 0 30px ${theme.primaryColor}66, 3px 3px 0 ${theme.secondaryColor}4d`
+                                }}
+                            >
+                                {event.title}
+                            </span>
+                        </h1>
+                    )}
+
+                    {/* Subtitle (hidden if empty) */}
+                    {event.subtitle && (
+                        <motion.h2
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.6, delay: 0.6 }}
+                            className={styles.subtitle}
                             style={{
-                                color: theme.primaryColor,
-                                textShadow: `0 0 10px ${theme.primaryColor}cc, 0 0 20px ${theme.primaryColor}99, 0 0 30px ${theme.primaryColor}66, 3px 3px 0 ${theme.secondaryColor}4d`
+                                color: theme.secondaryColor,
+                                textShadow: `0 0 10px ${theme.secondaryColor}cc, 0 0 20px ${theme.secondaryColor}80, 2px 2px 0 ${theme.accentColor}4d`
                             }}
                         >
-                            {event.title}
-                        </span>
-                    </h1>
-
-                    {/* Subtitle */}
-                    <motion.h2
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.6, delay: 0.6 }}
-                        className={styles.subtitle}
-                        style={{
-                            color: theme.secondaryColor,
-                            textShadow: `0 0 10px ${theme.secondaryColor}cc, 0 0 20px ${theme.secondaryColor}80, 2px 2px 0 ${theme.accentColor}4d`
-                        }}
-                    >
-                        {event.subtitle}
-                    </motion.h2>
+                            {event.subtitle}
+                        </motion.h2>
+                    )}
                 </motion.div>
 
                 {/* Event information */}

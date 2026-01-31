@@ -1536,13 +1536,13 @@ export default function AdminDashboard() {
               <h3 className={styles.configSectionTitle}>📝 Información Básica</h3>
 
               <div className={styles.configFormGroup}>
-                <label className={styles.configLabel}>Título del Evento *</label>
+                <label className={styles.configLabel}>Título del Evento</label>
                 <input
                   type="text"
                   className={styles.configInput}
                   value={configForm.title}
                   onChange={(e) => setConfigForm({ ...configForm, title: e.target.value })}
-                  required
+                  placeholder="Dejar vacío si la imagen ya tiene el título"
                 />
               </div>
 
