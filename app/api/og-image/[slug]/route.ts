@@ -128,6 +128,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       })
       
       if (customRes.ok) {
+        // Verificar Content-Type del HEAD response
+        const headContentType = customRes.headers.get('content-type') || ''
+        if (!headContentType.startsWith('image/')) {
+          console.log(`[OG-Image] Custom file is not an image (Content-Type: ${headContentType}), skipping...`)
+          continue // Intentar siguiente extensión o pasar a imagen de BD
+        }
+
         // La imagen existe, hacer fetch completo
         console.log(`[OG-Image] Found custom OG image at ${customOgUrl}`)
         const fullRes = await fetch(customOgUrl, {
@@ -135,6 +142,16 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         })
         const imageBuffer = Buffer.from(await fullRes.arrayBuffer())
         console.log(`[OG-Image] Custom image size: ${(imageBuffer.length/1024).toFixed(0)}KB`)
+        
+        // Validar que el buffer sea una imagen real (mínimo 10KB y magic bytes válidos)
+        const MIN_VALID_SIZE = 10 * 1024 // Mínimo 10KB para imagen válida
+        const isPng = imageBuffer[0] === 0x89 && imageBuffer[1] === 0x50 && imageBuffer[2] === 0x4E && imageBuffer[3] === 0x47
+        const isJpeg = imageBuffer[0] === 0xFF && imageBuffer[1] === 0xD8 && imageBuffer[2] === 0xFF
+        
+        if (imageBuffer.length < MIN_VALID_SIZE || (!isPng && !isJpeg)) {
+          console.log(`[OG-Image] Custom image invalid or too small (${imageBuffer.length} bytes, PNG: ${isPng}, JPEG: ${isJpeg}), falling back to event image...`)
+          break // Salir del loop y usar imagen del evento
+        }
         
         // Comprimir si es mayor a TARGET_SIZE_KB
         let finalBuffer: Buffer = imageBuffer
