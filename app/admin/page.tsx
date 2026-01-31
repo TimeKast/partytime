@@ -850,9 +850,33 @@ export default function AdminDashboard() {
       const data = await response.json()
 
       if (data.success) {
-        setConfigForm({ ...configForm, backgroundImage: data.imageUrl })
-        setMessage('✅ Imagen subida correctamente')
-        setTimeout(() => setMessage(''), 3000)
+        // Update local state with new image URL
+        const newImageUrl = data.imageUrl
+        setConfigForm({ ...configForm, backgroundImage: newImageUrl })
+        setMessage('✅ Imagen subida, guardando configuración...')
+        
+        // Auto-save to database so user doesn't have to click "Guardar" separately
+        try {
+          const saveResponse = await fetch('/api/admin/event-settings/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              eventId: selectedEventId,
+              backgroundImage: { url: newImageUrl, uploadedAt: new Date().toISOString() }
+            })
+          })
+          
+          const saveData = await saveResponse.json()
+          if (saveData.success) {
+            setMessage('✅ Imagen guardada correctamente')
+          } else {
+            setMessage('⚠️ Imagen subida pero no se pudo guardar. Por favor guarda la configuración manualmente.')
+          }
+        } catch {
+          setMessage('⚠️ Imagen subida pero no se pudo guardar. Por favor guarda la configuración manualmente.')
+        }
+        
+        setTimeout(() => setMessage(''), 4000)
       } else {
         setUploadError(data.error || 'Error al subir la imagen')
       }
