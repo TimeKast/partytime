@@ -208,9 +208,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return createOgSvg(title, subtitle, date, time, location)
   }
 
-  // Si no hay imagen configurada, usar fallback generado
-  if (!imageUrl) {
-    console.log(`[OG-Image] No image URL configured, using generated fallback`)
+  // Si no hay imagen configurada o es el default placeholder, usar fallback generado
+  if (!imageUrl || imageUrl === '/background.png') {
+    console.log(`[OG-Image] No image URL configured (${imageUrl || 'null'}), using generated fallback`)
     return returnFallback()
   }
 
