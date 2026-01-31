@@ -58,9 +58,11 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(180deg,
-      rgba(26, 0, 51, 0.2) 0%,
-      rgba(26, 0, 51, 0.5) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(26, 0, 51, 0.2) 0%,
+    rgba(26, 0, 51, 0.5) 100%
+  );
 }
 
 /* Contenido principal */
@@ -94,11 +96,11 @@
 
 .titleLine1,
 .titleLine2 {
-  font-size: clamp(1.8rem, 12vw, 5rem);
+  font-size: clamp(1.8rem, 10vw, 5rem);
   font-weight: 900;
   letter-spacing: 0.02em;
-  line-height: 1;
-  color: #FF1493;
+  line-height: 1.1;
+  color: #ff1493;
   text-transform: uppercase;
   text-shadow:
     /* Borde negro grueso - múltiples capas */
@@ -110,17 +112,18 @@
     3px 0 0 #000,
     0 -3px 0 #000,
     0 3px 0 #000,
-    /* Capa adicional para más grosor */
-    -4px -4px 0 #000,
+    /* Capa adicional para más grosor */ -4px -4px 0 #000,
     4px -4px 0 #000,
     -4px 4px 0 #000,
     4px 4px 0 #000,
-    /* Glow neón */
-    0 0 15px rgba(255, 20, 147, 0.9),
+    /* Glow neón */ 0 0 15px rgba(255, 20, 147, 0.9),
     0 0 30px rgba(255, 20, 147, 0.7);
   -webkit-text-stroke: 2px #000;
   paint-order: stroke fill;
-  white-space: nowrap;
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  text-align: center;
   max-width: 100%;
   overflow: visible;
 }
@@ -130,7 +133,7 @@
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #00FFFF;
+  color: #00ffff;
   text-shadow:
     /* Borde negro grueso - múltiples capas */
     -2px -2px 0 #000,
@@ -141,17 +144,17 @@
     2px 0 0 #000,
     0 -2px 0 #000,
     0 2px 0 #000,
-    /* Capa adicional */
-    -3px -3px 0 #000,
+    /* Capa adicional */ -3px -3px 0 #000,
     3px -3px 0 #000,
     -3px 3px 0 #000,
     3px 3px 0 #000,
-    /* Glow neón */
-    0 0 15px rgba(0, 255, 255, 0.9),
+    /* Glow neón */ 0 0 15px rgba(0, 255, 255, 0.9),
     0 0 25px rgba(0, 255, 255, 0.6);
   -webkit-text-stroke: 2px #000;
   paint-order: stroke fill;
-  white-space: nowrap;
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
   max-width: 100%;
   text-align: center;
 }
@@ -209,7 +212,7 @@
   font-weight: 800;
   letter-spacing: 0.1em;
   margin-bottom: 20px;
-  color: #FFD700;
+  color: #ffd700;
   text-shadow:
     /* Borde negro grueso - múltiples capas */
     -3px -3px 0 #000,
@@ -220,13 +223,11 @@
     3px 0 0 #000,
     0 -3px 0 #000,
     0 3px 0 #000,
-    /* Capa adicional para más grosor */
-    -4px -4px 0 #000,
+    /* Capa adicional para más grosor */ -4px -4px 0 #000,
     4px -4px 0 #000,
     -4px 4px 0 #000,
     4px 4px 0 #000,
-    /* Glow dorado */
-    0 0 15px rgba(255, 215, 0, 0.7),
+    /* Glow dorado */ 0 0 15px rgba(255, 215, 0, 0.7),
     0 0 25px rgba(255, 215, 0, 0.5);
   -webkit-text-stroke: 2px #000;
   paint-order: stroke fill;
@@ -239,7 +240,7 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #ffffff;
-  background: linear-gradient(135deg, #FF1493, #00FFFF);
+  background: linear-gradient(135deg, #ff1493, #00ffff);
   border: none;
   border-radius: 50px;
   cursor: pointer;
@@ -253,13 +254,18 @@
 }
 
 .rsvpButton::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
   transition: left 0.5s ease;
 }
 
@@ -290,11 +296,11 @@
 
 /* Very small mobile adjustments */
 @media (max-width: 374px) {
-
   .titleLine1,
   .titleLine2 {
-    font-size: clamp(1.3rem, 10vw, 2rem);
+    font-size: clamp(1.2rem, 9vw, 1.8rem);
     letter-spacing: 0;
+    line-height: 1.2;
   }
 
   .subtitle {
@@ -313,10 +319,10 @@
 
 /* Small mobile adjustments */
 @media (max-width: 480px) and (min-width: 375px) {
-
   .titleLine1,
   .titleLine2 {
-    font-size: clamp(1.5rem, 11vw, 2.5rem);
+    font-size: clamp(1.4rem, 9vw, 2.2rem);
+    line-height: 1.2;
   }
 
   .subtitle {

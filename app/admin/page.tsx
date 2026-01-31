@@ -6,6 +6,7 @@ import { PhoneInput } from 'react-international-phone'
 import 'react-international-phone/style.css'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import * as XLSX from 'xlsx'
 import eventConfig from '@/event-config.json'
 import styles from './admin.module.css'
 import type { Event } from '@/types/event'
@@ -922,6 +923,56 @@ export default function AdminDashboard() {
     doc.save(fileName)
   }
 
+  // Exportar lista en Excel
+  const exportExcelList = () => {
+    const confirmedRsvps = rsvps.filter(r => r.status === 'confirmed')
+    const totalGuests = confirmedRsvps.length + confirmedRsvps.filter(r => r.plusOne).length
+
+    // Crear datos para la hoja
+    const wsData = [
+      // Header rows con info del evento
+      [configForm.title],
+      [configForm.subtitle],
+      [`${configForm.date} - ${configForm.time}`],
+      [configForm.location],
+      [],
+      [`Lista de Invitados - ${confirmedRsvps.length} Confirmaciones - ${totalGuests} Personas`],
+      [],
+      // Header de tabla
+      ['#', 'Nombre', 'Email', 'Teléfono', '+1', 'Email Enviado'],
+      // Datos
+      ...confirmedRsvps.map((rsvp, index) => [
+        index + 1,
+        rsvp.name,
+        rsvp.email,
+        rsvp.phone,
+        rsvp.plusOne ? 'Sí (+1)' : 'No',
+        rsvp.emailSent ? new Date(rsvp.emailSent).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : 'No enviado'
+      ])
+    ]
+
+    // Crear workbook y worksheet
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+    // Ajustar anchos de columna
+    ws['!cols'] = [
+      { wch: 5 },   // #
+      { wch: 30 },  // Nombre
+      { wch: 35 },  // Email
+      { wch: 18 },  // Teléfono
+      { wch: 10 },  // +1
+      { wch: 15 }   // Email Enviado
+    ]
+
+    // Agregar hoja al libro
+    XLSX.utils.book_append_sheet(wb, ws, 'Invitados')
+
+    // Generar archivo y descargar
+    const fileName = `lista-invitados-${configForm.subtitle.toLowerCase().replace(/\s+/g, '-')}.xlsx`
+    XLSX.writeFile(wb, fileName)
+  }
+
   // Stats
   const confirmedRsvps = rsvps.filter(r => r.status === 'confirmed')
   const stats = {
@@ -1118,7 +1169,16 @@ export default function AdminDashboard() {
                   className={styles.exportBtn}
                   title="Exportar lista de invitados en PDF"
                 >
-                  📄 Exportar Lista
+                  📄 PDF
+                </button>
+                <button
+                  onClick={exportExcelList}
+                  disabled={stats.confirmed === 0}
+                  className={styles.exportBtn}
+                  title="Exportar lista de invitados en Excel"
+                  style={{ background: 'linear-gradient(135deg, #217346 0%, #185c36 100%)' }}
+                >
+                  📊 Excel
                 </button>
               </div>
             </div>
