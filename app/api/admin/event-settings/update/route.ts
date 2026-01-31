@@ -60,8 +60,9 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Check if this is a partial update (just images without title) or full update
-      const isPartialUpdate = (body.backgroundImage || body.ogImage) && !body.title
+      // Check if this is a partial update (just images without title key) or full update
+      // Note: body.title === undefined means no title provided; body.title === '' means empty title (valid)
+      const isPartialUpdate = (body.backgroundImage || body.ogImage) && body.title === undefined
       
       // Prepare update data
       const updates: any = {}
@@ -77,8 +78,9 @@ export async function POST(request: NextRequest) {
           updates.ogImageUrl = body.ogImage.url
         }
       } else {
-        // Full update: require title and update everything
-        if (!body.title) {
+        // Full update: title can be empty string (for events with title in image)
+        // Only check if title key exists in body (allows empty string)
+        if (body.title === undefined) {
           return NextResponse.json({
             success: false,
             message: 'Falta el título del evento'
@@ -87,7 +89,7 @@ export async function POST(request: NextRequest) {
         
         console.log('📝 [update] Full update with location:', body.location)
         
-        updates.title = body.title
+        updates.title = body.title // Can be empty string
         updates.subtitle = body.subtitle || ''
         updates.date = body.date || ''
         updates.time = body.time || ''
