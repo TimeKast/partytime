@@ -203,16 +203,18 @@ export default function EventPage() {
                         <span className={styles.infoText}>{event.location}</span>
                     </div>
 
-                    <div className={styles.infoItem}>
-                        <span className={styles.infoText}>
-                            {event.details.split('\n').map((line, i) => (
-                                <span key={i}>
-                                    {line}
-                                    {i < event.details.split('\n').length - 1 && <br />}
-                                </span>
-                            ))}
-                        </span>
-                    </div>
+                    {event.details && (
+                        <div className={styles.infoItem}>
+                            <span className={styles.infoText}>
+                                {event.details.split('\n').map((line, i) => (
+                                    <span key={i}>
+                                        {line}
+                                        {i < event.details.split('\n').length - 1 && <br />}
+                                    </span>
+                                ))}
+                            </span>
+                        </div>
+                    )}
 
                     {event.price?.enabled && (
                         <div className={styles.infoItem}>
