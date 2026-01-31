@@ -26,11 +26,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    // Validar campos requeridos
-    if (!body.eventId || !body.title) {
+    // Validar campos requeridos - eventId siempre es necesario
+    if (!body.eventId) {
       return NextResponse.json({
         success: false,
-        message: 'Faltan campos requeridos'
+        message: 'Falta eventId'
       }, { status: 400 })
     }
 
@@ -59,23 +59,41 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ success: false, error: 'No tienes permiso para modificar la configuración de este evento' }, { status: 403 })
         }
       }
-      console.log('📝 [update] Updating with location:', body.location)
 
+      // Check if this is a partial update (just image) or full update
+      const isPartialUpdate = body.backgroundImage && !body.title
+      
       // Prepare update data
-      const updates: any = {
-        title: body.title,
-        subtitle: body.subtitle || '',
-        date: body.date || '',
-        time: body.time || '',
-        location: body.location || '',
-        details: body.details || '',
-        priceEnabled: body.price?.enabled || false,
-        priceAmount: body.price?.amount || 0,
-        priceCurrency: body.price?.currency || 'MXN',
-        capacityEnabled: body.capacity?.enabled || false,
-        capacityLimit: body.capacity?.limit || 0,
-        backgroundImageUrl: body.backgroundImage?.url || '/background.png',
-        theme: {
+      const updates: any = {}
+      
+      if (isPartialUpdate) {
+        // Partial update: only update the image
+        console.log('📸 [update] Partial update - only updating backgroundImageUrl:', body.backgroundImage?.url)
+        updates.backgroundImageUrl = body.backgroundImage?.url || event.backgroundImageUrl
+      } else {
+        // Full update: require title and update everything
+        if (!body.title) {
+          return NextResponse.json({
+            success: false,
+            message: 'Falta el título del evento'
+          }, { status: 400 })
+        }
+        
+        console.log('📝 [update] Full update with location:', body.location)
+        
+        updates.title = body.title
+        updates.subtitle = body.subtitle || ''
+        updates.date = body.date || ''
+        updates.time = body.time || ''
+        updates.location = body.location || ''
+        updates.details = body.details || ''
+        updates.priceEnabled = body.price?.enabled || false
+        updates.priceAmount = body.price?.amount || 0
+        updates.priceCurrency = body.price?.currency || 'MXN'
+        updates.capacityEnabled = body.capacity?.enabled || false
+        updates.capacityLimit = body.capacity?.limit || 0
+        updates.backgroundImageUrl = body.backgroundImage?.url || '/background.png'
+        updates.theme = {
           primaryColor: body.theme?.primaryColor || '#FF1493',
           secondaryColor: body.theme?.secondaryColor || '#00FFFF',
           accentColor: body.theme?.accentColor || '#FFD700',
