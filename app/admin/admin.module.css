@@ -1180,3 +1180,128 @@
     padding: 3px 6px;
   }
 }
+
+/* ============================================ */
+/* Image Upload Styles                          */
+/* ============================================ */
+
+.imageMethodTabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid #e0e0e0;
+}
+
+.imageMethodTab {
+  flex: 1;
+  padding: 12px 20px;
+  background: #f8f9fa;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.imageMethodTab:first-child {
+  border-right: 1px solid #e0e0e0;
+}
+
+.imageMethodTab:hover:not(.imageMethodTabActive) {
+  background: #eef1f5;
+}
+
+.imageMethodTabActive {
+  background: #667eea;
+  color: white;
+}
+
+.uploadZone {
+  border: 3px dashed #d1d5db;
+  border-radius: 12px;
+  padding: 40px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: #fafafa;
+}
+
+.uploadZone:hover {
+  border-color: #667eea;
+  background: #f5f7ff;
+}
+
+.uploadZoneActive {
+  border-color: #667eea;
+  background: #eef1ff;
+}
+
+.uploadZoneIcon {
+  font-size: 48px;
+  margin-bottom: 15px;
+}
+
+.uploadZoneText {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.uploadZoneHint {
+  margin: 0;
+  font-size: 13px;
+  color: #888;
+}
+
+.uploadProgress {
+  margin-top: 15px;
+  padding: 15px;
+  background: #f0fdf4;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.uploadProgressSpinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #ddd;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.uploadProgressText {
+  margin: 0;
+  font-size: 14px;
+  color: #059669;
+  font-weight: 500;
+}
+
+.uploadError {
+  margin-top: 15px;
+  padding: 12px 15px;
+  background: #fef2f2;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 14px;
+}
+
+.hiddenFileInput {
+  display: none;
+}

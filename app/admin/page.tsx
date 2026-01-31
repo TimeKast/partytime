@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { PhoneInput } from 'react-international-phone'
 import 'react-international-phone/style.css'
@@ -80,6 +80,12 @@ export default function AdminDashboard() {
   // Estado para modal de edición de slug
   const [editingSlugEvent, setEditingSlugEvent] = useState<Event | null>(null)
   const [newSlug, setNewSlug] = useState('')
+
+  // Estado para carga de imagen
+  const [imageMethod, setImageMethod] = useState<'url' | 'upload'>('url')
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Check authentication on mount
   useEffect(() => {
@@ -826,6 +832,46 @@ export default function AdminDashboard() {
     }
   }
 
+  // Manejar subida de imagen
+  const handleImageUpload = async (file: File) => {
+    setUploadError('')
+    setIsUploading(true)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('eventSlug', selectedEventId)
+
+      const response = await fetch('/api/admin/upload-image', {
+        method: 'POST',
+        body: formData
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setConfigForm({ ...configForm, backgroundImage: data.imageUrl })
+        setMessage('✅ Imagen subida correctamente')
+        setTimeout(() => setMessage(''), 3000)
+      } else {
+        setUploadError(data.error || 'Error al subir la imagen')
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error)
+      setUploadError('Error de conexión al subir la imagen')
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  // Manejar cambio de archivo seleccionado
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      handleImageUpload(file)
+    }
+  }
+
   // Cerrar sesión
   const handleLogout = async () => {
     try {
@@ -1523,20 +1569,80 @@ export default function AdminDashboard() {
             <div className={styles.configSection}>
               <h3 className={styles.configSectionTitle}>🖼️ Imagen de Fondo</h3>
 
-              <div className={styles.configFormGroup}>
-                <label className={styles.configLabel}>URL de la Imagen</label>
-                <input
-                  type="text"
-                  className={styles.configInput}
-                  value={configForm.backgroundImage}
-                  onChange={(e) => setConfigForm({ ...configForm, backgroundImage: e.target.value })}
-                  placeholder="/background.png o https://ejemplo.com/imagen.jpg"
-                />
-                <p className={styles.configHelper}>
-                  💡 Tip: Usa una ruta relativa como /background.png o una URL completa
-                </p>
+              {/* Tabs para seleccionar método */}
+              <div className={styles.imageMethodTabs}>
+                <button
+                  type="button"
+                  className={`${styles.imageMethodTab} ${imageMethod === 'url' ? styles.imageMethodTabActive : ''}`}
+                  onClick={() => setImageMethod('url')}
+                >
+                  🔗 URL
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.imageMethodTab} ${imageMethod === 'upload' ? styles.imageMethodTabActive : ''}`}
+                  onClick={() => setImageMethod('upload')}
+                >
+                  📤 Subir Archivo
+                </button>
               </div>
 
+              {/* Método: URL */}
+              {imageMethod === 'url' && (
+                <div className={styles.configFormGroup}>
+                  <label className={styles.configLabel}>URL de la Imagen</label>
+                  <input
+                    type="text"
+                    className={styles.configInput}
+                    value={configForm.backgroundImage}
+                    onChange={(e) => setConfigForm({ ...configForm, backgroundImage: e.target.value })}
+                    placeholder="/background.png o https://ejemplo.com/imagen.jpg"
+                  />
+                  <p className={styles.configHelper}>
+                    💡 Tip: Pega una URL de imagen externa o una ruta relativa
+                  </p>
+                </div>
+              )}
+
+              {/* Método: Subir archivo */}
+              {imageMethod === 'upload' && (
+                <div className={styles.configFormGroup}>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className={styles.hiddenFileInput}
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    onChange={handleFileChange}
+                  />
+                  <div
+                    className={`${styles.uploadZone} ${isUploading ? styles.uploadZoneActive : ''}`}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <div className={styles.uploadZoneIcon}>📷</div>
+                    <p className={styles.uploadZoneText}>
+                      {isUploading ? 'Subiendo imagen...' : 'Haz clic o arrastra una imagen aquí'}
+                    </p>
+                    <p className={styles.uploadZoneHint}>
+                      Formatos: JPG, PNG, WebP, GIF • Máximo 10MB
+                    </p>
+                  </div>
+
+                  {isUploading && (
+                    <div className={styles.uploadProgress}>
+                      <div className={styles.uploadProgressSpinner}></div>
+                      <p className={styles.uploadProgressText}>Subiendo imagen...</p>
+                    </div>
+                  )}
+
+                  {uploadError && (
+                    <div className={styles.uploadError}>
+                      ❌ {uploadError}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Vista previa (para ambos métodos) */}
               {configForm.backgroundImage && (
                 <div className={styles.configImagePreview}>
                   <img src={configForm.backgroundImage} alt="Preview" />
