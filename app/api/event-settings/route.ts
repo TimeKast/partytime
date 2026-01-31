@@ -71,6 +71,9 @@ export async function GET(request: NextRequest) {
           backgroundImage: {
             url: event.backgroundImageUrl || '/background.png'
           },
+          ogImage: {
+            url: event.ogImageUrl || ''
+          },
           theme: {
             primaryColor: theme.primaryColor || '#FF1493',
             secondaryColor: theme.secondaryColor || '#00FFFF',
@@ -110,6 +113,9 @@ export async function GET(request: NextRequest) {
         },
         backgroundImage: {
           url: eventConfig.event.backgroundImage || '/background.png'
+        },
+        ogImage: {
+          url: ''
         },
         theme: {
           primaryColor: eventConfig.theme?.primaryColor || '#FF1493',

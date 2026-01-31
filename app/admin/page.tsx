@@ -46,6 +46,7 @@ export default function AdminDashboard() {
     capacityEnabled: true,
     capacityLimit: 100,
     backgroundImage: eventConfig.event.backgroundImage,
+    ogImage: '', // Dedicated OG image for social previews (1200x630)
     // Theme colors
     primaryColor: '#FF1493',
     secondaryColor: '#00FFFF',
@@ -284,6 +285,7 @@ export default function AdminDashboard() {
             capacityEnabled: data.settings.capacity?.enabled || false,
             capacityLimit: data.settings.capacity?.limit || 0,
             backgroundImage: data.settings.backgroundImage?.url || '/background.png',
+            ogImage: data.settings.ogImage?.url || '', // Dedicated OG image
             // Theme colors
             primaryColor: data.settings.theme?.primaryColor || '#FF1493',
             secondaryColor: data.settings.theme?.secondaryColor || '#00FFFF',
@@ -786,6 +788,9 @@ export default function AdminDashboard() {
         backgroundImage: {
           url: configForm.backgroundImage,
           uploadedAt: null
+        },
+        ogImage: {
+          url: configForm.ogImage
         },
         theme: {
           primaryColor: configForm.primaryColor,
@@ -1671,6 +1676,49 @@ export default function AdminDashboard() {
               {configForm.backgroundImage && (
                 <div className={styles.configImagePreview}>
                   <img src={configForm.backgroundImage} alt="Preview" />
+                </div>
+              )}
+            </div>
+
+            {/* OG IMAGE SECTION - For social media previews */}
+            <div className={styles.configSection}>
+              <h3 className={styles.configSectionTitle}>📱 Imagen para Redes Sociales (OG Image)</h3>
+              <p className={styles.configHelper} style={{ marginBottom: '15px' }}>
+                Esta imagen aparece cuando compartes el evento en WhatsApp, Facebook o Twitter.
+                <br />
+                <strong>⚠️ Dimensiones requeridas: 1200 x 630 píxeles (horizontal)</strong>
+              </p>
+
+              <div className={styles.configFormGroup}>
+                <label className={styles.configLabel}>URL de la Imagen OG</label>
+                <input
+                  type="text"
+                  className={styles.configInput}
+                  value={configForm.ogImage}
+                  onChange={(e) => setConfigForm({ ...configForm, ogImage: e.target.value })}
+                  placeholder="https://ejemplo.com/og-imagen-1200x630.jpg"
+                />
+                <p className={styles.configHelper}>
+                  💡 Usa una imagen horizontal de 1200x630px para mejor visualización en redes sociales.
+                  Si está vacío, se usará la imagen de fondo (si es horizontal) o un fallback generado.
+                </p>
+              </div>
+
+              {/* Vista previa */}
+              {configForm.ogImage && (
+                <div className={styles.configImagePreview} style={{ aspectRatio: '1200/630' }}>
+                  <img src={configForm.ogImage} alt="OG Preview" style={{ objectFit: 'cover' }} />
+                  <span style={{ 
+                    position: 'absolute', 
+                    bottom: '10px', 
+                    right: '10px', 
+                    background: 'rgba(0,0,0,0.7)', 
+                    padding: '4px 8px', 
+                    borderRadius: '4px',
+                    fontSize: '12px'
+                  }}>
+                    1200 x 630
+                  </span>
                 </div>
               )}
             </div>

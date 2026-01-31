@@ -28,8 +28,12 @@ export const events = pgTable('events', {
     capacityEnabled: boolean('capacity_enabled').default(false),
     capacityLimit: integer('capacity_limit').default(0),
 
-    // Background image
+    // Background image (for the event page)
     backgroundImageUrl: text('background_image_url').default('/background.png'),
+    
+    // OG image (for social previews - WhatsApp, Facebook, Twitter)
+    // Recommended: 1200x630 (1.9:1 aspect ratio)
+    ogImageUrl: text('og_image_url'),
 
     // Theme colors (stored as JSON)
     theme: jsonb('theme').$type<{

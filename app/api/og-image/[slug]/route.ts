@@ -193,8 +193,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       date = event.date || ''
       time = event.time || ''
       location = event.location || ''
-      imageUrl = event.backgroundImageUrl || null
-      console.log(`[OG-Image] Event found: ${title}, imageUrl: ${imageUrl}`)
+      // Priority: ogImageUrl (dedicated social preview) > backgroundImageUrl (fallback)
+      imageUrl = event.ogImageUrl || event.backgroundImageUrl || null
+      console.log(`[OG-Image] Event found: ${title}, ogImageUrl: ${event.ogImageUrl}, backgroundImageUrl: ${event.backgroundImageUrl}, using: ${imageUrl}`)
     } else {
       console.log(`[OG-Image] Event not found for slug: ${slug}`)
     }

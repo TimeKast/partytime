@@ -60,16 +60,22 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Check if this is a partial update (just image) or full update
-      const isPartialUpdate = body.backgroundImage && !body.title
+      // Check if this is a partial update (just images without title) or full update
+      const isPartialUpdate = (body.backgroundImage || body.ogImage) && !body.title
       
       // Prepare update data
       const updates: any = {}
       
       if (isPartialUpdate) {
-        // Partial update: only update the image
-        console.log('📸 [update] Partial update - only updating backgroundImageUrl:', body.backgroundImage?.url)
-        updates.backgroundImageUrl = body.backgroundImage?.url || event.backgroundImageUrl
+        // Partial update: only update provided images
+        if (body.backgroundImage?.url) {
+          console.log('📸 [update] Partial update - backgroundImageUrl:', body.backgroundImage.url)
+          updates.backgroundImageUrl = body.backgroundImage.url
+        }
+        if (body.ogImage?.url) {
+          console.log('🖼️ [update] Partial update - ogImageUrl:', body.ogImage.url)
+          updates.ogImageUrl = body.ogImage.url
+        }
       } else {
         // Full update: require title and update everything
         if (!body.title) {
@@ -92,7 +98,8 @@ export async function POST(request: NextRequest) {
         updates.priceCurrency = body.price?.currency || 'MXN'
         updates.capacityEnabled = body.capacity?.enabled || false
         updates.capacityLimit = body.capacity?.limit || 0
-        updates.backgroundImageUrl = body.backgroundImage?.url || '/background.png'
+        updates.backgroundImageUrl = body.backgroundImage?.url || event.backgroundImageUrl
+        updates.ogImageUrl = body.ogImage?.url || event.ogImageUrl
         updates.theme = {
           primaryColor: body.theme?.primaryColor || '#FF1493',
           secondaryColor: body.theme?.secondaryColor || '#00FFFF',

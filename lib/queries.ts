@@ -251,6 +251,7 @@ export async function getEventBySlugWithSettings(slug: string): Promise<{
     time: string
     location: string
     backgroundImageUrl: string | null
+    ogImageUrl: string | null
 } | null> {
     const event = await getEventBySlug(slug)
     if (!event) return null
@@ -264,6 +265,7 @@ export async function getEventBySlugWithSettings(slug: string): Promise<{
         time: event.time ?? '',
         location: event.location ?? '',
         backgroundImageUrl: event.backgroundImageUrl,
+        ogImageUrl: event.ogImageUrl,
     }
 }
 
