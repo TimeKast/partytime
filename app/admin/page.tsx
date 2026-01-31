@@ -82,11 +82,17 @@ export default function AdminDashboard() {
   const [editingSlugEvent, setEditingSlugEvent] = useState<Event | null>(null)
   const [newSlug, setNewSlug] = useState('')
 
-  // Estado para carga de imagen
+  // Estado para carga de imagen de fondo
   const [imageMethod, setImageMethod] = useState<'url' | 'upload'>('url')
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Estado para carga de imagen OG (redes sociales)
+  const [ogImageMethod, setOgImageMethod] = useState<'url' | 'upload'>('url')
+  const [isUploadingOg, setIsUploadingOg] = useState(false)
+  const [uploadErrorOg, setUploadErrorOg] = useState('')
+  const ogFileInputRef = useRef<HTMLInputElement>(null)
 
   // Check authentication on mount
   useEffect(() => {
@@ -894,11 +900,76 @@ export default function AdminDashboard() {
     }
   }
 
-  // Manejar cambio de archivo seleccionado
+  // Manejar cambio de archivo seleccionado (background)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       handleImageUpload(file)
+    }
+  }
+
+  // Manejar subida de imagen OG (redes sociales)
+  const handleOgImageUpload = async (file: File) => {
+    setUploadErrorOg('')
+    setIsUploadingOg(true)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('eventSlug', selectedEventId)
+      formData.append('imageType', 'og') // Flag to indicate this is an OG image
+
+      const response = await fetch('/api/admin/upload-image', {
+        method: 'POST',
+        body: formData
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Update local state with new image URL
+        const newImageUrl = data.imageUrl
+        setConfigForm({ ...configForm, ogImage: newImageUrl })
+        setMessage('✅ Imagen OG subida, guardando configuración...')
+        
+        // Auto-save to database
+        try {
+          const saveResponse = await fetch('/api/admin/event-settings/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              eventId: selectedEventId,
+              ogImage: { url: newImageUrl }
+            })
+          })
+          
+          const saveData = await saveResponse.json()
+          if (saveData.success) {
+            setMessage('✅ Imagen OG guardada correctamente')
+          } else {
+            setMessage('⚠️ Imagen subida pero no se pudo guardar. Por favor guarda la configuración manualmente.')
+          }
+        } catch {
+          setMessage('⚠️ Imagen subida pero no se pudo guardar. Por favor guarda la configuración manualmente.')
+        }
+        
+        setTimeout(() => setMessage(''), 4000)
+      } else {
+        setUploadErrorOg(data.error || 'Error al subir la imagen')
+      }
+    } catch (error) {
+      console.error('Error uploading OG image:', error)
+      setUploadErrorOg('Error de conexión al subir la imagen')
+    } finally {
+      setIsUploadingOg(false)
+    }
+  }
+
+  // Manejar cambio de archivo OG seleccionado
+  const handleOgFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      handleOgImageUpload(file)
     }
   }
 
@@ -1689,22 +1760,80 @@ export default function AdminDashboard() {
                 <strong>⚠️ Dimensiones requeridas: 1200 x 630 píxeles (horizontal)</strong>
               </p>
 
-              <div className={styles.configFormGroup}>
-                <label className={styles.configLabel}>URL de la Imagen OG</label>
-                <input
-                  type="text"
-                  className={styles.configInput}
-                  value={configForm.ogImage}
-                  onChange={(e) => setConfigForm({ ...configForm, ogImage: e.target.value })}
-                  placeholder="https://ejemplo.com/og-imagen-1200x630.jpg"
-                />
-                <p className={styles.configHelper}>
-                  💡 Usa una imagen horizontal de 1200x630px para mejor visualización en redes sociales.
-                  Si está vacío, se usará la imagen de fondo (si es horizontal) o un fallback generado.
-                </p>
+              {/* Tabs para seleccionar método */}
+              <div className={styles.imageMethodTabs}>
+                <button
+                  type="button"
+                  className={`${styles.imageMethodTab} ${ogImageMethod === 'url' ? styles.imageMethodTabActive : ''}`}
+                  onClick={() => setOgImageMethod('url')}
+                >
+                  🔗 URL
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.imageMethodTab} ${ogImageMethod === 'upload' ? styles.imageMethodTabActive : ''}`}
+                  onClick={() => setOgImageMethod('upload')}
+                >
+                  📤 Subir Archivo
+                </button>
               </div>
 
-              {/* Vista previa */}
+              {/* Método: URL */}
+              {ogImageMethod === 'url' && (
+                <div className={styles.configFormGroup}>
+                  <label className={styles.configLabel}>URL de la Imagen OG</label>
+                  <input
+                    type="text"
+                    className={styles.configInput}
+                    value={configForm.ogImage}
+                    onChange={(e) => setConfigForm({ ...configForm, ogImage: e.target.value })}
+                    placeholder="https://ejemplo.com/og-imagen-1200x630.jpg"
+                  />
+                  <p className={styles.configHelper}>
+                    💡 Usa una imagen horizontal de 1200x630px para mejor visualización en redes sociales.
+                  </p>
+                </div>
+              )}
+
+              {/* Método: Subir archivo */}
+              {ogImageMethod === 'upload' && (
+                <div className={styles.configFormGroup}>
+                  <input
+                    type="file"
+                    ref={ogFileInputRef}
+                    className={styles.hiddenFileInput}
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleOgFileChange}
+                  />
+                  <div
+                    className={`${styles.uploadZone} ${isUploadingOg ? styles.uploadZoneActive : ''}`}
+                    onClick={() => ogFileInputRef.current?.click()}
+                  >
+                    <div className={styles.uploadZoneIcon}>📷</div>
+                    <p className={styles.uploadZoneText}>
+                      {isUploadingOg ? 'Subiendo imagen OG...' : 'Haz clic o arrastra una imagen aquí'}
+                    </p>
+                    <p className={styles.uploadZoneHint}>
+                      Formatos: JPG, PNG, WebP • <strong>1200 x 630 px</strong> • Máximo 10MB
+                    </p>
+                  </div>
+
+                  {isUploadingOg && (
+                    <div className={styles.uploadProgress}>
+                      <div className={styles.uploadProgressSpinner}></div>
+                      <p className={styles.uploadProgressText}>Subiendo imagen OG...</p>
+                    </div>
+                  )}
+
+                  {uploadErrorOg && (
+                    <div className={styles.uploadError}>
+                      ❌ {uploadErrorOg}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Vista previa (para ambos métodos) */}
               {configForm.ogImage && (
                 <div className={styles.configImagePreview} style={{ aspectRatio: '1200/630' }}>
                   <img src={configForm.ogImage} alt="OG Preview" style={{ objectFit: 'cover' }} />
@@ -1721,6 +1850,10 @@ export default function AdminDashboard() {
                   </span>
                 </div>
               )}
+
+              <p className={styles.configHelper} style={{ marginTop: '10px', fontStyle: 'italic' }}>
+                Si está vacío, se usará la imagen de fondo (si es horizontal) o un fallback generado.
+              </p>
             </div>
 
             <div className={styles.configSection}>
