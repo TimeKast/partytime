@@ -7,8 +7,6 @@ const databaseUrl = process.env.DATABASE_URL
 
 if (!databaseUrl) {
     console.warn('⚠️  DATABASE_URL not configured. Database operations will fail.')
-} else {
-    console.log('✅ DATABASE_URL detected')
 }
 
 // Create Neon SQL client
