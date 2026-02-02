@@ -108,6 +108,7 @@ export async function POST(request: NextRequest) {
           const htmlContent = generateConfirmationEmail({
             name,
             plusOne,
+            plusOneName: plusOneName || null,
             cancelUrl,
             isReminder: false,
             isCancelled: false,

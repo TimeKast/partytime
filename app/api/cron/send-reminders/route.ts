@@ -142,6 +142,7 @@ export async function GET(request: NextRequest) {
             const htmlContent = generateConfirmationEmail({
               name: rsvp.name,
               plusOne: rsvp.plusOne || false,
+              plusOneName: (rsvp as any).plusOneName || null,
               cancelUrl,
               isReminder: true,
               isCancelled: false,

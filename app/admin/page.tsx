@@ -1037,10 +1037,10 @@ export default function AdminDashboard() {
       if (rsvp.plusOne && (rsvp as any).plusOneName) {
         tableData.push([
           '',
-          `    ↳ ${(rsvp as any).plusOneName}`,
+          `  ↳ ${(rsvp as any).plusOneName}`,
+          '(+1)',
           '',
           '',
-          '(Acompañante)',
           ''
         ])
       }
@@ -1442,7 +1442,12 @@ export default function AdminDashboard() {
                       </td>
                       <td className={styles.nameCell}>
                         {rsvp.name}
-                        {rsvp.plusOne && <span className={styles.plusOneBadge}>+1</span>}
+                        {rsvp.plusOne && (
+                          <>
+                            <span className={styles.plusOneBadge}>+1</span>
+                            {rsvp.plusOneName && <span style={{ color: '#a78bfa', fontSize: '0.85em', marginLeft: '4px' }}>({rsvp.plusOneName})</span>}
+                          </>
+                        )}
                       </td>
                       <td className={styles.emailCell}>
                         <a href={`mailto:${rsvp.email}`}>{rsvp.email}</a>
@@ -1518,7 +1523,12 @@ export default function AdminDashboard() {
                       </td>
                       <td className={styles.nameCell}>
                         {rsvp.name}
-                        {rsvp.plusOne && <span className={styles.plusOneBadge}>+1</span>}
+                        {rsvp.plusOne && (
+                          <>
+                            <span className={styles.plusOneBadge}>+1</span>
+                            {rsvp.plusOneName && <span style={{ color: '#a78bfa', fontSize: '0.85em', marginLeft: '4px' }}>({rsvp.plusOneName})</span>}
+                          </>
+                        )}
                       </td>
                       <td className={styles.emailCell}>
                         <a href={`mailto:${rsvp.email}`}>{rsvp.email}</a>

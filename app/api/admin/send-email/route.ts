@@ -89,9 +89,11 @@ export async function POST(request: NextRequest) {
     cancelUrl = cancelUrl.replace(/^=+/, '').trim()
 
     // Generar HTML del email con datos dinámicos del evento
+    const rsvpForEmail = await getRSVPById(rsvpId)
     const htmlContent = generateConfirmationEmail({
       name,
       plusOne: plusOne || false,
+      plusOneName: (rsvpForEmail as any)?.plusOneName || null,
       cancelUrl,
       isReminder,
       isCancelled,

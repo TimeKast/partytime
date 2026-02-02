@@ -28,6 +28,7 @@ export interface EventData {
 interface EmailTemplateProps {
   name: string
   plusOne: boolean
+  plusOneName?: string | null
   cancelUrl: string
   isReminder?: boolean // true = recordatorio, false/undefined = confirmación
   isCancelled?: boolean // true = re-invitación a quien canceló
@@ -41,6 +42,7 @@ interface EmailTemplateProps {
 export function generateConfirmationEmail({
   name,
   plusOne,
+  plusOneName,
   cancelUrl,
   isReminder = false,
   isCancelled = false,
@@ -267,7 +269,7 @@ export function generateConfirmationEmail({
                                     </td>
                                     <td style="vertical-align: middle;">
                                       <p style="margin: 0 0 2px 0; font-size: 11px; color: #888899; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Acompañante</p>
-                                      <p style="margin: 0; font-size: 16px; color: #a78bfa; font-weight: 600;">+1 Confirmado</p>
+                                      <p style="margin: 0; font-size: 16px; color: #a78bfa; font-weight: 600;">${plusOneName ? plusOneName : '+1 Confirmado'}</p>
                                     </td>
                                   </tr>
                                 </table>

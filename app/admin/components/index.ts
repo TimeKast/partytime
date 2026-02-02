@@ -16,6 +16,7 @@ export interface RSVP {
     email: string
     phone: string
     plusOne: boolean
+    plusOneName?: string | null
     createdAt: string
     status: 'confirmed' | 'cancelled'
     emailSent?: string
