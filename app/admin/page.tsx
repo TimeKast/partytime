@@ -1593,10 +1593,10 @@ export default function AdminDashboard() {
                   className={styles.configInput}
                   value={configForm.displayTitle}
                   onChange={(e) => setConfigForm({ ...configForm, displayTitle: e.target.value })}
-                  placeholder="Dejar vacío para usar el nombre del evento"
+                  placeholder="Dejar vacío para NO mostrar título"
                 />
                 <p className={styles.configHelper}>
-                  Si lo dejas vacío, se mostrará el nombre del evento. Déjalo vacío si la imagen de fondo ya tiene el título.
+                  Si lo dejas vacío, NO se mostrará ningún título en la invitación. Útil si la imagen de fondo ya tiene el título.
                 </p>
               </div>
 
