@@ -85,7 +85,9 @@ export async function GET(request: NextRequest) {
             reminderEnabled: event.reminderEnabled || false,
             reminderScheduledAt: event.reminderScheduledAt ? event.reminderScheduledAt.toISOString() : null,
             reminderSentAt: event.reminderSentAt ? event.reminderSentAt.toISOString() : null
-          }
+          },
+          // Plus-one configuration
+          requirePlusOneName: event.requirePlusOneName || false
         },
         source: 'database'
       })
@@ -128,7 +130,9 @@ export async function GET(request: NextRequest) {
           reminderEnabled: false,
           reminderScheduledAt: null,
           reminderSentAt: null
-        }
+        },
+        // Plus-one configuration (default)
+        requirePlusOneName: false
       },
       source: 'config'
     })

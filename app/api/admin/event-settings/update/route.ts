@@ -109,6 +109,8 @@ export async function POST(request: NextRequest) {
           backgroundColor: '#1a0033',
           textColor: '#ffffff'
         }
+        // Plus-one configuration
+        updates.requirePlusOneName = body.requirePlusOneName ?? false
       }
 
       // Email configuration (only update if provided)

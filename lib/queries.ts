@@ -19,6 +19,7 @@ export async function saveRSVP(rsvpData: {
     email: string
     phone: string
     plusOne: boolean
+    plusOneName?: string | null
     eventId: string
 }): Promise<RSVP> {
     if (!db) throw new Error('Database not configured')
@@ -45,6 +46,7 @@ export async function saveRSVP(rsvpData: {
             email: rsvpData.email,
             phone: rsvpData.phone,
             plusOne: rsvpData.plusOne,
+            plusOneName: rsvpData.plusOneName || null,
             eventId: rsvpData.eventId,
             status: 'confirmed',
             cancelToken,
@@ -87,7 +89,7 @@ export async function getRSVPById(rsvpId: string): Promise<RSVP | null> {
  */
 export async function updateRSVP(
     rsvpId: string,
-    data: Partial<Pick<RSVP, 'name' | 'email' | 'phone' | 'plusOne' | 'status'>>
+    data: Partial<Pick<RSVP, 'name' | 'email' | 'phone' | 'plusOne' | 'plusOneName' | 'status'>>
 ): Promise<RSVP> {
     if (!db) throw new Error('Database not configured')
 

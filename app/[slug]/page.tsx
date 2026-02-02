@@ -293,6 +293,7 @@ export default function EventPage() {
                         isOpen={isModalOpen}
                         onClose={() => setIsModalOpen(false)}
                         eventSlug={slug}
+                        requirePlusOneName={event.requirePlusOneName}
                         theme={theme}
                     />
                 )}

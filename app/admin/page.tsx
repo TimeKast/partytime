@@ -55,7 +55,9 @@ export default function AdminDashboard() {
     emailConfirmationEnabled: false,
     reminderEnabled: false,
     reminderScheduledAt: '',
-    reminderSentAt: null as string | null
+    reminderSentAt: null as string | null,
+    // Plus-one configuration
+    requirePlusOneName: false
   })
 
   // Filtros para MOSTRAR en tabla
@@ -302,7 +304,9 @@ export default function AdminDashboard() {
             reminderScheduledAt: data.settings.emailConfig?.reminderScheduledAt
               ? new Date(data.settings.emailConfig.reminderScheduledAt).toISOString().slice(0, 16)
               : '',
-            reminderSentAt: data.settings.emailConfig?.reminderSentAt || null
+            reminderSentAt: data.settings.emailConfig?.reminderSentAt || null,
+            // Plus-one configuration
+            requirePlusOneName: data.settings.requirePlusOneName || false
           })
         }
       }
@@ -813,7 +817,9 @@ export default function AdminDashboard() {
           // If user changes the reminder date after it was sent, allow re-sending
           clearSentStatus: configForm.reminderSentAt && configForm.reminderScheduledAt &&
             new Date(configForm.reminderScheduledAt).toISOString() !== configForm.reminderSentAt
-        }
+        },
+        // Plus-one configuration
+        requirePlusOneName: configForm.requirePlusOneName
       }
 
       console.log('🖼️ backgroundImage URL being sent:', configForm.backgroundImage)
@@ -1015,15 +1021,30 @@ export default function AdminDashboard() {
     doc.setFont('helvetica', 'bold')
     doc.text(`Lista de Invitados - ${confirmedRsvps.length} Confirmaciones - ${totalGuests} Personas`, 14, 60)
 
-    // Tabla con datos
-    const tableData = confirmedRsvps.map((rsvp, index) => [
-      index + 1,
-      rsvp.name,
-      rsvp.email,
-      rsvp.phone,
-      rsvp.plusOne ? 'Sí (+1)' : 'No',
-      rsvp.emailSent ? new Date(rsvp.emailSent).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : 'No enviado'
-    ])
+    // Tabla con datos - incluir filas para +1 con nombre si existe
+    const tableData: (string | number)[][] = []
+    confirmedRsvps.forEach((rsvp, index) => {
+      // Fila principal del invitado
+      tableData.push([
+        index + 1,
+        rsvp.name,
+        rsvp.email,
+        rsvp.phone,
+        rsvp.plusOne ? 'Sí (+1)' : 'No',
+        rsvp.emailSent ? new Date(rsvp.emailSent).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : 'No enviado'
+      ])
+      // Si tiene +1 con nombre, agregar fila indentada
+      if (rsvp.plusOne && (rsvp as any).plusOneName) {
+        tableData.push([
+          '',
+          `    ↳ ${(rsvp as any).plusOneName}`,
+          '',
+          '',
+          '(Acompañante)',
+          ''
+        ])
+      }
+    })
 
     autoTable(doc, {
       startY: 68,
@@ -1085,15 +1106,16 @@ export default function AdminDashboard() {
       [],
       [`Lista de Invitados - ${confirmedRsvps.length} Confirmaciones - ${totalGuests} Personas`],
       [],
-      // Header de tabla
-      ['#', 'Nombre', 'Email', 'Teléfono', '+1', 'Email Enviado'],
+      // Header de tabla - con columna de Nombre del +1
+      ['#', 'Nombre', 'Email', 'Teléfono', '+1', 'Nombre +1', 'Email Enviado'],
       // Datos
       ...confirmedRsvps.map((rsvp, index) => [
         index + 1,
         rsvp.name,
         rsvp.email,
         rsvp.phone,
-        rsvp.plusOne ? 'Sí (+1)' : 'No',
+        rsvp.plusOne ? 'Sí' : 'No',
+        (rsvp as any).plusOneName || '',
         rsvp.emailSent ? new Date(rsvp.emailSent).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : 'No enviado'
       ])
     ]
@@ -1108,7 +1130,8 @@ export default function AdminDashboard() {
       { wch: 30 },  // Nombre
       { wch: 35 },  // Email
       { wch: 18 },  // Teléfono
-      { wch: 10 },  // +1
+      { wch: 8 },   // +1
+      { wch: 25 },  // Nombre +1
       { wch: 15 }   // Email Enviado
     ]
 
@@ -1665,6 +1688,24 @@ export default function AdminDashboard() {
                   />
                 </div>
               )}
+            </div>
+
+            {/* Plus-One Configuration */}
+            <div className={styles.configSection}>
+              <h3 className={styles.configSectionTitle}>👥 Acompañantes (+1)</h3>
+              <label className={styles.switchLabel}>
+                <input
+                  type="checkbox"
+                  className={styles.configCheckbox}
+                  checked={configForm.requirePlusOneName}
+                  onChange={(e) => setConfigForm({ ...configForm, requirePlusOneName: e.target.checked })}
+                />
+                <span>Requerir nombre del +1</span>
+              </label>
+              <p className={styles.configHelper}>
+                Si está activado, los invitados que marquen +1 deberán proporcionar el nombre de su acompañante.
+                Los nombres aparecerán en la lista de invitados y en las exportaciones (PDF/Excel).
+              </p>
             </div>
 
             <div className={styles.configSection}>

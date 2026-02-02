@@ -10,6 +10,7 @@ interface RSVPModalProps {
   isOpen: boolean
   onClose: () => void
   eventSlug?: string
+  requirePlusOneName?: boolean
   theme?: {
     primaryColor: string
     secondaryColor: string
@@ -17,7 +18,7 @@ interface RSVPModalProps {
   }
 }
 
-export default function RSVPModal({ isOpen, onClose, eventSlug, theme }: RSVPModalProps) {
+export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneName, theme }: RSVPModalProps) {
   // Configuración por defecto si no se provee el tema
   const activeTheme = theme || {
     primaryColor: '#FF1493',
@@ -30,6 +31,7 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, theme }: RSVPMod
     email: '',
     phone: '',
     plusOne: false,
+    plusOneName: '',
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle')
@@ -40,6 +42,14 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, theme }: RSVPMod
     setIsSubmitting(true)
     setSubmitStatus('idle')
     setErrorMessage('')
+
+    // Validar nombre del +1 si es requerido
+    if (formData.plusOne && requirePlusOneName && !formData.plusOneName.trim()) {
+      setSubmitStatus('error')
+      setErrorMessage('El nombre del acompañante es requerido')
+      setIsSubmitting(false)
+      return
+    }
 
     try {
       const response = await fetch('/api/rsvp', {
@@ -56,7 +66,7 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, theme }: RSVPMod
         setSubmitStatus('success')
         setTimeout(() => {
           onClose()
-          setFormData({ name: '', email: '', phone: '', plusOne: false })
+          setFormData({ name: '', email: '', phone: '', plusOne: false, plusOneName: '' })
           setSubmitStatus('idle')
         }, 2500)
       } else {
@@ -73,10 +83,15 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, theme }: RSVPMod
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target
-    setFormData({
+    const newData = {
       ...formData,
       [name]: type === 'checkbox' ? checked : value,
-    })
+    }
+    // Si desmarca plusOne, limpiar el nombre del +1
+    if (name === 'plusOne' && !checked) {
+      newData.plusOneName = ''
+    }
+    setFormData(newData)
   }
 
   if (!isOpen) return null
@@ -220,6 +235,35 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, theme }: RSVPMod
                 <span className={styles.checkboxText}>¿Vienes con +1?</span>
               </label>
             </div>
+
+            {/* Campo condicional para nombre del +1 */}
+            {formData.plusOne && requirePlusOneName && (
+              <motion.div
+                className={styles.formGroup}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <label htmlFor="plusOneName" className={styles.label}>
+                  Nombre del Acompañante *
+                </label>
+                <input
+                  type="text"
+                  id="plusOneName"
+                  name="plusOneName"
+                  value={formData.plusOneName}
+                  onChange={handleChange}
+                  required
+                  className={styles.input}
+                  placeholder="Nombre completo del +1"
+                  disabled={isSubmitting}
+                  style={{ borderColor: `${activeTheme.primaryColor}4d` }}
+                  onFocus={(e) => (e.target.style.borderColor = activeTheme.primaryColor)}
+                  onBlur={(e) => (e.target.style.borderColor = `${activeTheme.primaryColor}4d`)}
+                />
+              </motion.div>
+            )}
 
 
             {submitStatus === 'error' && (

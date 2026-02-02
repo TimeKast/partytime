@@ -50,6 +50,9 @@ export interface Event {
         reminderSentAt: string | null       // When the reminder was actually sent
     }
     
+    // Plus-one configuration
+    requirePlusOneName?: boolean  // If true, +1 name is mandatory in RSVP
+    
     createdAt: string
     updatedAt: string
 }

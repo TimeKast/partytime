@@ -58,6 +58,9 @@ export const events = pgTable('events', {
     // Status
     isActive: boolean('is_active').default(true),
 
+    // Plus-one configuration
+    requirePlusOneName: boolean('require_plus_one_name').default(false),
+
     // Email configuration
     emailConfirmationEnabled: boolean('email_confirmation_enabled').default(false),
     reminderEnabled: boolean('reminder_enabled').default(false),
@@ -81,6 +84,7 @@ export const rsvps = pgTable('rsvps', {
     email: text('email').notNull(),
     phone: text('phone').notNull(),
     plusOne: boolean('plus_one').default(false),
+    plusOneName: text('plus_one_name'),
 
     // Status
     status: varchar('status', { length: 20 }).default('confirmed').notNull(),
