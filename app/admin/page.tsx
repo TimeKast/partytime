@@ -1047,10 +1047,10 @@ export default function AdminDashboard() {
       if (rsvp.plusOne && (rsvp as any).plusOneName) {
         tableData.push([
           '',
-          `    > ${stripEmojis((rsvp as any).plusOneName)}`,
-          '(Acomp.)',
+          `   + ${stripEmojis((rsvp as any).plusOneName)}`,
           '',
           '',
+          'Acomp.',
           ''
         ])
       }
@@ -1070,14 +1070,14 @@ export default function AdminDashboard() {
       },
       bodyStyles: {
         fontSize: 9,
-        cellPadding: 4
+        cellPadding: 3
       },
       columnStyles: {
-        0: { halign: 'center', cellWidth: 15 },
-        1: { cellWidth: 40 },
+        0: { halign: 'center', cellWidth: 12 },
+        1: { cellWidth: 45 },
         2: { cellWidth: 50 },
-        3: { cellWidth: 35 },
-        4: { halign: 'center', cellWidth: 20 },
+        3: { cellWidth: 32 },
+        4: { halign: 'center', cellWidth: 18 },
         5: { halign: 'center', cellWidth: 25 }
       },
       alternateRowStyles: {
