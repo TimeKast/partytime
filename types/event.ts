@@ -10,6 +10,7 @@ export interface Event {
      */
     accessRole?: 'manager' | 'viewer'
     title: string
+    displayTitle?: string   // Optional: title shown on invitation page (if empty, uses title)
     subtitle: string
     date: string
     time: string

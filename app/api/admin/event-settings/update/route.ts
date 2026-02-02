@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
         console.log('📝 [update] Full update with location:', body.location)
         
         updates.title = body.title // Can be empty string
+        updates.displayTitle = body.displayTitle ?? '' // Title for invitation page
         updates.subtitle = body.subtitle || ''
         updates.date = body.date || ''
         updates.time = body.time || ''

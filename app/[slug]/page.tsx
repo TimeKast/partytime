@@ -145,7 +145,7 @@ export default function EventPage() {
                     className={styles.hero}
                 >
                     {/* Main title with neon effect - single line (hidden if empty) */}
-                    {event.title && (
+                    {(event.displayTitle || event.title) && (
                         <h1 className={styles.title}>
                             <span
                                 className={styles.titleLine1}
@@ -154,7 +154,7 @@ export default function EventPage() {
                                     textShadow: `0 0 10px ${theme.primaryColor}cc, 0 0 20px ${theme.primaryColor}99, 0 0 30px ${theme.primaryColor}66, 3px 3px 0 ${theme.secondaryColor}4d`
                                 }}
                             >
-                                {event.title}
+                                {event.displayTitle || event.title}
                             </span>
                         </h1>
                     )}

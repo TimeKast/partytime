@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
         settings: {
           eventId: event.slug,
           title: event.title,
+          displayTitle: event.displayTitle || '',
           subtitle: event.subtitle || '',
           date: event.date || '',
           time: event.time || '',
@@ -99,6 +100,7 @@ export async function GET(request: NextRequest) {
       settings: {
         eventId: eventId,
         title: eventConfig.event.title,
+        displayTitle: '',
         subtitle: eventConfig.event.subtitle,
         date: eventConfig.event.date,
         time: eventConfig.event.time,

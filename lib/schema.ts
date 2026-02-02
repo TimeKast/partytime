@@ -13,6 +13,7 @@ export const events = pgTable('events', {
     id: text('id').primaryKey().notNull().$defaultFn(generateId),
     slug: varchar('slug', { length: 100 }).notNull().unique(),
     title: text('title').notNull(),
+    displayTitle: text('display_title').default(''), // Title shown on invitation page (if empty, uses title)
     subtitle: text('subtitle').default(''),
     date: text('date').default(''),
     time: text('time').default(''),

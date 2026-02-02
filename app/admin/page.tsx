@@ -36,6 +36,7 @@ export default function AdminDashboard() {
   // Estado para configuración del evento
   const [configForm, setConfigForm] = useState({
     title: eventConfig.event.title,
+    displayTitle: '', // Title shown on invitation page (if empty, uses title)
     subtitle: eventConfig.event.subtitle,
     date: eventConfig.event.date,
     time: eventConfig.event.time,
@@ -283,6 +284,7 @@ export default function AdminDashboard() {
           console.log('✅ Configuración cargada:', data.settings.title)
           setConfigForm({
             title: data.settings.title || '',
+            displayTitle: data.settings.displayTitle || '',
             subtitle: data.settings.subtitle || '',
             date: data.settings.date || '',
             time: data.settings.time || '',
@@ -781,6 +783,7 @@ export default function AdminDashboard() {
       const requestBody = {
         eventId: selectedEventId,
         title: configForm.title,
+        displayTitle: configForm.displayTitle,
         subtitle: configForm.subtitle,
         date: configForm.date,
         time: configForm.time,
@@ -1569,14 +1572,32 @@ export default function AdminDashboard() {
               <h3 className={styles.configSectionTitle}>📝 Información Básica</h3>
 
               <div className={styles.configFormGroup}>
-                <label className={styles.configLabel}>Título del Evento</label>
+                <label className={styles.configLabel}>Nombre del Evento (para gestión) *</label>
                 <input
                   type="text"
                   className={styles.configInput}
                   value={configForm.title}
                   onChange={(e) => setConfigForm({ ...configForm, title: e.target.value })}
-                  placeholder="Dejar vacío si la imagen ya tiene el título"
+                  placeholder="Ej: Fiesta de Navidad 2024"
+                  required
                 />
+                <p className={styles.configHelper}>
+                  Este nombre se usa en emails, exportaciones y gestión admin.
+                </p>
+              </div>
+
+              <div className={styles.configFormGroup}>
+                <label className={styles.configLabel}>Título en Invitación (opcional)</label>
+                <input
+                  type="text"
+                  className={styles.configInput}
+                  value={configForm.displayTitle}
+                  onChange={(e) => setConfigForm({ ...configForm, displayTitle: e.target.value })}
+                  placeholder="Dejar vacío para usar el nombre del evento"
+                />
+                <p className={styles.configHelper}>
+                  Si lo dejas vacío, se mostrará el nombre del evento. Déjalo vacío si la imagen de fondo ya tiene el título.
+                </p>
               </div>
 
               <div className={styles.configFormGroup}>
