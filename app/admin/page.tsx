@@ -1037,8 +1037,8 @@ export default function AdminDashboard() {
       if (rsvp.plusOne && (rsvp as any).plusOneName) {
         tableData.push([
           '',
-          `  ↳ ${(rsvp as any).plusOneName}`,
-          '(+1)',
+          `    > ${(rsvp as any).plusOneName}`,
+          '(Acomp.)',
           '',
           '',
           ''
