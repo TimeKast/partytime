@@ -12,6 +12,7 @@ interface RSVPData {
   email: string
   phone: string
   plusOne: boolean
+  plusOneName?: string | null
   status: string
   eventId: string
 }
@@ -22,6 +23,7 @@ interface EventData {
   date: string
   time: string
   location: string
+  requirePlusOneName?: boolean
   theme: {
     primaryColor: string
     secondaryColor: string
@@ -56,6 +58,7 @@ export default function CancelPage() {
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [plusOne, setPlusOne] = useState(false)
+  const [plusOneName, setPlusOneName] = useState('')
 
 
   // Cargar datos del RSVP
@@ -77,6 +80,7 @@ export default function CancelPage() {
           setEmail(data.rsvp.email)
           setPhone(data.rsvp.phone)
           setPlusOne(data.rsvp.plusOne)
+          setPlusOneName(data.rsvp.plusOneName || '')
 
           // H-010 FIX: Load full event data from API
           try {
@@ -90,6 +94,7 @@ export default function CancelPage() {
                 date: event.date || '',
                 time: event.time || '',
                 location: event.location || '',
+                requirePlusOneName: event.requirePlusOneName || false,
                 theme: event.theme || defaultTheme
               })
             }
@@ -134,6 +139,7 @@ export default function CancelPage() {
           email,
           phone,
           plusOne,
+          plusOneName: plusOne ? plusOneName : '',
           reconfirm: rsvpData?.status === 'cancelled' // Si está cancelado, reconfirmar
         })
       })
@@ -350,17 +356,39 @@ export default function CancelPage() {
           </div>
 
           <div className={styles.formGroup}>
-            <label className={styles.checkboxLabel} style={{ color: 'rgba(255, 255, 255, 0.9)' }}>
+            <label className={styles.checkboxLabel} style={{ color: '#ffffff' }}>
               <input
                 type="checkbox"
                 checked={plusOne}
-                onChange={(e) => setPlusOne(e.target.checked)}
+                onChange={(e) => {
+                  setPlusOne(e.target.checked)
+                  if (!e.target.checked) setPlusOneName('')
+                }}
                 disabled={saving}
                 style={{ accentColor: theme.primaryColor } as any}
               />
-              <span>Asistiré con acompañante (+1)</span>
+              <span style={{ color: '#ffffff' }}>Asistiré con acompañante (+1)</span>
             </label>
           </div>
+
+          {/* Campo condicional para nombre del +1 */}
+          {plusOne && eventData?.requirePlusOneName && (
+            <div className={styles.formGroup}>
+              <label htmlFor="plusOneName" style={{ color: '#ffffff' }}>Nombre del Acompañante *</label>
+              <input
+                type="text"
+                id="plusOneName"
+                value={plusOneName}
+                onChange={(e) => setPlusOneName(e.target.value)}
+                required
+                placeholder="Nombre completo del +1"
+                disabled={saving}
+                style={{ borderColor: `${theme.primaryColor}4d` }}
+                onFocus={(e) => (e.target.style.borderColor = theme.primaryColor)}
+                onBlur={(e) => (e.target.style.borderColor = `${theme.primaryColor}4d`)}
+              />
+            </div>
+          )}
 
           <button
             type="submit"

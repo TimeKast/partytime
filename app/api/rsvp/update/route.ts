@@ -4,7 +4,7 @@ import { updateRSVP, validateCancelToken, getRSVPById } from '@/lib/queries'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { rsvpId, token, name, email, phone, plusOne, reconfirm } = body
+    const { rsvpId, token, name, email, phone, plusOne, plusOneName, reconfirm } = body
 
     if (!rsvpId || !token || !name || !email || !phone) {
       return NextResponse.json(
@@ -38,7 +38,8 @@ export async function POST(request: NextRequest) {
       name,
       email,
       phone,
-      plusOne: plusOne || false
+      plusOne: plusOne || false,
+      plusOneName: plusOne ? (plusOneName?.trim() || null) : null
     }
 
     // Si se está reconfirmando, cambiar status a 'confirmed'
