@@ -78,7 +78,8 @@ export default function AdminDashboard() {
     name: '',
     email: '',
     phone: '',
-    plusOne: false
+    plusOne: false,
+    plusOneName: ''
   })
 
   // Estado para modal de edición de slug
@@ -620,7 +621,8 @@ export default function AdminDashboard() {
       name: rsvp.name,
       email: rsvp.email,
       phone: rsvp.phone,
-      plusOne: rsvp.plusOne
+      plusOne: rsvp.plusOne,
+      plusOneName: rsvp.plusOneName || ''
     })
   }
 
@@ -631,7 +633,8 @@ export default function AdminDashboard() {
       name: '',
       email: '',
       phone: '',
-      plusOne: false
+      plusOne: false,
+      plusOneName: ''
     })
   }
 
@@ -2435,10 +2438,20 @@ export default function AdminDashboard() {
                     id="editPlusOne"
                     className={styles.editFormCheckbox}
                     checked={editForm.plusOne}
-                    onChange={(e) => setEditForm({ ...editForm, plusOne: e.target.checked })}
+                    onChange={(e) => setEditForm({ ...editForm, plusOne: e.target.checked, plusOneName: e.target.checked ? editForm.plusOneName : '' })}
                   />
                   <label htmlFor="editPlusOne" className={styles.editFormLabel}>+1 Acompañante</label>
                 </div>
+                {editForm.plusOne && (
+                  <input
+                    type="text"
+                    className={styles.editFormInput}
+                    value={editForm.plusOneName}
+                    onChange={(e) => setEditForm({ ...editForm, plusOneName: e.target.value })}
+                    placeholder="Nombre del acompañante (opcional)"
+                    style={{ marginTop: '10px' }}
+                  />
+                )}
               </div>
               <div className={styles.editFormButtons}>
                 <button
