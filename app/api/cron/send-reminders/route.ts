@@ -107,6 +107,12 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
+        // 🔒 CRITICAL: Mark event as sent BEFORE sending emails
+        // This prevents duplicate reminders if the function times out during email sending
+        await markReminderSent(event.id);
+        console.log(`🔒 [CRON] Event ${event.slug} locked to prevent duplicates`);
+        }
+
         // Build EventData for the email template
         const theme = (event.theme as any) || {};
         const eventData: EventData = {
@@ -184,10 +190,6 @@ export async function GET(request: NextRequest) {
             eventResult.errors.push(`${rsvp.email}: ${rsvpError.message}`);
           }
         }
-
-        // Mark event reminder as sent
-        await markReminderSent(event.id);
-        console.log(`✅ [CRON] Event ${event.slug} marked as reminder sent`);
       } catch (eventError: any) {
         console.error(
           `❌ [CRON] Error processing event ${event.id}:`,
