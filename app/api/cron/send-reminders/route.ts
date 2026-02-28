@@ -111,7 +111,6 @@ export async function GET(request: NextRequest) {
         // This prevents duplicate reminders if the function times out during email sending
         await markReminderSent(event.id);
         console.log(`🔒 [CRON] Event ${event.slug} locked to prevent duplicates`);
-        }
 
         // Build EventData for the email template
         const theme = (event.theme as any) || {};
