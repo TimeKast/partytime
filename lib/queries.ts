@@ -4,7 +4,7 @@
  */
 
 import { db, isDatabaseConfigured, rsvps, events, appSettings } from './db'
-import { eq, desc, and, isNull, lte, gt } from 'drizzle-orm'
+import { eq, desc, and, isNull, lte, gt, gte } from 'drizzle-orm'
 import type { Event, NewEvent, RSVP, NewRSVP } from './schema'
 
 // ============================================
