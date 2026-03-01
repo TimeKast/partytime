@@ -54,6 +54,10 @@ export interface Event {
     // Plus-one configuration
     requirePlusOneName?: boolean  // If true, +1 name is mandatory in RSVP
     
+    // RSVP Closed configuration
+    rsvpClosed?: boolean  // If true, RSVP period is closed
+    rsvpClosedMessage?: string  // Message to show when RSVP is closed
+    
     createdAt: string
     updatedAt: string
 }
