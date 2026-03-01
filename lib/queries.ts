@@ -4,7 +4,7 @@
  */
 
 import { db, isDatabaseConfigured, rsvps, events, appSettings } from './db'
-import { eq, desc, and, isNull, lte } from 'drizzle-orm'
+import { eq, desc, and, isNull, lte, gt } from 'drizzle-orm'
 import type { Event, NewEvent, RSVP, NewRSVP } from './schema'
 
 // ============================================
@@ -460,6 +460,7 @@ export async function getEventsWithPendingReminders(): Promise<Event[]> {
     if (!db) throw new Error('Database not configured')
 
     const now = new Date()
+    const today = now.toISOString().split('T')[0] // YYYY-MM-DD format
 
     const result = await db.select()
         .from(events)
@@ -470,7 +471,18 @@ export async function getEventsWithPendingReminders(): Promise<Event[]> {
             isNull(events.reminderSentAt)
         ))
 
-    return result
+    // Filter out events that already passed or are closed
+    // Date is stored as text in YYYY-MM-DD format
+    const upcomingEvents = result.filter(event => {
+        // Skip closed events
+        if (event.rsvpClosed) return false
+        // Allow events without date
+        if (!event.date || event.date === '') return true
+        // Only include events with date >= today
+        return event.date >= today
+    })
+
+    return upcomingEvents
 }
 
 /**
