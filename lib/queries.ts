@@ -461,25 +461,26 @@ export async function getEventsWithPendingReminders(): Promise<Event[]> {
 
     const now = new Date()
     const today = now.toISOString().split('T')[0] // YYYY-MM-DD format
+    
+    // Start and end of today for precise matching
+    const startOfDay = new Date(today + 'T00:00:00.000Z')
+    const endOfDay = new Date(today + 'T23:59:59.999Z')
 
     const result = await db.select()
         .from(events)
         .where(and(
             eq(events.reminderEnabled, true),
             eq(events.isActive, true),
-            lte(events.reminderScheduledAt, now),
+            // Only get events where reminder is scheduled for TODAY
+            gte(events.reminderScheduledAt, startOfDay),
+            lte(events.reminderScheduledAt, endOfDay),
             isNull(events.reminderSentAt)
         ))
 
-    // Filter out events that already passed or are closed
-    // Date is stored as text in YYYY-MM-DD format
+    // Filter out closed events
     const upcomingEvents = result.filter(event => {
-        // Skip closed events
         if (event.rsvpClosed) return false
-        // Allow events without date
-        if (!event.date || event.date === '') return true
-        // Only include events with date >= today
-        return event.date >= today
+        return true
     })
 
     return upcomingEvents
