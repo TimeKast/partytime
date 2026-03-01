@@ -112,6 +112,9 @@ export async function POST(request: NextRequest) {
         }
         // Plus-one configuration
         updates.requirePlusOneName = body.requirePlusOneName ?? false
+        // RSVP Closed configuration
+        updates.rsvpClosed = body.rsvpClosed ?? false
+        updates.rsvpClosedMessage = body.rsvpClosedMessage ?? '¡Nos vemos en el próximo evento!'
       }
 
       // Email configuration (only update if provided)

@@ -58,7 +58,10 @@ export default function AdminDashboard() {
     reminderScheduledAt: '',
     reminderSentAt: null as string | null,
     // Plus-one configuration
-    requirePlusOneName: false
+    requirePlusOneName: false,
+    // RSVP Closed configuration
+    rsvpClosed: false,
+    rsvpClosedMessage: '¡Nos vemos en el próximo evento!'
   })
 
   // Filtros para MOSTRAR en tabla
@@ -309,7 +312,10 @@ export default function AdminDashboard() {
               : '',
             reminderSentAt: data.settings.emailConfig?.reminderSentAt || null,
             // Plus-one configuration
-            requirePlusOneName: data.settings.requirePlusOneName || false
+            requirePlusOneName: data.settings.requirePlusOneName || false,
+            // RSVP Closed configuration
+            rsvpClosed: data.settings.rsvpClosed || false,
+            rsvpClosedMessage: data.settings.rsvpClosedMessage || '¡Nos vemos en el próximo evento!'
           })
         }
       }
@@ -825,7 +831,10 @@ export default function AdminDashboard() {
             new Date(configForm.reminderScheduledAt).toISOString() !== configForm.reminderSentAt
         },
         // Plus-one configuration
-        requirePlusOneName: configForm.requirePlusOneName
+        requirePlusOneName: configForm.requirePlusOneName,
+        // RSVP Closed configuration
+        rsvpClosed: configForm.rsvpClosed,
+        rsvpClosedMessage: configForm.rsvpClosedMessage
       }
 
       console.log('🖼️ backgroundImage URL being sent:', configForm.backgroundImage)
@@ -1747,6 +1756,36 @@ export default function AdminDashboard() {
                 Si está activado, los invitados que marquen +1 deberán proporcionar el nombre de su acompañante.
                 Los nombres aparecerán en la lista de invitados y en las exportaciones (PDF/Excel).
               </p>
+            </div>
+
+            {/* RSVP Closed Configuration */}
+            <div className={styles.configSection}>
+              <h3 className={styles.configSectionTitle}>🔒 Cerrar RSVP</h3>
+              <label className={styles.switchLabel}>
+                <input
+                  type="checkbox"
+                  className={styles.configCheckbox}
+                  checked={configForm.rsvpClosed}
+                  onChange={(e) => setConfigForm({ ...configForm, rsvpClosed: e.target.checked })}
+                />
+                <span>Cerrar periodo de RSVP</span>
+              </label>
+              <p className={styles.configHelper}>
+                Cuando está activado, la página pública del evento mostrará un mensaje en lugar del formulario de RSVP.
+              </p>
+              
+              {configForm.rsvpClosed && (
+                <div className={styles.configFormGroup}>
+                  <label className={styles.configLabel}>Mensaje cuando está cerrado</label>
+                  <input
+                    type="text"
+                    className={styles.configInput}
+                    value={configForm.rsvpClosedMessage}
+                    onChange={(e) => setConfigForm({ ...configForm, rsvpClosedMessage: e.target.value })}
+                    placeholder="¡Nos vemos en el próximo evento!"
+                  />
+                </div>
+              )}
             </div>
 
             <div className={styles.configSection}>

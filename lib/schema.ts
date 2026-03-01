@@ -59,7 +59,9 @@ export const events = pgTable('events', {
     // Status
     isActive: boolean('is_active').default(true),
 
-    // Plus-one configuration
+    // RSVP Closed configuration
+    rsvpClosed: boolean('rsvp_closed').default(false),
+    rsvpClosedMessage: text('rsvp_closed_message').default('¡Nos vemos en el próximo evento!'),
     requirePlusOneName: boolean('require_plus_one_name').default(false),
 
     // Email configuration

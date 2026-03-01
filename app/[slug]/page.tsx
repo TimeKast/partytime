@@ -96,6 +96,24 @@ export default function EventPage() {
         )
     }
 
+    // RSVP Closed
+    if (event.rsvpClosed) {
+        return (
+            <main className={styles.main} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ textAlign: 'center', color: 'white', padding: '2rem' }}>
+                    <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🔒</div>
+                    <h1 style={{ marginBottom: '1rem' }}>{event.title}</h1>
+                    <p style={{ opacity: 0.7, marginBottom: '1rem' }}>
+                        {event.rsvpClosedMessage}
+                    </p>
+                    <p style={{ opacity: 0.5, marginBottom: '2rem' }}>
+                        Las inscripciones para este evento ya están cerradas.
+                    </p>
+                </div>
+            </main>
+        )
+    }
+
     // Event not active
     if (!event.isActive) {
         return (

@@ -83,6 +83,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                         amount: event.priceAmount ?? 0,
                         currency: event.priceCurrency || 'MXN'
                     },
+                    rsvpClosed: event.rsvpClosed ?? false,
+                    rsvpClosedMessage: event.rsvpClosedMessage ?? '¡Nos vemos en el próximo evento!',
                     capacity: {
                         enabled: event.capacityEnabled ?? false,
                         limit: event.capacityLimit ?? 0
@@ -221,6 +223,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         if (body.contact?.hostName !== undefined) updates.hostName = body.contact.hostName
         if (body.contact?.hostEmail !== undefined) updates.hostEmail = body.contact.hostEmail
         if (body.isActive !== undefined) updates.isActive = body.isActive
+        if (body.rsvpClosed !== undefined) updates.rsvpClosed = body.rsvpClosed
+        if (body.rsvpClosedMessage !== undefined) updates.rsvpClosedMessage = body.rsvpClosedMessage
 
         // Only call updateEvent if there are updates beyond slug
         if (Object.keys(updates).length > 0) {
