@@ -1,0 +1,131 @@
+---
+description: Patrones Next.js 15 App Router
+globs: ["app/**/*.tsx", "app/**/*.ts"]
+---
+
+# ⚛️ Reglas Next.js App Router
+
+Aplican a todos los archivos en `app/`.
+
+---
+
+## 🖥️ Server Components por Defecto
+
+```typescript
+// ✅ Por defecto: Server Component (sin directiva)
+export default async function Page() {
+  const data = await fetchData(); // Fetch directo
+  return <div>{data}</div>;
+}
+
+// ❌ Solo usar 'use client' cuando sea NECESARIO
+```
+
+### Cuándo usar `'use client'`
+
+Solo cuando necesites:
+- `useState`, `useEffect`, `useReducer`
+- Event handlers (`onClick`, `onChange`)
+- Browser APIs (`localStorage`, `window`)
+- Hooks de terceros que requieren cliente
+
+---
+
+## 🔄 Patrón Server Actions (OBLIGATORIO)
+
+```typescript
+"use server";
+
+// Patrón: Auth → Validate → Authorize → Execute → Revalidate
+export async function createEntity(formData: FormData) {
+  // 1. Auth check
+  const session = await auth();
+  if (!session) return { error: "No autorizado" };
+
+  // 2. Parse & validate con Zod
+  const parsed = schema.safeParse({
+    name: formData.get("name"),
+  });
+  if (!parsed.success) return { error: parsed.error.flatten() };
+
+  // 3. Authorization check (RBAC)
+  if (!hasPermission(session.user, "create:entity")) {
+    return { error: "Sin permisos" };
+  }
+
+  // 4. Business logic
+  try {
+    const result = await db.insert(entities).values(parsed.data);
+    // 5. Revalidate
+    revalidatePath("/entities");
+    return { success: true, data: result };
+  } catch (e) {
+    return { error: "Error al crear" };
+  }
+}
+```
+
+---
+
+## 📝 Metadata SEO
+
+Toda página debe exportar metadata:
+
+```typescript
+// app/dashboard/page.tsx
+export const metadata: Metadata = {
+  title: "Dashboard | App Name",
+  description: "Panel principal de la aplicación",
+};
+```
+
+---
+
+## 📁 Estructura de Archivos
+
+```
+app/
+  ├── (auth)/          # Grupo: páginas públicas
+  │   ├── login/
+  │   └── register/
+  ├── (protected)/     # Grupo: páginas protegidas
+  │   ├── dashboard/
+  │   └── settings/
+  ├── api/             # API Routes (solo si necesario)
+  ├── layout.tsx       # Layout raíz
+  └── page.tsx         # Página principal
+```
+
+---
+
+## 🎨 Estados UI Obligatorios
+
+Toda página/componente que carga datos debe manejar:
+
+| Estado | Implementación |
+|--------|----------------|
+| Loading | `loading.tsx` o `<Suspense>` con Skeleton |
+| Empty | Mensaje + CTA si aplica |
+| Error | `error.tsx` + mensaje claro + retry |
+| Success | Render normal de datos |
+
+---
+
+## 📱 Responsive Obligatorio
+
+- Mobile-first: diseñar para 375px primero
+- Breakpoints: `sm:640` `md:768` `lg:1024` `xl:1280`
+- **NO scroll horizontal** en ningún viewport
+- Touch targets: mínimo 44x44px
+- Input font-size: ≥16px (evita zoom en iOS)
+
+---
+
+## ❌ Anti-patrones
+
+| ❌ No hacer | ✅ Hacer |
+|-------------|----------|
+| Fetch en Client Components | Server Components + Actions |
+| Lógica de negocio en `page.tsx` | Extraer a actions/utils |
+| `console.log` en producción | Logger o eliminar |
+| CSS inline extenso | Tailwind classes |

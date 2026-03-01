@@ -1,0 +1,151 @@
+---
+description: Estándares Drizzle ORM
+globs: ["lib/db/**/*.ts", "drizzle.config.ts"]
+---
+
+# 🗃️ Reglas Drizzle ORM
+
+Aplican a todos los archivos en `lib/db/` y `drizzle.config.ts`.
+
+---
+
+## 📐 Naming Conventions
+
+| Elemento | Convención | Ejemplo |
+|----------|------------|---------|
+| Tablas | snake_case (plural) | `users`, `user_sessions` |
+| Columnas | snake_case | `created_at`, `user_id` |
+| Variables TS | camelCase | `users`, `userSessions` |
+| Foreign Keys | `<tabla>_<columna>_fk` | `users_org_id_fk` |
+| Índices | `<tabla>_<columna>_idx` | `users_email_idx` |
+
+---
+
+## 🏗️ Estructura de Schema
+
+```typescript
+// lib/db/schema/users.ts
+
+import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+
+export const users = pgTable("users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  email: text("email").notNull().unique(),
+  name: text("name"),
+  role: text("role", { enum: ["admin", "user"] }).default("user"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Exportar tipos inferidos
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+```
+
+---
+
+## 🔄 Migraciones
+
+### Flujo de cambios en schema
+
+```bash
+# 1. Modificar schema en lib/db/schema/
+# 2. Generar migración (nombre descriptivo)
+pnpm db:generate
+
+# 3. Revisar migración generada en drizzle/
+# 4. Aplicar a desarrollo
+pnpm db:push
+
+# 5. Commit de schema + migración juntos
+```
+
+### ❌ Nunca
+
+- Editar migraciones ya aplicadas en producción
+- Usar `db:push` en producción (solo `db:migrate`)
+- Borrar migraciones sin documentar
+
+---
+
+## 🔍 Queries
+
+### Patrón recomendado
+
+```typescript
+// ✅ Query con relaciones
+const userWithOrg = await db.query.users.findFirst({
+  where: eq(users.id, userId),
+  with: {
+    organization: true,
+  },
+});
+
+// ✅ Select específico (mejor performance)
+const userEmail = await db
+  .select({ email: users.email })
+  .from(users)
+  .where(eq(users.id, userId));
+```
+
+### ❌ Evitar
+
+```typescript
+// ❌ Select * implícito cuando no se necesita todo
+const user = await db.select().from(users);
+
+// ❌ N+1 queries
+for (const user of users) {
+  const org = await db.query.organizations.findFirst({
+    where: eq(organizations.id, user.orgId),
+  });
+}
+```
+
+---
+
+## 🔐 Seguridad
+
+### Validación obligatoria
+
+```typescript
+// ✅ Siempre validar antes de insertar
+const parsed = insertUserSchema.safeParse(input);
+if (!parsed.success) throw new Error("Invalid data");
+
+await db.insert(users).values(parsed.data);
+```
+
+### Soft deletes (recomendado)
+
+```typescript
+// ✅ Preferir soft delete para datos importantes
+export const users = pgTable("users", {
+  // ...
+  deletedAt: timestamp("deleted_at"),
+});
+
+// Query excluyendo borrados
+const activeUsers = await db.query.users.findMany({
+  where: isNull(users.deletedAt),
+});
+```
+
+---
+
+## 📊 Índices
+
+Crear índices para:
+- Columnas usadas en `WHERE` frecuentemente
+- Foreign keys
+- Columnas con `UNIQUE` constraint
+
+```typescript
+export const users = pgTable("users", {
+  email: text("email").notNull(),
+  orgId: uuid("org_id").references(() => organizations.id),
+}, (table) => ({
+  emailIdx: uniqueIndex("users_email_idx").on(table.email),
+  orgIdIdx: index("users_org_id_idx").on(table.orgId),
+}));
+```

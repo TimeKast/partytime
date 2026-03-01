@@ -1,0 +1,103 @@
+---
+description: Estándares TypeScript strict mode
+globs: ["**/*.ts", "**/*.tsx"]
+---
+
+# 📘 Reglas TypeScript
+
+Aplican a todos los archivos `.ts` y `.tsx`.
+
+---
+
+## 🔒 Strict Mode Obligatorio
+
+El proyecto usa `strict: true` en tsconfig. Estas reglas son absolutas:
+
+---
+
+## ❌ Prohibiciones Absolutas
+
+### No `any`
+```typescript
+// ❌ NUNCA
+const user: any = await getUser();
+const data: any = response.json();
+
+// ✅ SIEMPRE
+const user: User = await getUser();
+const data: unknown = await response.json();
+```
+
+### No `@ts-ignore` ni `@ts-expect-error`
+```typescript
+// ❌ NUNCA
+// @ts-ignore
+const value = someFunction();
+
+// ✅ SIEMPRE
+// Arreglar el tipo correctamente
+const value: ExpectedType = someFunction();
+```
+
+---
+
+## ✅ Patrones Obligatorios
+
+### Tipos de retorno explícitos en funciones públicas
+```typescript
+// ❌ Evitar inferencia en APIs públicas
+export function getUser(id: string) {
+  return db.query.users.findFirst({ where: eq(users.id, id) });
+}
+
+// ✅ Tipo explícito
+export function getUser(id: string): Promise<User | undefined> {
+  return db.query.users.findFirst({ where: eq(users.id, id) });
+}
+```
+
+### Discriminated Unions para estados
+```typescript
+// ✅ Patrón recomendado
+type Result<T> =
+  | { success: true; data: T }
+  | { success: false; error: string };
+
+type LoadingState<T> =
+  | { status: "loading" }
+  | { status: "error"; error: string }
+  | { status: "success"; data: T };
+```
+
+### Uso de `unknown` sobre `any`
+```typescript
+// ❌ any pierde type safety
+function parse(input: any): User { ... }
+
+// ✅ unknown requiere type narrowing
+function parse(input: unknown): User {
+  if (!isUser(input)) throw new Error("Invalid input");
+  return input;
+}
+```
+
+---
+
+## 📐 Naming Conventions
+
+| Tipo | Convención | Ejemplo |
+|------|------------|---------|
+| Types/Interfaces | PascalCase | `UserSession`, `ApiResponse` |
+| Variables/Functions | camelCase | `getUserById`, `isActive` |
+| Constants | SCREAMING_SNAKE | `MAX_FILE_SIZE`, `API_URL` |
+| Generics | Single uppercase | `T`, `K`, `V` |
+
+---
+
+## 🎯 Métricas de Calidad
+
+| Métrica | Umbral |
+|---------|--------|
+| TypeScript errors | **0** |
+| `any` usages | **0** |
+| `@ts-ignore` | **0** |
