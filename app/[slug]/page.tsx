@@ -96,24 +96,6 @@ export default function EventPage() {
         )
     }
 
-    // RSVP Closed
-    if (event.rsvpClosed) {
-        return (
-            <main className={styles.main} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ textAlign: 'center', color: 'white', padding: '2rem' }}>
-                    <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🔒</div>
-                    <h1 style={{ marginBottom: '1rem' }}>{event.title}</h1>
-                    <p style={{ opacity: 0.7, marginBottom: '1rem' }}>
-                        {event.rsvpClosedMessage}
-                    </p>
-                    <p style={{ opacity: 0.5, marginBottom: '2rem' }}>
-                        Las inscripciones para este evento ya están cerradas.
-                    </p>
-                </div>
-            </main>
-        )
-    }
-
     // Event not active
     if (!event.isActive) {
         return (
@@ -259,20 +241,28 @@ export default function EventPage() {
                     className={styles.rsvpSection}
                 >
                     <h3 className={styles.rsvpTitle} style={{ color: theme.accentColor }}>
-                        RSVP INDISPENSABLE
+                        {event.rsvpClosed ? '🎉' : 'RSVP INDISPENSABLE'}
                     </h3>
 
-                    <motion.button
-                        className={styles.rsvpButton}
-                        onClick={() => setIsModalOpen(true)}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        style={{
-                            background: `linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})`,
-                        }}
-                    >
-                        CONFIRMAR ASISTENCIA
-                    </motion.button>
+                    {event.rsvpClosed ? (
+                        <div className={styles.rsvpButton} style={{ opacity: 0.8, cursor: 'default', padding: '1.5rem 3rem' }}>
+                            <span style={{ fontSize: '1.2rem' }}>
+                                {event.rsvpClosedMessage || '¡Nos vemos en el próximo evento!'}
+                            </span>
+                        </div>
+                    ) : (
+                        <motion.button
+                            className={styles.rsvpButton}
+                            onClick={() => setIsModalOpen(true)}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            style={{
+                                background: `linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})`,
+                            }}
+                        >
+                            CONFIRMAR ASISTENCIA
+                        </motion.button>
+                    )}
                 </motion.div>
 
                 {/* Decorative elements */}
