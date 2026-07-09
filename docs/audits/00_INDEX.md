@@ -68,6 +68,6 @@ Corrección funcional, flujos, calidad y limpieza de código. **No incluye** rev
 
 ## Al terminar las 8
 
-1. Consolidar todos los hallazgos en `99_CONSOLIDADO.md`.
-2. Planificar y ejecutar la **Fase S** (bloqueante).
-3. Del consolidado sale el **plan correctivo** (con su propio ciclo de review) — ahí es donde por fin se arregla código.
+1. ✅ Consolidar todos los hallazgos en `99_CONSOLIDADO.md`.
+2. ✅ Planificar y ejecutar la **Fase S** (bloqueante) → `09_fase_s.md`.
+3. ✅ Del consolidado sale el **plan correctivo** → `10_plan_correctivo.md` (revisado por Codex; ejecución batch-por-batch pendiente, cada batch con su ciclo de review).

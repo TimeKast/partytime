@@ -222,7 +222,7 @@ Preceden en urgencia operacional incluso a los P0 funcionales por ser explotable
 
 ## Plan correctivo
 
-*(se llena al final: lista de fixes agrupados en batches por aislamiento de archivos; será un plan nuevo con su propio ciclo de adversarial review antes de ejecutar)*
+📋 **`10_plan_correctivo.md`** — plan de remediación completo (2026-07-09), pasado por adversarial review de Codex (7 findings de secuenciación/deploy incorporados). Estructura: Fase 0 ops (rotar `dave1511`, envs Vercel, backup, branch protection) → B0 gate de CI → **B0.5 fundación de datos obligatoria** (contrato slug/id + journal de migraciones + decisión de driver, gate = diff-vacío) → Fase 2 seguridad (B3a helper → B1 endpoints → B2 cron/token → B3b sesión) → Fase 3 P0 funcional (B4–B8, con capacidad atómica y rollout de reminders con envío OFF) → Fases 4–5 P1/P2/limpieza. Regla dura de colisión: un batch por superarchivo (`lib/queries.ts`, `app/admin/page.tsx`) por ola. **Ejecución batch-por-batch, cada uno con su propio ciclo de review** — aún NO ejecutado.
 
 ## Registro de cierre
 
