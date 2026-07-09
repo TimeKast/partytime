@@ -23,10 +23,20 @@ async function createSuperAdmin() {
     const sql = neon(databaseUrl)
     const db = drizzle(sql, { schema })
 
-    // Super admin credentials
-    const email = 'info@timekast.mx'
-    const password = 'dave1511'
-    const name = 'Super Admin'
+    // Super admin credentials — read from env (never hardcode; FS-04).
+    // Usage: SEED_ADMIN_EMAIL=... SEED_ADMIN_PASSWORD=... npx tsx scripts/create-super-admin.ts
+    const email = process.env.SEED_ADMIN_EMAIL
+    const password = process.env.SEED_ADMIN_PASSWORD
+    const name = process.env.SEED_ADMIN_NAME || 'Super Admin'
+
+    if (!email || !password) {
+        console.error('❌ Faltan credenciales. Define SEED_ADMIN_EMAIL y SEED_ADMIN_PASSWORD en el entorno.')
+        process.exit(1)
+    }
+    if (password.length < 12) {
+        console.error('❌ SEED_ADMIN_PASSWORD demasiado corta (mínimo 12 caracteres).')
+        process.exit(1)
+    }
 
     console.log('🔐 Creating super admin user...')
     console.log(`📧 Email: ${email}`)
