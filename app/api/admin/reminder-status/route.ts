@@ -6,15 +6,31 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { validateSession } from '@/lib/auth-utils'
+import { userHasEventAccess } from '@/lib/user-queries'
 import { isDatabaseConfigured } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
+    // Check auth
+    const cookieStore = await cookies()
+    const token = cookieStore.get('rp_session')?.value
+
+    if (!token) {
+        return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+    }
+
+    const currentUser = await validateSession(token)
+    if (!currentUser) {
+        return NextResponse.json({ success: false, error: 'Sesión inválida' }, { status: 401 })
+    }
+
     if (!isDatabaseConfigured()) {
-        return NextResponse.json({ 
-            success: false, 
-            error: 'Database not configured' 
+        return NextResponse.json({
+            success: false,
+            error: 'Database not configured'
         }, { status: 500 })
     }
 
@@ -23,16 +39,32 @@ export async function GET(request: NextRequest) {
         const eventSlug = searchParams.get('eventSlug')
 
         if (!eventSlug) {
-            return NextResponse.json({ 
-                success: false, 
-                error: 'eventSlug parameter is required' 
+            return NextResponse.json({
+                success: false,
+                error: 'eventSlug parameter is required'
             }, { status: 400 })
         }
 
-        const { getRSVPsByEvent } = await import('@/lib/queries')
-        
+        const { getRSVPsByEvent, getEventBySlug } = await import('@/lib/queries')
+
+        // Resolve event and check per-event access (viewer is enough for read-only status)
+        const event = await getEventBySlug(eventSlug)
+        if (!event) {
+            return NextResponse.json({
+                success: false,
+                error: 'Event not found'
+            }, { status: 404 })
+        }
+
+        if (currentUser.role !== 'super_admin') {
+            const { hasAccess } = await userHasEventAccess(currentUser.id, event.id, 'viewer')
+            if (!hasAccess) {
+                return NextResponse.json({ success: false, error: 'No tienes permiso para ver este evento' }, { status: 403 })
+            }
+        }
+
         // Get all RSVPs for this event
-        const rsvps = await getRSVPsByEvent(eventSlug)
+        const rsvps = await getRSVPsByEvent(event.slug)
 
         // Process each RSVP to extract reminder info
         const rsvpsWithReminderStatus = rsvps.map(rsvp => {

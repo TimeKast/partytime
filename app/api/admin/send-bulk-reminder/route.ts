@@ -6,6 +6,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { validateSession } from '@/lib/auth-utils'
+import { userHasEventAccess } from '@/lib/user-queries'
 import { isDatabaseConfigured } from '@/lib/db'
 import { resend, FROM_EMAIL } from '@/lib/resend'
 import { generateConfirmationEmail, EventData } from '@/lib/email-template'
@@ -15,10 +18,23 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes max
 
 export async function POST(request: NextRequest) {
+    // Check auth
+    const cookieStore = await cookies()
+    const token = cookieStore.get('rp_session')?.value
+
+    if (!token) {
+        return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+    }
+
+    const currentUser = await validateSession(token)
+    if (!currentUser) {
+        return NextResponse.json({ success: false, error: 'Sesión inválida' }, { status: 401 })
+    }
+
     if (!isDatabaseConfigured()) {
-        return NextResponse.json({ 
-            success: false, 
-            error: 'Database not configured' 
+        return NextResponse.json({
+            success: false,
+            error: 'Database not configured'
         }, { status: 500 })
     }
 
@@ -27,26 +43,34 @@ export async function POST(request: NextRequest) {
         const { eventSlug, rsvpIds } = body
 
         if (!eventSlug || !rsvpIds || !Array.isArray(rsvpIds) || rsvpIds.length === 0) {
-            return NextResponse.json({ 
-                success: false, 
-                error: 'eventSlug and rsvpIds are required' 
+            return NextResponse.json({
+                success: false,
+                error: 'eventSlug and rsvpIds are required'
             }, { status: 400 })
         }
 
-        const { 
-            getEventBySlug, 
-            getRSVPById,
+        const {
+            getEventBySlug,
+            getRSVPsByEvent,
             generateCancelToken,
-            recordEmailSent 
+            recordEmailSent
         } = await import('@/lib/queries')
 
         // Get event data
         const event = await getEventBySlug(eventSlug)
         if (!event) {
-            return NextResponse.json({ 
-                success: false, 
-                error: 'Event not found' 
+            return NextResponse.json({
+                success: false,
+                error: 'Event not found'
             }, { status: 404 })
+        }
+
+        // Check permissions using UUID
+        if (currentUser.role !== 'super_admin') {
+            const { hasAccess } = await userHasEventAccess(currentUser.id, event.id, 'manager')
+            if (!hasAccess) {
+                return NextResponse.json({ success: false, error: 'No tienes permiso para enviar correos masivos de este evento' }, { status: 403 })
+            }
         }
 
         // Build EventData for email template
@@ -75,12 +99,18 @@ export async function POST(request: NextRequest) {
         let failed = 0
         const errors: string[] = []
 
+        // Scope recipients to this event (same pattern as send-bulk-email):
+        // fetch the event's RSVPs and filter the requested IDs against that set,
+        // so IDs belonging to other events are never processed
+        const allRsvps = await getRSVPsByEvent(event.slug)
+        const rsvpsById = new Map(allRsvps.map(r => [r.id, r]))
+
         // Process each RSVP
         for (const rsvpId of rsvpIds) {
             try {
-                const rsvp = await getRSVPById(rsvpId)
+                const rsvp = rsvpsById.get(rsvpId)
                 if (!rsvp) {
-                    errors.push(`RSVP ${rsvpId}: No encontrado`)
+                    errors.push(`RSVP ${rsvpId}: No encontrado en este evento`)
                     failed++
                     continue
                 }
