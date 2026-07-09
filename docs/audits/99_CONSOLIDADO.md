@@ -1,8 +1,9 @@
 # 📊 Reporte Consolidado de Auditoría — Party Time!
 
-> **Estado:** 🔄 abierto — A1–A8 consolidadas; pendiente Fase S (ver `00_INDEX.md`).
-> **Regla de cierre:** este reporte NO puede cerrarse mientras la fila "Fase S" del INDEX no esté ✅.
-> **Consolidado:** 2026-07-09 · fuente: secciones "Hallazgos" de `01`–`08_*.md` (SHA auditados `9d9c7f2`/`e73ca03`/`61f74e5`).
+> **Estado:** ✅ **AUDITORÍA COMPLETA** — A1–A8 + Fase S consolidadas. El proyecto queda "auditado al 100%" (condición del INDEX cumplida: fila Fase S ✅).
+> **Regla de cierre:** cumplida — la fila "Fase S" del INDEX está ✅ (`09_fase_s.md`, 6🔴 13🟡 7🟢).
+> **Consolidado:** 2026-07-09 · fuente: secciones "Hallazgos" de `01`–`08_*.md` (SHA `9d9c7f2`/`e73ca03`/`61f74e5`) + `09_fase_s.md` (SHA `55a15d4`).
+> **Totales globales (post-dedup):** A1–A8 = 8🔴 56🟡 42🟢 · Fase S = 6🔴 13🟡 7🟢 · **GRAN TOTAL = 14🔴 69🟡 49🟢**. PRE-1/PRE-2 verificados y cerrados en Fase S.
 
 ---
 
@@ -141,14 +142,59 @@ Detectados durante el diseño del framework (adversarial review del plan, 2026-0
 
 | ID | Severidad | Descripción | Evidencia | Estado |
 |----|-----------|-------------|-----------|--------|
-| PRE-1 | 🔴 | `send-bulk-reminder` aceptaba requests **sin validar sesión** y disparaba envíos masivos; el loop además cargaba RSVPs por ID sin verificar que pertenecieran al evento (posible envío cross-evento) | Handler sin check: `app/api/admin/send-bulk-reminder/route.ts:17-41` (pre-fix) + loop de envío `:79-138` (pre-fix) | ✅ **Corregido** en `bcc7f1e` (validateSession + userHasEventAccess 'manager' + scoping vía `getRSVPsByEvent`). Pendiente verificación en Fase S |
-| PRE-2 | 🔴 | `reminder-status` devolvía nombre, email, teléfono, status y emailHistory de todos los RSVPs de un evento **sin validar sesión** | Handler sin check: `app/api/admin/reminder-status/route.ts:13-35` (pre-fix) + respuesta con datos `:72-98` (pre-fix) | ✅ **Corregido** en `bcc7f1e` (validateSession + userHasEventAccess 'viewer' + 404 si el evento no existe). Pendiente verificación en Fase S |
+| PRE-1 | 🔴 | `send-bulk-reminder` aceptaba requests **sin validar sesión** y disparaba envíos masivos; el loop además cargaba RSVPs por ID sin verificar que pertenecieran al evento (posible envío cross-evento) | Handler sin check: `app/api/admin/send-bulk-reminder/route.ts:17-41` (pre-fix) + loop de envío `:79-138` (pre-fix) | ✅ **VERIFICADO Y CERRADO** en Fase S (`09_fase_s.md`): trace de orden-de-llamada confirma 401/404/403 + scoping vía `getRSVPsByEvent` (Map, `:105-116`) precediendo a los sinks en `:140/:153` |
+| PRE-2 | 🔴 | `reminder-status` devolvía nombre, email, teléfono, status y emailHistory de todos los RSVPs de un evento **sin validar sesión** | Handler sin check: `app/api/admin/reminder-status/route.ts:13-35` (pre-fix) + respuesta con datos `:72-98` (pre-fix) | ✅ **VERIFICADO Y CERRADO** en Fase S: 401 (`:22,:27`) / 404 (`:52-57`) / 403 `userHasEventAccess('viewer')` (`:60,:62`) preceden al mapeo PII en `:70` |
 | PRE-3 | 🟡 | `getRSVPsByEvent(eventId)` declara `eventId` pero los callers le pasan el **slug** — funciona porque `rsvps.eventId` almacena el slug, pero la firma es engañosa y invita a bugs | `lib/queries.ts:62` vs `app/api/rsvp/route.ts:49,227` | ✅ **Confirmado y ampliado** por A1 (ítem 32 → **A1-11**) y A6 (→ **A6-04**): además de la firma mentirosa, 3 call sites con fallback `\|\| eventIdOrSlug` producen 0 resultados silenciosos con evento inexistente. Consolidado en la fila «A1-11 + A6-04»; fix → plan correctivo |
 | PRE-4 | 🟢 | Build local falla sin `RESEND_API_KEY` porque `lib/resend.ts` instancia el cliente a nivel de módulo (en Vercel pasa por la env var) | `lib/resend.ts:1-9`; repro: `npm run build` sin env | ✅ **Confirmado** por A8 (ítem 2, reproducido con error exacto) y **promovido a A8-01** 🟡 (ningún MD documenta el requisito; asimetría con `lib/db.ts`). Fila propia «A8-01» en la tabla consolidada; fix → plan correctivo |
+
+## Hallazgos Fase S (seguridad de endpoints/sesiones)
+
+Detalle completo, evidencia y calibración de severidad en `09_fase_s.md`. Resumen (26 hallazgos post-dedup; los 4 subagentes reportaron upload-image, cron y cancel-token por triplicado — fusionados):
+
+| ID | Sev | Descripción | Evidencia | Estado |
+|----|-----|-------------|-----------|--------|
+| FS-01 | 🔴 | `upload-image` POST **sin autenticación** — cualquiera sube 10MB a Vercel Blob público | `app/api/admin/upload-image/route.ts:15-60` | ⬜ plan correctivo |
+| FS-02 | 🔴 | `upload-image` **path traversal/overwrite** en key del blob (`eventSlug` crudo + `addRandomSuffix:false`) | `app/api/admin/upload-image/route.ts:52-59` | ⬜ plan correctivo |
+| FS-03 | 🔴 | Cron `send-reminders` **fail-open** si falta `CRON_SECRET` (validación envuelta en `if(cronSecret)`) → envío masivo no autorizado | `app/api/cron/send-reminders/route.ts:27-37` | ⬜ plan correctivo + **verificar env en Vercel** |
+| FS-04 | 🔴 | **Contraseña super-admin hardcodeada** `'dave1511'` para `info@timekast.mx`, commiteada | `scripts/create-super-admin.ts:27-28` | ⬜ **rotar YA** + purgar historial |
+| FS-05 | 🔴 | `CANCEL_TOKEN_SECRET` default público `'default-secret'` → cancel-tokens **forjables** (IDOR ver/editar/cancelar RSVP ajeno + PII) | `lib/queries.ts:189`; `lib/firestore.ts:187` | ⬜ plan correctivo + **verificar env en Vercel** |
+| FS-06 | 🔴 | `send-email` **omite el check de permiso** con `rsvpId` inexistente (check anidado en `if(rsvp)`) + `to` body-controlado → cualquier sesión (incl. viewer) envía email a dirección arbitraria | `app/api/admin/send-email/route.ts:39-50,117` | ⬜ plan correctivo |
+| FS-07 | 🟡 | Sesión `super_admin_env` sobrevive a rotación de credenciales; no revocable/auditable | `lib/auth-utils.ts:105-119`; `login:70-81` | ⬜ plan correctivo |
+| FS-08 | 🟡 | Login **sin rate limiting/lockout** (agrava FS-04) | `app/api/auth/login/route.ts` | ⬜ plan correctivo |
+| FS-09 | 🟡 | `POST /api/rsvp` público sin rate limit/anti-automation/cap → abuso de cuota Resend + DB | `app/api/rsvp/route.ts:15-146` | ⬜ plan correctivo |
+| FS-10 | 🟡 | Dup-check de RSVP no atómico (sin unique constraint `(email,eventId)`) → duplicados + doble email | `lib/queries.ts:28-38`; `lib/schema.ts:79-107` | ⬜ plan correctivo (cruza A2/A6) |
+| FS-11 | 🟡 | Capacidad del evento nunca aplicada (columnas existen, no se consultan) | `lib/schema.ts:29-30`; `lib/queries.ts:17-57` | ⬜ plan correctivo (**= A2-H02**) |
+| FS-12 | 🟡 | Sin anti-CSRF en mutaciones admin (solo `sameSite:lax`) | `lib/auth-utils.ts:176` | ⬜ plan correctivo |
+| FS-13 | 🟡 | `og-image/[slug]` fetch server-side de URL de BD → SSRF acotado | `app/api/og-image/[slug]/route.ts:227-228` | ⬜ plan correctivo |
+| FS-14 | 🟡 | `GET /admin/settings` legible por cualquier sesión (rol laxo vs POST super_admin) | `app/api/admin/settings/route.ts:23-26` | ⬜ plan correctivo |
+| FS-15 | 🟡 | `PUT /admin/users/[id]` sin guard de auto-degradación / último super_admin | `app/api/admin/users/[id]/route.ts:100-111` | ⬜ plan correctivo |
+| FS-16 | 🟡 | Enumeración de usuarios por status code (403 "desactivada") + timing (bcrypt solo si existe) | `app/api/auth/login/route.ts:37,46-51` | ⬜ plan correctivo |
+| FS-17 | 🟡 | Comparaciones de secretos no constant-time (cron, cancel-token, super-admin pwd) | `login:54-55`; `cron:28-29`; `queries.ts:197` | ⬜ plan correctivo |
+| FS-18 | 🟡 | `upload-image` valida MIME por `file.type` (spoofeable), no magic-bytes | `app/api/admin/upload-image/route.ts:36-41` | ⬜ plan correctivo |
+| FS-21 | 🟡 | Sin invalidación de sesiones previas al login / sin "cerrar todas las sesiones" | `login:70-81`; `logout:18` | ⬜ plan correctivo |
+| FS-19 | 🟢 | `debug-home` GET sin auth expone config (sin PII) | `app/api/debug-home/route.ts:8-22` | ⬜ plan correctivo |
+| FS-20 | 🟢 | `cleanupExpiredSessions` nunca invocada + retorno `0` falso | `lib/auth-utils.ts:148-155` | ⬜ plan correctivo |
+| FS-22 | 🟢 | `name` sin escape HTML en cuerpo de email (content injection) | `app/api/rsvp/route.ts:108-116` | ⬜ plan correctivo |
+| FS-23 | 🟢 | Columna `cancelToken` dead data (token aleatorio guardado nunca validado) | `lib/queries.ts:41,195-198` | ⬜ plan correctivo (**cruza A1-15 + A2-H10 + A6-10**) |
+| FS-24 | 🟢 | Cookie `secure` solo con `NODE_ENV==='production'` (mitigado en Vercel) | `lib/auth-utils.ts:175,195` | ⬜ plan correctivo |
+| FS-25 | 🟢 | `event?.id \|\| slug` enmascara 404 como 403 (fail-closed, confuso) | `stats:32`; `rsvp:216`; `send-email:42` | ⬜ plan correctivo (**cruza PRE-3 / A1-11 + A6-04**) |
+| FS-26 | 🟢 | Cancel-token sin expiración (pese a UI "expirado") | `lib/queries.ts:188-198` | ⬜ plan correctivo |
+
+**Positivo (defensa central sólida):** scoping por evento (`slug→event.id` + `userHasEventAccess` con rol correcto) consistente en los 10 endpoints scoped; gestión de usuarios exige super_admin uniformemente; **sin IDOR clásico** ni escalada horizontal; queries 100% Drizzle parametrizado (sin SQLi); `.env*` fuera de git.
+
+**⚠️ Acciones operacionales (NO son código, no esperan al plan correctivo):** rotar `dave1511` (FS-04); verificar `CRON_SECRET` y `CANCEL_TOKEN_SECRET` seteados en Vercel (FS-03/FS-05); `upload-image` es anónimo AHORA (FS-01/02).
 
 ## Priorización
 
 Orden = severidad × frecuencia del flujo afectado. Los 🔴 de flujos vivos (emails indebidos, RSVP, settings que se auto-revierten) primero. La ejecución de fixes NO es de este ciclo (ver "Plan correctivo").
+
+### P0-SEC — seguridad crítica (los 6 🔴 de Fase S, + exposiciones vivas)
+
+Preceden en urgencia operacional incluso a los P0 funcionales por ser explotables sin ser usuario del flujo:
+1. **FS-04** — contraseña de admin `dave1511` commiteada → **rotar de inmediato** (acción ops).
+2. **FS-03 / FS-05** — verificar `CRON_SECRET` y `CANCEL_TOKEN_SECRET` en Vercel; si faltan, cron y cancel-tokens están abiertos AHORA. Fix de código: fail-closed.
+3. **FS-01 / FS-02** — `upload-image` anónimo + traversal, explotable sin sesión.
+4. **FS-06** — envío de email a destinatario arbitrario por cualquier usuario del panel.
 
 ### P0 — críticos en flujos vivos (los 8 🔴)
 
