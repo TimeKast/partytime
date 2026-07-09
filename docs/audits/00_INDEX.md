@@ -11,12 +11,12 @@
 |---|-----------|---------|--------|--------------|--------|--------------|---------------------|
 | A1 | 📧 Emails y recordatorios | `01_emails_recordatorios.md` | ✅ | fable5-c37b36 | 2026-07-09 10:10 | `9d9c7f2` | 2🔴 12🟡 5🟢 |
 | A2 | 🎟️ Ciclo de vida RSVP | `02_rsvp_lifecycle.md` | ✅ | fable5-675614 | 2026-07-09 10:39 | `e73ca03` | 3🔴 12🟡 1🟢 |
-| A3 | 🎪 Eventos y settings | `03_eventos_settings.md` | ⬜ | — | — | — | — |
-| A4 | 🛠️ Panel admin | `04_admin_panel.md` | ⬜ | — | — | — | — |
-| A5 | 🧹 Código muerto y duplicado | `05_codigo_muerto_duplicado.md` | ⬜ | — | — | — | — |
-| A6 | 🗄️ Datos, queries y schema | `06_datos_queries_schema.md` | ⬜ | — | — | — | — |
-| A7 | 🎨 Frontend, flujos y UX | `07_frontend_flujos_ux.md` | ⬜ | — | — | — | — |
-| A8 | ⚙️ Build, config y deploy | `08_build_config_deploy.md` | ⬜ | — | — | — | — |
+| A3 | 🎪 Eventos y settings | `03_eventos_settings.md` | 🔄 | fable5-675614-a3 | 2026-07-09 11:01 | `61f74e5` | — |
+| A4 | 🛠️ Panel admin | `04_admin_panel.md` | 🔄 | fable5-675614-a4 | 2026-07-09 11:01 | `61f74e5` | — |
+| A5 | 🧹 Código muerto y duplicado | `05_codigo_muerto_duplicado.md` | 🔄 | fable5-675614-a5 | 2026-07-09 11:01 | `61f74e5` | — |
+| A6 | 🗄️ Datos, queries y schema | `06_datos_queries_schema.md` | 🔄 | fable5-675614-a6 | 2026-07-09 11:01 | `61f74e5` | — |
+| A7 | 🎨 Frontend, flujos y UX | `07_frontend_flujos_ux.md` | 🔄 | fable5-675614-a7 | 2026-07-09 11:01 | `61f74e5` | — |
+| A8 | ⚙️ Build, config y deploy | `08_build_config_deploy.md` | 🔄 | fable5-675614-a8 | 2026-07-09 11:01 | `61f74e5` | — |
 | FS | 🔒 Fase S (separada) | *(se planifica al terminar A1–A8)* | ⬜ BLOQUEANTE | — | — | — | — |
 
 **Estados:** ⬜ pendiente · 🔄 en curso · ✅ completada
