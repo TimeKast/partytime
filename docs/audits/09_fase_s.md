@@ -4,6 +4,7 @@
 > **Inicio:** 2026-07-09 14:58 · **SHA auditado:** `55a15d4` · **Owner/Sesión:** fable5-FS-526dc9
 > **Plan de metodología (revisado por Codex):** `~/.claude/plans/partytime-20260709-145728.md`
 > **Ejecución:** 4 subagentes read-only en paralelo (Sub-A..D), consolidados y re-verificados por el orquestador (trust-but-verify: cada hallazgo 🔴 releído en `archivo:línea`).
+> **Post-review de Codex (2026-07-09):** confirmó 5/6 críticos; **refutó FS-02** (overwrite/traversal no se sostiene: key con `Date.now()` + `@vercel/blob` `allowOverwrite:false` por defecto → degradado a 🟢) y **detectó un miss** (`update-rsvp` mass-assignment → **FS-27** 🟡). Registro corregido en consecuencia. Totales finales: **5🔴 14🟡 8🟢**.
 
 ---
 
@@ -44,8 +45,8 @@ No existe `middleware.ts` global (verificado: `find . -name middleware.*` vacío
 | 5 | `admin/send-bulk-reminder` | POST | scoping evento (W) | sesión (`:29-32`) + `userHasEventAccess(event.id,'manager')` (`:68-74`) + Map scope (`:105-116`) | 🟢 |
 | 6 | `admin/send-email` | POST | scoping evento (W) | sesión (`:19-22`) + check **anidado en `if(rsvp)`** (`:39-50`) → **bypass** | 🔴 FS-06 |
 | 7 | `admin/settings` | GET/POST | admin global | GET: **solo sesión, sin super_admin** (`:23-26`); POST: super_admin (`:64-66`) | 🟡 FS-14 |
-| 8 | `admin/update-rsvp` | POST | scoping evento (W) | sesión (`:16-19`) + RSVP→slug→id + `userHasEventAccess(id,'manager')` (`:40-58`) | 🟢 |
-| 9 | `admin/upload-image` | POST | admin (blobs) | **NINGUNA** — sin `validateSession`, sin token (`:15-33`) | 🔴 FS-01/02 |
+| 8 | `admin/update-rsvp` | POST | scoping evento (W) | sesión (`:16-19`) + `userHasEventAccess(id,'manager')` (`:40-58`) OK, pero `updates` sin allowlist (`:61`) | 🟡 FS-27 |
+| 9 | `admin/upload-image` | POST | admin (blobs) | **NINGUNA** — sin `validateSession`, sin token (`:15-33`) | 🔴 FS-01 (+🟢 FS-02) |
 | 10 | `admin/users/[id]/events` | GET/POST/DELETE | gestión usuarios | super_admin en los 3 (`:28-34,:78-84,:144-150`) | 🟢 |
 | 11 | `admin/users/[id]` | GET/PUT/DELETE | gestión usuarios | super_admin (`:28-34,:86-92,:153-159`); PUT sin guard self-demote (`:100-111`) | 🟡 FS-15 |
 | 12 | `admin/users` | GET/POST | gestión usuarios | super_admin (`:24-30,:75-81`) | 🟢 |
@@ -76,9 +77,6 @@ No existe `middleware.ts` global (verificado: `find . -name middleware.*` vacío
 
 **[FS-01] 🔴 `upload-image` POST sin autenticación alguna**
 `app/api/admin/upload-image/route.ts:15-60`. Único endpoint bajo `/api/admin/**` sin gate: va de `formData()` (`:17`) a `put(filename, file, { access:'public' })` (`:57`) sin `validateSession`/token/cookie. Cualquiera (anónimo) sube hasta 10MB por request a Vercel Blob público, path predecible `events/{eventSlug}-{timestamp}.{ext}` (`:54`). Abuso de costo/almacenamiento + hosting de contenido arbitrario en el dominio del proyecto. *(Sub-A FS-S3-01 = Sub-B FS-S1-01 = Sub-D FS-S3b-01.)*
-
-**[FS-02] 🔴 `upload-image` path traversal / overwrite en el key del blob**
-`app/api/admin/upload-image/route.ts:52-59`. `eventSlug` crudo del cliente (`:19`) interpolado en el key con `addRandomSuffix:false` (`:59`); un `eventSlug` tipo `../otro-evento` colisiona/sobrescribe blobs de otros eventos. Explotable **anónimamente** al combinarse con FS-01. *(Sub-D FS-S6-01.)*
 
 **[FS-03] 🔴 Cron `send-reminders` fail-open si `CRON_SECRET` no está seteado**
 `app/api/cron/send-reminders/route.ts:27`. Toda la validación está envuelta en `if (cronSecret)`; si la env var falta/está vacía, se salta (`:28-37`) y el endpoint queda **abierto** en GET y POST → disparo no autorizado del loop de envío masivo (`resend.emails.send` `:158`) a todos los confirmados con recordatorio pendiente. **Defecto de diseño (fail-open) = 🔴 independientemente del valor real en Vercel;** debe fallar-cerrado. Comparación además con `===` no constant-time (`:28-29`). *(Sub-A FS-S3-04 = Sub-B FS-S1-02 = Sub-D FS-S7-01. Orquestador confirmó `:27`.)*
@@ -133,6 +131,9 @@ Columnas `capacityEnabled`/`capacityLimit` existen (`lib/schema.ts:29-30`) pero 
 **[FS-21] 🟡 No se invalidan sesiones previas al hacer login (sin "cerrar todas las sesiones")**
 `app/api/auth/login/route.ts:70-81,95-104` (createSession siempre inserta fila nueva); logout solo borra la sesión actual (`logout:18`). No hay revocación global → ante compromiso, no se pueden revocar sesiones robadas salvo esperar expiración. *(Sub-C FS-S5-08.)*
 
+**[FS-27] 🟡 `update-rsvp` mass-assignment: `updates` del body pasa sin allowlist a `updateRSVP` (firma mentirosa)**
+`app/api/admin/update-rsvp/route.ts:22-23,61`. El body `updates` (runtime `any`) se pasa directo a `updateRSVP(rsvpId, updates)`. `updateRSVP` (`lib/queries.ts:90-99`) **declara** el tipo seguro `Partial<Pick<RSVP,'name'|'email'|'phone'|'plusOne'|'plusOneName'|'status'>>` pero los tipos de TS **se borran en runtime**: `db.update(rsvps).set(data)` escribe cualquier columna presente en el objeto. Un manager (con acceso al evento **origen** del RSVP) puede incluir `eventId` (mover el RSVP a otro evento que no gestiona → ruptura de aislamiento entre eventos), o `emailHistory`/`cancelToken`/`createdAt` (falsificar historial de envíos, invalidar/secuestrar el link de cancelación). Precondición: sesión con rol manager en el evento origen. *(Miss detectado por el post-review de Codex; el orquestador lo verificó y lo agrega. Bajo la calibración de seguridad = 🟡 por requerir privilegio manager; sería 🔴 en modelo multi-tenant estricto. Cruza con la clase "tipos mentirosos" A5-13 + A6-02.)* **Fix:** allowlist server-side de campos mutables; rechazar `eventId`, `id`, `emailHistory`, `cancelToken`, timestamps.
+
 ### 🟢 Mejoras
 
 **[FS-19] 🟢 `debug-home` GET sin auth expone configuración interna** — `app/api/debug-home/route.ts:8-22`. Devuelve `home_event_id`, id/slug/title/isActive del evento home y `legacyId`. Sin PII; endpoint de debug dejado en prod. Eliminar o gatear. *(Sub-A FS-S3-03 / Sub-B FS-S4-07; el orquestador lo fija en 🟢 por ausencia de PII.)*
@@ -148,6 +149,8 @@ Columnas `capacityEnabled`/`capacityLimit` existen (`lib/schema.ts:29-30`) pero 
 **[FS-25] 🟢 Patrón `event?.id || eventIdOrSlug` enmascara 404 como 403** — p.ej. `stats:32`, `rsvp:216`, `send-email:42`. Con evento inexistente, el fallback pasa el identificador crudo a `userHasEventAccess` → 403 en vez de 404. Fail-closed (seguro), solo confuso. *(Sub-B FS-S4-06.)* **Cruza con PRE-3 / A1-11 + A6-04** (firmas slug/UUID y fallback de 0-resultados).
 
 **[FS-26] 🟢 Cancel-token sin expiración** — `lib/queries.ts:188-198`. Sin TTL pese a mensajes de UI "expirado" (`cancel:30`). Token válido para siempre. *(Sub-D FS-S3b-05.)*
+
+**[FS-02] 🟢 `upload-image`: `eventSlug` sin sanitizar en el key del blob (higiene)** — `app/api/admin/upload-image/route.ts:52-59`. `eventSlug` crudo del cliente se interpola en el key. **Degradado de 🔴 → 🟢 tras el post-review de Codex:** la afirmación original de overwrite/path-traversal de blobs ajenos **no se sostiene** — el key incluye `Date.now()` (`:52`), por lo que no hay un target predecible que sobrescribir, y `@vercel/blob` usa `allowOverwrite:false` por defecto (una escritura al mismo path lanza). Residual real: falta sanitizar el slug a un allowlist y preferir keys generados en el servidor. *(Sub-D FS-S6-01, refutado como crítico; el vector anónimo real es FS-01.)*
 
 ---
 
@@ -170,10 +173,10 @@ Estas NO son cambios de código; son exposiciones vivas en prod con usuarios rea
 
 ## Conteo declarado
 
-**6 🔴 · 13 🟡 · 7 🟢** = 26 hallazgos (post-dedup; los 4 subagentes reportaron upload-image, cron y cancel-token por triplicado — fusionados). PRE-1 y PRE-2 **verificados y cerrados**.
+**5 🔴 · 14 🟡 · 8 🟢** = 27 hallazgos (post-dedup + post-review de Codex: FS-02 degradado 🔴→🟢, FS-27 agregado 🟡). PRE-1 y PRE-2 **verificados y cerrados**.
 
 | Severidad | IDs |
 |-----------|-----|
-| 🔴 (6) | FS-01, FS-02, FS-03, FS-04, FS-05, FS-06 |
-| 🟡 (13) | FS-07, FS-08, FS-09, FS-10, FS-11, FS-12, FS-13, FS-14, FS-15, FS-16, FS-17, FS-18, FS-21 |
-| 🟢 (7) | FS-19, FS-20, FS-22, FS-23, FS-24, FS-25, FS-26 |
+| 🔴 (5) | FS-01, FS-03, FS-04, FS-05, FS-06 |
+| 🟡 (14) | FS-07, FS-08, FS-09, FS-10, FS-11, FS-12, FS-13, FS-14, FS-15, FS-16, FS-17, FS-18, FS-21, FS-27 |
+| 🟢 (8) | FS-02, FS-19, FS-20, FS-22, FS-23, FS-24, FS-25, FS-26 |

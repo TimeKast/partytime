@@ -1,9 +1,9 @@
 # 📊 Reporte Consolidado de Auditoría — Party Time!
 
 > **Estado:** ✅ **AUDITORÍA COMPLETA** — A1–A8 + Fase S consolidadas. El proyecto queda "auditado al 100%" (condición del INDEX cumplida: fila Fase S ✅).
-> **Regla de cierre:** cumplida — la fila "Fase S" del INDEX está ✅ (`09_fase_s.md`, 6🔴 13🟡 7🟢).
+> **Regla de cierre:** cumplida — la fila "Fase S" del INDEX está ✅ (`09_fase_s.md`, 5🔴 14🟡 8🟢).
 > **Consolidado:** 2026-07-09 · fuente: secciones "Hallazgos" de `01`–`08_*.md` (SHA `9d9c7f2`/`e73ca03`/`61f74e5`) + `09_fase_s.md` (SHA `55a15d4`).
-> **Totales globales (post-dedup):** A1–A8 = 8🔴 56🟡 42🟢 · Fase S = 6🔴 13🟡 7🟢 · **GRAN TOTAL = 14🔴 69🟡 49🟢**. PRE-1/PRE-2 verificados y cerrados en Fase S.
+> **Totales globales (post-dedup):** A1–A8 = 8🔴 56🟡 42🟢 · Fase S = 5🔴 14🟡 8🟢 (post-review Codex: FS-02 degradado a 🟢, FS-27 agregado 🟡) · **GRAN TOTAL = 13🔴 70🟡 50🟢**. PRE-1/PRE-2 verificados y cerrados en Fase S.
 
 ---
 
@@ -154,7 +154,7 @@ Detalle completo, evidencia y calibración de severidad en `09_fase_s.md`. Resum
 | ID | Sev | Descripción | Evidencia | Estado |
 |----|-----|-------------|-----------|--------|
 | FS-01 | 🔴 | `upload-image` POST **sin autenticación** — cualquiera sube 10MB a Vercel Blob público | `app/api/admin/upload-image/route.ts:15-60` | ⬜ plan correctivo |
-| FS-02 | 🔴 | `upload-image` **path traversal/overwrite** en key del blob (`eventSlug` crudo + `addRandomSuffix:false`) | `app/api/admin/upload-image/route.ts:52-59` | ⬜ plan correctivo |
+| FS-02 | 🟢 | `upload-image` `eventSlug` sin sanitizar en key del blob (higiene). **Degradado 🔴→🟢 por post-review Codex:** overwrite/traversal no se sostiene (key con `Date.now()`, `allowOverwrite:false` por defecto) | `app/api/admin/upload-image/route.ts:52-59` | ⬜ plan correctivo |
 | FS-03 | 🔴 | Cron `send-reminders` **fail-open** si falta `CRON_SECRET` (validación envuelta en `if(cronSecret)`) → envío masivo no autorizado | `app/api/cron/send-reminders/route.ts:27-37` | ⬜ plan correctivo + **verificar env en Vercel** |
 | FS-04 | 🔴 | **Contraseña super-admin hardcodeada** `'dave1511'` para `info@timekast.mx`, commiteada | `scripts/create-super-admin.ts:27-28` | ⬜ **rotar YA** + purgar historial |
 | FS-05 | 🔴 | `CANCEL_TOKEN_SECRET` default público `'default-secret'` → cancel-tokens **forjables** (IDOR ver/editar/cancelar RSVP ajeno + PII) | `lib/queries.ts:189`; `lib/firestore.ts:187` | ⬜ plan correctivo + **verificar env en Vercel** |
@@ -172,6 +172,7 @@ Detalle completo, evidencia y calibración de severidad en `09_fase_s.md`. Resum
 | FS-17 | 🟡 | Comparaciones de secretos no constant-time (cron, cancel-token, super-admin pwd) | `login:54-55`; `cron:28-29`; `queries.ts:197` | ⬜ plan correctivo |
 | FS-18 | 🟡 | `upload-image` valida MIME por `file.type` (spoofeable), no magic-bytes | `app/api/admin/upload-image/route.ts:36-41` | ⬜ plan correctivo |
 | FS-21 | 🟡 | Sin invalidación de sesiones previas al login / sin "cerrar todas las sesiones" | `login:70-81`; `logout:18` | ⬜ plan correctivo |
+| FS-27 | 🟡 | `update-rsvp` **mass-assignment**: `updates` del body sin allowlist → `updateRSVP` (firma `Pick` mentirosa, borrada en runtime) escribe `eventId`/`emailHistory`/`cancelToken` → manager mueve/corrompe RSVPs entre eventos. **Detectado por post-review Codex** | `app/api/admin/update-rsvp/route.ts:22-23,61`; `lib/queries.ts:90-99` | ⬜ plan correctivo (cruza A5-13 + A6-02) |
 | FS-19 | 🟢 | `debug-home` GET sin auth expone config (sin PII) | `app/api/debug-home/route.ts:8-22` | ⬜ plan correctivo |
 | FS-20 | 🟢 | `cleanupExpiredSessions` nunca invocada + retorno `0` falso | `lib/auth-utils.ts:148-155` | ⬜ plan correctivo |
 | FS-22 | 🟢 | `name` sin escape HTML en cuerpo de email (content injection) | `app/api/rsvp/route.ts:108-116` | ⬜ plan correctivo |
@@ -188,12 +189,12 @@ Detalle completo, evidencia y calibración de severidad en `09_fase_s.md`. Resum
 
 Orden = severidad × frecuencia del flujo afectado. Los 🔴 de flujos vivos (emails indebidos, RSVP, settings que se auto-revierten) primero. La ejecución de fixes NO es de este ciclo (ver "Plan correctivo").
 
-### P0-SEC — seguridad crítica (los 6 🔴 de Fase S, + exposiciones vivas)
+### P0-SEC — seguridad crítica (los 5 🔴 de Fase S, + exposiciones vivas)
 
 Preceden en urgencia operacional incluso a los P0 funcionales por ser explotables sin ser usuario del flujo:
 1. **FS-04** — contraseña de admin `dave1511` commiteada → **rotar de inmediato** (acción ops).
 2. **FS-03 / FS-05** — verificar `CRON_SECRET` y `CANCEL_TOKEN_SECRET` en Vercel; si faltan, cron y cancel-tokens están abiertos AHORA. Fix de código: fail-closed.
-3. **FS-01 / FS-02** — `upload-image` anónimo + traversal, explotable sin sesión.
+3. **FS-01** — `upload-image` anónimo (subida pública sin sesión), explotable sin credenciales.
 4. **FS-06** — envío de email a destinatario arbitrario por cualquier usuario del panel.
 
 ### P0 — críticos en flujos vivos (los 8 🔴)
