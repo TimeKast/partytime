@@ -1,7 +1,7 @@
 # A1 — 📧 Auditoría: Emails y recordatorios
 
-> **Estado:** ⬜ pendiente · **Owner/Sesión:** — · **Inicio:** —
-> **SHA framework de referencia:** `bcc7f1e` · **SHA auditado:** *(llenar con `git rev-parse --short HEAD` al tomar el lock)*
+> **Estado:** 🔄 en curso · **Owner/Sesión:** fable5-c37b36 · **Inicio:** 2026-07-09 10:10
+> **SHA framework de referencia:** `bcc7f1e` · **SHA auditado:** `9d9c7f2`
 
 **⚠️ ANTES DE EMPEZAR — protocolo de `docs/audits/00_INDEX.md` (obligatorio):**
 

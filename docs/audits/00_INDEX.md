@@ -9,7 +9,7 @@
 
 | # | Auditoría | Archivo | Estado | Owner/Sesión | Inicio | SHA auditado | Hallazgos 🔴/🟡/🟢 |
 |---|-----------|---------|--------|--------------|--------|--------------|---------------------|
-| A1 | 📧 Emails y recordatorios | `01_emails_recordatorios.md` | ⬜ | — | — | — | — |
+| A1 | 📧 Emails y recordatorios | `01_emails_recordatorios.md` | 🔄 | fable5-c37b36 | 2026-07-09 10:10 | `9d9c7f2` | — |
 | A2 | 🎟️ Ciclo de vida RSVP | `02_rsvp_lifecycle.md` | ⬜ | — | — | — | — |
 | A3 | 🎪 Eventos y settings | `03_eventos_settings.md` | ⬜ | — | — | — | — |
 | A4 | 🛠️ Panel admin | `04_admin_panel.md` | ⬜ | — | — | — | — |
