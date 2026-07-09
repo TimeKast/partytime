@@ -106,7 +106,7 @@ Verificar que la capa de datos dice la verdad: que el schema Drizzle (`lib/schem
 | A6-15 | 🟢 | **Trabajo en app que corresponde a SQL.** | `getAllEvents` filtra `isActive` en JS (`lib/queries.ts:294-302`); N+1 en `getUserEventAssignments` (`lib/user-queries.ts:152-168`); `rsvpClosed` filtrado en JS post-query en el cron (`lib/queries.ts:481-486`) | Mover filtros al `where` y el N+1 a un join/`inArray`. Volumen actual chico — limpieza. |
 | A6-16 | 🟢 | **`assignEventToUser` sin UNIQUE `(user_id,event_id)` ni validación de existencia del evento.** | Check-then-insert (`lib/user-queries.ts:184-209`); sin constraint (`drizzle/0000:51-58`); endpoint no verifica que el evento exista (`app/api/admin/users/[id]/events/route.ts:86-103`); `userHasEventAccess` toma el primer row sin ORDER BY (`lib/user-queries.ts:237-243`) | Carrera → assignments duplicados con rol potencialmente divergente → rol efectivo no determinista; typo en eventId → assignment colgante. Solo super_admin opera esto (concurrencia mínima) → 🟢. Propuesta: UNIQUE + validar evento con `getEventById` antes de insertar. |
 
-**Conteo: 1🔴 · 9🟡 · 6🟢**
+**Conteo: 1🔴 · 10🟡 · 5🟢** *(corregido por el orquestador al consolidar: la tabla registra A6-09 como 🟡; el conteo originalmente declarado — 9🟡 6🟢 — no cuadraba con las filas)*
 
 ## 6. Hallazgos fuera de scope
 
@@ -132,8 +132,8 @@ Candidatos detectados al preparar este MD (la sesión ejecutora los confirma y r
 ## 7. Cierre de la auditoría
 
 1. ✅ Las 18 filas del checklist y las 17 del Anexo A tienen resultado con evidencia `archivo:línea`. Sub-partes no ejecutables sin DB viva quedaron `⏭️ NOT RUN` dentro de su ítem con razón explícita (ítem 8: SELECT de huérfanos; ítem 9: `pg_indexes`; ítem 12: SELECT de duplicados — todas por prohibición de conectarse a la DB de producción). El ítem 1(b) SÍ se ejecutó (drizzle-kit generate en scratchpad, sin DB y sin tocar el repo).
-2. ✅ Hallazgos volcados en la sección 5: **1🔴 · 9🟡 · 6🟢** (A6-01…A6-16). Cinco de ellos comparten defecto raíz con hallazgos ya registrados en A1/A2 (A6-06↔A1-02, A6-10↔A2-H10/A1-15, A6-11↔A2-H05/H06, A6-12↔A1-10, A6-04↔A1-11) — en `99_CONSOLIDADO.md` deben contarse una sola vez.
+2. ✅ Hallazgos volcados en la sección 5: **1🔴 · 10🟡 · 5🟢** (A6-01…A6-16; conteo corregido al consolidar). Cinco de ellos comparten defecto raíz con hallazgos ya registrados en A1/A2 (A6-06↔A1-02, A6-10↔A2-H10/A1-15, A6-11↔A2-H05/H06, A6-12↔A1-10, A6-04↔A1-11) — en `99_CONSOLIDADO.md` deben contarse una sola vez.
 3. Actualización de la fila **A6** de `00_INDEX.md` (estado ✅, conteo `1🔴 9🟡 6🟢`, SHA `61f74e5`): la ejecuta el orquestador (esta sesión es read-only fuera de este MD).
 4. Commit + push: `audit: A6 datos-queries-schema — 1🔴 9🟡 6🟢` (orquestador).
 
-**Conteo final: 1🔴 · 9🟡 · 6🟢**
+**Conteo final: 1🔴 · 10🟡 · 5🟢**
