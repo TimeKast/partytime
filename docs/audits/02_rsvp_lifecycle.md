@@ -1,6 +1,6 @@
 # A2 — 🎟️ Ciclo de vida RSVP
 
-> **Estado:** ⬜ pendiente · **Owner/Sesión:** — · **Inicio:** — · **SHA auditado:** —
+> **Estado:** 🔄 en curso · **Owner/Sesión:** fable5-675614 · **Inicio:** 2026-07-09 10:39 · **SHA auditado:** `e73ca03`
 > **SHA de referencia del framework:** `bcc7f1e`
 > **Protocolo:** seguir al pie de la letra el "Protocolo por sesión (lock atómico)" y las "Reglas de evidencia" de `docs/audits/00_INDEX.md`. Read-only sobre el código de la app: solo se escribe en este MD y en el INDEX.
 
