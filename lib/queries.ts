@@ -460,20 +460,22 @@ export async function getEventsWithPendingReminders(): Promise<Event[]> {
     if (!db) throw new Error('Database not configured')
 
     const now = new Date()
-    const today = now.toISOString().split('T')[0] // YYYY-MM-DD format
-    
-    // Start and end of today for precise matching
-    const startOfDay = new Date(today + 'T00:00:00.000Z')
-    const endOfDay = new Date(today + 'T23:59:59.999Z')
+
+    // A1-02: fire when the scheduled MOMENT has passed (absolute-time compare),
+    // not "scheduled sometime today in UTC" — the old UTC day-window sent up to
+    // ~24h early and ignored the chosen time. A grace window (last 3 days) lets a
+    // missed run retry on the next cron cycle (A1-06) without resurrecting an
+    // ancient, long-past schedule as a surprise send.
+    const GRACE_MS = 3 * 24 * 60 * 60 * 1000
+    const graceStart = new Date(now.getTime() - GRACE_MS)
 
     const result = await db.select()
         .from(events)
         .where(and(
             eq(events.reminderEnabled, true),
             eq(events.isActive, true),
-            // Only get events where reminder is scheduled for TODAY
-            gte(events.reminderScheduledAt, startOfDay),
-            lte(events.reminderScheduledAt, endOfDay),
+            lte(events.reminderScheduledAt, now),        // scheduled time has passed
+            gte(events.reminderScheduledAt, graceStart), // but not ancient
             isNull(events.reminderSentAt)
         ))
 

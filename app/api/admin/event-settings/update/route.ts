@@ -129,18 +129,26 @@ export async function POST(request: NextRequest) {
       if (body.emailConfig !== undefined) {
         updates.emailConfirmationEnabled = body.emailConfig.confirmationEnabled ?? false
         updates.reminderEnabled = body.emailConfig.reminderEnabled ?? false
-        
-        // Handle reminder scheduled date
-        if (body.emailConfig.reminderScheduledAt) {
-          updates.reminderScheduledAt = new Date(body.emailConfig.reminderScheduledAt)
+
+        const newScheduledAt = body.emailConfig.reminderScheduledAt
+          ? new Date(body.emailConfig.reminderScheduledAt)
+          : null
+
+        if (newScheduledAt) {
+          updates.reminderScheduledAt = newScheduledAt
+          // A1-01: re-arm (clear reminderSentAt) ONLY when the scheduled time
+          // actually CHANGED from what is stored — determined server-side, not
+          // from the client. The old client flag compared reminderScheduledAt vs
+          // reminderSentAt (different-nature timestamps that almost never match),
+          // so every settings save re-armed the reminder and the cron re-sent to
+          // everyone ("40 vueltas" class). We ignore body.clearSentStatus.
+          const prevScheduled = event.reminderScheduledAt ? new Date(event.reminderScheduledAt).getTime() : null
+          if (prevScheduled !== newScheduledAt.getTime()) {
+            updates.reminderSentAt = null
+          }
         } else if (body.emailConfig.reminderEnabled === false) {
           // Clear scheduled date if reminder is disabled
           updates.reminderScheduledAt = null
-        }
-        
-        // If reminder is being re-enabled with a new date, clear the sentAt to allow re-sending
-        if (body.emailConfig.reminderEnabled && body.emailConfig.reminderScheduledAt && body.emailConfig.clearSentStatus) {
-          updates.reminderSentAt = null
         }
       }
 

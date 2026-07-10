@@ -819,10 +819,8 @@ export default function AdminDashboard() {
           reminderEnabled: configForm.reminderEnabled,
           reminderScheduledAt: configForm.reminderEnabled && configForm.reminderScheduledAt
             ? new Date(configForm.reminderScheduledAt).toISOString()
-            : null,
-          // If user changes the reminder date after it was sent, allow re-sending
-          clearSentStatus: configForm.reminderSentAt && configForm.reminderScheduledAt &&
-            new Date(configForm.reminderScheduledAt).toISOString() !== configForm.reminderSentAt
+            : null
+          // Re-arm on schedule change is decided server-side (A1-01); no client flag.
         },
         // Plus-one configuration
         requirePlusOneName: configForm.requirePlusOneName,
