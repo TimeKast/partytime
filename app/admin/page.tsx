@@ -419,10 +419,12 @@ export default function AdminDashboard() {
       'dic': 11, 'dec': 11, 'diciembre': 11, 'december': 11
     }
 
-    // Try ISO format first (2025-01-30)
-    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
-      const eventDate = new Date(dateStr)
-      console.log('[isEventPast] ISO date parsed:', eventDate, '< today:', today, '=', eventDate < today)
+    // Try ISO format first (2025-01-30). Parse as a LOCAL date (not `new
+    // Date(str)`, which is UTC) so an event on its own day is not marked past
+    // due to a UTC/local offset in MX time (A4-01).
+    const iso = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (iso) {
+      const eventDate = new Date(parseInt(iso[1]), parseInt(iso[2]) - 1, parseInt(iso[3]))
       return eventDate < today
     }
 
@@ -437,22 +439,14 @@ export default function AdminDashboard() {
       console.log('[isEventPast] Parsed date string:', dateStr, '-> day:', day, 'monthStr:', monthStr, 'month:', month)
 
       if (month !== undefined) {
-        // Try current year first
-        let year = now.getFullYear()
-        let eventDate = new Date(year, month, day)
-
-        // If the event date with current year is more than 2 months in the future,
-        // it was probably last year
-        const twoMonthsAhead = new Date(now)
-        twoMonthsAhead.setMonth(twoMonthsAhead.getMonth() + 2)
-        if (eventDate > twoMonthsAhead) {
-          year = now.getFullYear() - 1
-          eventDate = new Date(year, month, day)
-        }
-
-        const isPast = eventDate < today
-        console.log('[isEventPast] Event date:', eventDate, '< today:', today, '=', isPast)
-        return isPast
+        // A4-01: free-text dates carry no year and there is no reliable way to
+        // recover it. Use the current year and never roll it back — the old
+        // "more than 2 months ahead => last year" rule marked legitimately-future
+        // events (e.g. a November event viewed in July) as past and blocked all
+        // manual sends. Genuinely-old text dates stay flagged as past. (A robust
+        // fix requires a structured event date — tracked as A2-H14/B15.)
+        const eventDate = new Date(now.getFullYear(), month, day)
+        return eventDate < today
       }
     }
 
