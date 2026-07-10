@@ -6,6 +6,27 @@
 
 ---
 
+## Progreso de ejecución
+
+> Actualizado 2026-07-09 (noche). Ejecución autorizada por José ("tú haz todo").
+
+**Fase 0 (ops):**
+- ✅ **OP-1 (FS-04)** — verificado contra prod DB que `info@timekast.mx` (super_admin) tenía `dave1511` **VÁLIDA** (exposición viva). Rotada a password aleatoria fuerte + **12 sesiones activas invalidadas**. `dave1511` ya no funciona. *(Pendiente decisión de José: purgar el string del historial de git.)*
+- ✅ **OP-2 (recon)** — `CRON_SECRET` y `CANCEL_TOKEN_SECRET` **están seteados** en Vercel → **FS-03 y FS-05 NO son exposiciones vivas** (solo hardening de código). `NEXT_PUBLIC_BASE_URL` ausente (A8-05); legacy `GOOGLE_CLOUD_*`/`FIRESTORE_COLLECTION_NAME` presentes (A5-02, remover en B16).
+- ✅ **OP-4** — branch protection en `main` (check `verify` requerido, `enforce_admins:false`).
+
+**Fase 1:**
+- ✅ **B0** (PR #1, `778f9ed`) — CI gate (`.github/workflows/ci.yml`), ESLint, Vitest (3/3), fix A8-01 (build sin `RESEND_API_KEY` pasa). Cierra **A8-01, A8-02, A8-03, A8-08, A8-09**.
+
+**Fase 2:**
+- ✅ **B1** (PR #2, `3274b56`) — cierra **FS-01, FS-02, FS-06, FS-18, FS-19/A5-05, FS-27/A4-05** y (vía send-email) **A1-05/A4-04, A1-08, A1-13**; FS-04 lado-código. **Verificado en prod:** upload-image `401`, send-email `401`, update-rsvp `401`, debug-home `404`. Codex post-review: 2 P2 aplicados.
+
+**Estado de seguridad:** **cero exposiciones vivas** tras B1 (FS-01/FS-06 cerradas, FS-04 contenida, FS-03/FS-05 nunca estuvieron abiertas). Lo que resta del plan es P0 funcional + hardening + limpieza (no urgente-seguridad).
+
+**Siguiente:** B0.5 (fundación de datos: contrato slug/id, journal de migraciones, driver) → habilita B4/B6.
+
+---
+
 ## Contexto operacional
 
 - **Estado:** producción (`party.timekast.mx`, eventos reales).
