@@ -30,7 +30,12 @@
 
 - ✅ **B7 reminders** (PR #7, `3fc972f`) — **A1-01** (re-arm solo si cambia schedule, decidido server-side), **A1-03** (round-trip datetime-local estable), **A1-02** (timing absoluto `scheduledAt <= now` + gracia 30h). Rollout con flag opt-out `REMINDERS_SEND_ENABLED`: desplegado en dry-run → verificado (0 pendientes; los 4 eventos con reminders past/disabled, ninguno re-dispara) → flag removido → envío real restaurado. 4 iteraciones de Codex review. **Cierra los 🔴 de reminders.**
 
-**Estado: TODOS los 🔴 cerrados salvo los que dependen de migración de DB** (A2-H02 capacidad, A2-H03 dedup, A3-02+A6-09 FK delete). 8 PRs merged. Backup hecho + datos verificados limpios → migraciones listas para aplicar.
+- ✅ **B4-dedup** (PR #8, `5b4098c`) — **A2-H03** (🔴): cancelado puede re-inscribirse (reactiva row, condicional a status para evitar carrera); **A2-H05/H06**: dedup case-insensitive + **UNIQUE index `(event_id, lower(email))` APLICADO EN PROD** (SQL directo, backup previo, 0 dups verificados); A1-15/FS-23 (cancelToken muerto removido). 1er cambio de schema en prod.
+
+**Estado: todos los 🔴 urgentes cerrados. Quedan 2 🔴 menos agudos + cola:**
+- **A2-H02** capacidad (overbooking) — requiere INSERT condicional atómico.
+- **A3-02+A6-09** FK delete-safety — hoy MITIGADO (API-only, sin UI de borrado). FK va a `events.slug` (tiene UNIQUE), datos sin huérfanos.
+- Backup JSON + datos limpios verificados → ambas migraciones listas para aplicar. `events.slug` ya tiene UNIQUE (soporta el FK).
 
 **Gates pendientes (requieren decisión/tiempo):**
 - **Migraciones de DB** (B4 capacidad atómica + unique dedup, B6 delete-safety/FK, B0.5, B15): necesitan **backup + branch de Neon + OK de José** antes de aplicar sobre datos de prod.
