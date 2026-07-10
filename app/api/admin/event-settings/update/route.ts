@@ -103,18 +103,26 @@ export async function POST(request: NextRequest) {
         updates.capacityLimit = body.capacity?.limit || 0
         updates.backgroundImageUrl = body.backgroundImage?.url || event.backgroundImageUrl
         updates.ogImageUrl = body.ogImage?.url || event.ogImageUrl
+        // A3-06: preserve custom backgroundColor/textColor instead of clobbering
+        // them with hardcodes (these ARE consumed by the email senders).
+        const existingTheme = (event.theme as any) || {}
         updates.theme = {
           primaryColor: body.theme?.primaryColor || '#FF1493',
           secondaryColor: body.theme?.secondaryColor || '#00FFFF',
           accentColor: body.theme?.accentColor || '#FFD700',
-          backgroundColor: '#1a0033',
-          textColor: '#ffffff'
+          backgroundColor: body.theme?.backgroundColor || existingTheme.backgroundColor || '#1a0033',
+          textColor: body.theme?.textColor || existingTheme.textColor || '#ffffff'
         }
         // Plus-one configuration
         updates.requirePlusOneName = body.requirePlusOneName ?? false
-        // RSVP Closed configuration
-        updates.rsvpClosed = body.rsvpClosed ?? false
-        updates.rsvpClosedMessage = body.rsvpClosedMessage ?? '¡Nos vemos en el próximo evento!'
+        // RSVP Closed configuration (A3-01): only change when explicitly provided,
+        // so a full settings save that omits it does NOT reopen a closed RSVP.
+        if (body.rsvpClosed !== undefined) {
+          updates.rsvpClosed = body.rsvpClosed
+        }
+        if (body.rsvpClosedMessage !== undefined) {
+          updates.rsvpClosedMessage = body.rsvpClosedMessage
+        }
       }
 
       // Email configuration (only update if provided)
