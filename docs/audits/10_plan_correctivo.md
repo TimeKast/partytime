@@ -21,9 +21,18 @@
 **Fase 2:**
 - ✅ **B1** (PR #2, `3274b56`) — cierra **FS-01, FS-02, FS-06, FS-18, FS-19/A5-05, FS-27/A4-05** y (vía send-email) **A1-05/A4-04, A1-08, A1-13**; FS-04 lado-código. **Verificado en prod:** upload-image `401`, send-email `401`, update-rsvp `401`, debug-home `404`. Codex post-review: 2 P2 aplicados.
 
-**Estado de seguridad:** **cero exposiciones vivas** tras B1 (FS-01/FS-06 cerradas, FS-04 contenida, FS-03/FS-05 nunca estuvieron abiertas). Lo que resta del plan es P0 funcional + hardening + limpieza (no urgente-seguridad).
+- ✅ **B2/B3 hardening** (PR #3, `82a35fd`) — cron **fail-closed** (FS-03) + constant-time (FS-17, `lib/timing-safe.ts`); login **rate-limit** best-effort (FS-08) + **anti-enumeración** (FS-16). Smoke prod: cron sin secret `401`.
+- ✅ **B5 settings** (PR #4, `7390bca`) — **A3-01** (🔴 vivo): GET devuelve `rsvpClosed` → guardar ya no reabre el RSVP; **A3-06**: preserva theme custom.
+- ✅ **B8 isEventPast** (PR #5, `0760b50`) — **A4-01** (🔴 vivo): ya no bloquea envíos manuales de eventos futuros; parse ISO local.
+- ✅ **B4 rsvp-guards (subset)** (PR #6, `4b72bdb`) — **A2-H01** (🔴 vivo): enforce `rsvpClosed` en POST /api/rsvp; **A2-H15**: evento resuelto en todo path (no más orphan legacy).
 
-**Siguiente:** B0.5 (fundación de datos: contrato slug/id, journal de migraciones, driver) → habilita B4/B6.
+**Estado:** **cero exposiciones de seguridad vivas** + todos los 🔴 funcionales cerrables sin migración de DB, cerrados (A3-01, A4-01, A2-H01). 7 PRs merged, cada uno con CI + Codex review.
+
+**Gates pendientes (requieren decisión/tiempo):**
+- **Migraciones de DB** (B4 capacidad atómica + unique dedup, B6 delete-safety/FK, B0.5, B15): necesitan **backup + branch de Neon + OK de José** antes de aplicar sobre datos de prod.
+- **B7 reminders** (A1-01/A1-02/A1-04): riesgo de email masivo → requiere el flag `REMINDERS_SEND_ENABLED` OFF en rollout. Se hace con cuidado.
+- **Cola P1/P2** (B9-B18): mayormente code-only, volumen grande.
+- **Purga de `dave1511` del historial de git**: decisión de José (reescribe historia).
 
 ---
 
