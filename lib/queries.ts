@@ -467,6 +467,11 @@ export async function getEventsWithPendingReminders(): Promise<Event[]> {
     // run retry on the next 1-2 cron cycles (A1-06) while keeping the exposure to
     // a post-event send small (P2). A robust past-event filter needs a structured
     // event date (A1-04 / B15) — event.date is currently free text.
+    //
+    // Cadence caveat: with the 12h cron (`vercel.json`), a reminder can still go
+    // out up to ~one interval after its scheduled time. We do NOT re-introduce
+    // early sends to compensate (that was the A1-02 bug). Tightening the interval
+    // requires a shorter cron than Vercel Hobby allows (A8-04 / B14, needs Pro).
     const GRACE_MS = 30 * 60 * 60 * 1000 // 30h ≈ next couple of 12h cron runs
     const graceStart = new Date(now.getTime() - GRACE_MS)
 
