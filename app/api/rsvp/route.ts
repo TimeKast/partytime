@@ -56,6 +56,17 @@ export async function POST(request: NextRequest) {
               { status: 400 }
             )
           }
+
+          // A2-H01: enforce rsvpClosed at the API. Previously only the UI hid
+          // the button, so a guest with the tab already open (or a direct POST)
+          // could still create an RSVP — and trigger a confirmation email — on a
+          // closed event.
+          if (event.rsvpClosed) {
+            return NextResponse.json(
+              { error: event.rsvpClosedMessage || 'Las inscripciones para este evento están cerradas' },
+              { status: 400 }
+            )
+          }
         } else {
           return NextResponse.json(
             { error: 'Evento no encontrado' },
