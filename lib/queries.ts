@@ -460,20 +460,28 @@ export async function getEventsWithPendingReminders(): Promise<Event[]> {
     if (!db) throw new Error('Database not configured')
 
     const now = new Date()
-    const today = now.toISOString().split('T')[0] // YYYY-MM-DD format
-    
-    // Start and end of today for precise matching
-    const startOfDay = new Date(today + 'T00:00:00.000Z')
-    const endOfDay = new Date(today + 'T23:59:59.999Z')
+
+    // A1-02: fire when the scheduled MOMENT has passed (absolute-time compare),
+    // not "scheduled sometime today in UTC" — the old UTC day-window sent up to
+    // ~24h early and ignored the chosen time. A short grace window lets a missed
+    // run retry on the next 1-2 cron cycles (A1-06) while keeping the exposure to
+    // a post-event send small (P2). A robust past-event filter needs a structured
+    // event date (A1-04 / B15) — event.date is currently free text.
+    //
+    // Cadence caveat: with the 12h cron (`vercel.json`), a reminder can still go
+    // out up to ~one interval after its scheduled time. We do NOT re-introduce
+    // early sends to compensate (that was the A1-02 bug). Tightening the interval
+    // requires a shorter cron than Vercel Hobby allows (A8-04 / B14, needs Pro).
+    const GRACE_MS = 30 * 60 * 60 * 1000 // 30h ≈ next couple of 12h cron runs
+    const graceStart = new Date(now.getTime() - GRACE_MS)
 
     const result = await db.select()
         .from(events)
         .where(and(
             eq(events.reminderEnabled, true),
             eq(events.isActive, true),
-            // Only get events where reminder is scheduled for TODAY
-            gte(events.reminderScheduledAt, startOfDay),
-            lte(events.reminderScheduledAt, endOfDay),
+            lte(events.reminderScheduledAt, now),        // scheduled time has passed
+            gte(events.reminderScheduledAt, graceStart), // but not ancient
             isNull(events.reminderSentAt)
         ))
 
