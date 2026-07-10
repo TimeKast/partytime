@@ -88,7 +88,11 @@ export async function GET(request: NextRequest) {
             reminderSentAt: event.reminderSentAt ? event.reminderSentAt.toISOString() : null
           },
           // Plus-one configuration
-          requirePlusOneName: event.requirePlusOneName || false
+          requirePlusOneName: event.requirePlusOneName || false,
+          // RSVP closed state (A3-01): must round-trip so that saving settings
+          // does not silently reopen a closed RSVP.
+          rsvpClosed: event.rsvpClosed ?? false,
+          rsvpClosedMessage: event.rsvpClosedMessage ?? ''
         },
         source: 'database'
       })
