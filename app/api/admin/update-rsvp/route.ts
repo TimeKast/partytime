@@ -57,8 +57,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // FS-27: allowlist the mutable fields server-side. `updates` is runtime
+    // `any`, and updateRSVP's `Pick<...>` type is erased at runtime, so without
+    // this filter a caller could set eventId/emailHistory/cancelToken/etc.
+    const ALLOWED_FIELDS = ['name', 'email', 'phone', 'plusOne', 'plusOneName', 'status'] as const
+    const sanitizedUpdates: Record<string, unknown> = {}
+    for (const key of ALLOWED_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(updates, key)) {
+        sanitizedUpdates[key] = updates[key]
+      }
+    }
+    if (Object.keys(sanitizedUpdates).length === 0) {
+      return NextResponse.json(
+        { error: 'No hay campos válidos para actualizar' },
+        { status: 400 }
+      )
+    }
+
     // Actualizar RSVP sin enviar email
-    await updateRSVP(rsvpId, updates)
+    await updateRSVP(rsvpId, sanitizedUpdates)
 
     return NextResponse.json({
       success: true,

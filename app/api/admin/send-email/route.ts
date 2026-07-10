@@ -23,85 +23,91 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { rsvpId, name, email, plusOne, emailSent, status } = body
+    const { rsvpId } = body
 
-    if (!rsvpId || !name || !email) {
+    if (!rsvpId) {
       return NextResponse.json(
-        { error: 'Faltan campos requeridos: rsvpId, name, email' },
+        { error: 'Falta el campo requerido: rsvpId' },
         { status: 400 }
       )
     }
 
-    // H-005 FIX: Fetch the actual event data for this RSVP
-    let eventData: EventData | undefined
-    try {
-      const rsvp = await getRSVPById(rsvpId)
-      if (rsvp && rsvp.eventId) {
-        // Resolve slug to event for permission check
-        const event = await getEventBySlug(rsvp.eventId)
-        const eventUUID = event?.id || rsvp.eventId
-        
-        // Check permissions using UUID
-        if (currentUser.role !== 'super_admin') {
-          const { hasAccess } = await userHasEventAccess(currentUser.id, eventUUID, 'manager')
-          if (!hasAccess) {
-            return NextResponse.json({ success: false, error: 'No tienes permiso para enviar correos de este evento' }, { status: 403 })
-          }
-        }
-
-        if (event) {
-          // Build EventData from the actual event
-          const theme = (event.theme as any) || eventConfig.theme
-          eventData = {
-            title: event.title,
-            subtitle: event.subtitle || '',
-            date: event.date || '',
-            time: event.time || '',
-            location: event.location || '',
-            details: event.details || '',
-            price: event.priceEnabled ? `$${event.priceAmount} ${event.priceCurrency || 'MXN'}` : null,
-            backgroundImageUrl: event.backgroundImageUrl || eventConfig.event.backgroundImage || '/background.png',
-            theme: {
-              primaryColor: theme.primaryColor || eventConfig.theme.primaryColor,
-              secondaryColor: theme.secondaryColor || eventConfig.theme.secondaryColor,
-              accentColor: theme.accentColor || eventConfig.theme.accentColor,
-              backgroundColor: theme.backgroundColor || eventConfig.theme.backgroundColor
-            },
-            contact: {
-              hostEmail: event.hostEmail || eventConfig.contact.hostEmail
-            }
-          }
-        }
-      }
-    } catch (eventError) {
-      console.warn('Could not load event data for email, using defaults:', eventError)
+    // FS-06: the RSVP must exist. Everything (recipient, type, event) is derived
+    // from the DB row — NOT from the request body — so a caller cannot send to an
+    // arbitrary address, and the authorization check below can never be skipped.
+    const rsvp = await getRSVPById(rsvpId)
+    if (!rsvp) {
+      return NextResponse.json({ success: false, error: 'RSVP no encontrado' }, { status: 404 })
     }
 
-    // Determinar tipo de email según estado
-    const isCancelled = status === 'cancelled'
-    const isReminder = !isCancelled && !!emailSent
+    // Resolve the event that owns this RSVP (rsvp.eventId stores the slug).
+    const event = await getEventBySlug(rsvp.eventId)
+    if (!event) {
+      // A1-08: never fall back to the static event-config for event data.
+      return NextResponse.json(
+        { success: false, error: 'No se encontró el evento asociado a este RSVP' },
+        { status: 422 }
+      )
+    }
 
-    // Generar token de cancelación
-    const cancelToken = generateCancelToken(rsvpId, email)
+    // Authorization is now UNCONDITIONAL (not nested under "if the RSVP exists").
+    if (currentUser.role !== 'super_admin') {
+      const { hasAccess } = await userHasEventAccess(currentUser.id, event.id, 'manager')
+      if (!hasAccess) {
+        return NextResponse.json(
+          { success: false, error: 'No tienes permiso para enviar correos de este evento' },
+          { status: 403 }
+        )
+      }
+    }
+
+    // A1-13: use displayTitle when set (matching the public page), else title —
+    // resolved ONCE and used for both the email body and the subject.
+    const eventTitle = (event.displayTitle && event.displayTitle.trim()) ? event.displayTitle : event.title
+
+    // Build EventData from the actual event (dynamic).
+    const theme = (event.theme as any) || eventConfig.theme
+    const eventData: EventData = {
+      title: eventTitle,
+      subtitle: event.subtitle || '',
+      date: event.date || '',
+      time: event.time || '',
+      location: event.location || '',
+      details: event.details || '',
+      price: event.priceEnabled ? `$${event.priceAmount} ${event.priceCurrency || 'MXN'}` : null,
+      backgroundImageUrl: event.backgroundImageUrl || eventConfig.event.backgroundImage || '/background.png',
+      theme: {
+        primaryColor: theme.primaryColor || eventConfig.theme.primaryColor,
+        secondaryColor: theme.secondaryColor || eventConfig.theme.secondaryColor,
+        accentColor: theme.accentColor || eventConfig.theme.accentColor,
+        backgroundColor: theme.backgroundColor || eventConfig.theme.backgroundColor,
+      },
+      contact: {
+        hostEmail: event.hostEmail || eventConfig.contact.hostEmail,
+      },
+    }
+
+    // Recipient and email TYPE are derived from the DB row, not the body.
+    const recipient = rsvp.email
+    const isCancelled = rsvp.status === 'cancelled'
+    const isReminder = !isCancelled && !!rsvp.emailSent
+
+    // Cancel token is bound to the RSVP's real id + current email, so the link
+    // it produces validates against the DB.
+    const cancelToken = generateCancelToken(rsvpId, recipient)
     let cancelUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/cancel/${rsvpId}?token=${cancelToken}`
-
-    // Limpiar cualquier = que pueda estar al inicio (bug de encoding en emails)
     cancelUrl = cancelUrl.replace(/^=+/, '').trim()
 
-    // Generar HTML del email con datos dinámicos del evento
-    const rsvpForEmail = await getRSVPById(rsvpId)
     const htmlContent = generateConfirmationEmail({
-      name,
-      plusOne: plusOne || false,
-      plusOneName: (rsvpForEmail as any)?.plusOneName || null,
+      name: rsvp.name,
+      plusOne: rsvp.plusOne || false,
+      plusOneName: rsvp.plusOneName || null,
       cancelUrl,
       isReminder,
       isCancelled,
-      eventData // H-005 FIX: Pass dynamic event data
+      eventData,
     })
 
-    // Asunto según tipo de email - use dynamic title if available
-    const eventTitle = eventData?.title || eventConfig.event.title
     let subject
     if (isCancelled) {
       subject = `Te extrañamos - ${eventTitle}`
@@ -114,7 +120,7 @@ export async function POST(request: NextRequest) {
     // Enviar email con Resend
     const { data, error } = await resend.emails.send({
       from: `Party Time! <${FROM_EMAIL}>`,
-      to: email,
+      to: recipient,
       subject,
       html: htmlContent
     })
@@ -127,9 +133,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Registrar envío en base de datos
+    // Registrar envío. If this fails AFTER a successful send, do NOT return 500
+    // (a retry would send a duplicate). Log and still report success.
     const emailType = isCancelled ? 're-invitation' : (isReminder ? 'reminder' : 'confirmation')
-    await recordEmailSent(rsvpId, emailType)
+    try {
+      await recordEmailSent(rsvpId, emailType)
+    } catch (recordErr) {
+      console.error('Email enviado pero recordEmailSent falló (no se reintenta):', recordErr)
+    }
 
     return NextResponse.json({
       success: true,
