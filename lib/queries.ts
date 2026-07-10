@@ -4,7 +4,7 @@
  */
 
 import { db, isDatabaseConfigured, rsvps, events, appSettings } from './db'
-import { eq, desc, and, isNull, lte, gt, gte } from 'drizzle-orm'
+import { eq, desc, and, isNull, lte, gt, gte, sql } from 'drizzle-orm'
 import type { Event, NewEvent, RSVP, NewRSVP } from './schema'
 
 // ============================================
@@ -24,36 +24,67 @@ export async function saveRSVP(rsvpData: {
 }): Promise<RSVP> {
     if (!db) throw new Error('Database not configured')
 
-    // Check for existing RSVP with same email for this event
+    const email = rsvpData.email.trim()
+    const emailLower = email.toLowerCase()
+
+    // A2-H05: case-insensitive lookup so "Foo@x.com" and "foo@x.com" are the
+    // same guest and do not create duplicate confirmations.
     const existing = await db.select()
         .from(rsvps)
         .where(and(
-            eq(rsvps.email, rsvpData.email),
-            eq(rsvps.eventId, rsvpData.eventId)
+            eq(rsvps.eventId, rsvpData.eventId),
+            sql`lower(${rsvps.email}) = ${emailLower}`
         ))
         .limit(1)
 
     if (existing.length > 0) {
-        throw new Error('Ya existe un RSVP con este email para este evento')
+        const prev = existing[0]
+        if (prev.status === 'confirmed') {
+            throw new Error('Ya existe un RSVP con este email para este evento')
+        }
+        // A2-H03: a previously cancelled guest can re-register — reactivate the
+        // existing row (the unique index would otherwise reject a fresh insert).
+        // The predicate requires status STILL 'cancelled' so two concurrent
+        // re-registrations don't both reactivate and both send a confirmation:
+        // the loser gets an empty result and is treated as a duplicate.
+        const [reactivated] = await db.update(rsvps)
+            .set({
+                name: rsvpData.name,
+                email,
+                phone: rsvpData.phone,
+                plusOne: rsvpData.plusOne,
+                plusOneName: rsvpData.plusOneName || null,
+                status: 'confirmed',
+            })
+            .where(and(eq(rsvps.id, prev.id), eq(rsvps.status, 'cancelled')))
+            .returning()
+        if (!reactivated) {
+            throw new Error('Ya existe un RSVP con este email para este evento')
+        }
+        return reactivated
     }
 
-    // Generate cancel token
-    const cancelToken = generateCancelToken(crypto.randomUUID(), rsvpData.email)
+    try {
+        const [newRsvp] = await db.insert(rsvps)
+            .values({
+                name: rsvpData.name,
+                email,
+                phone: rsvpData.phone,
+                plusOne: rsvpData.plusOne,
+                plusOneName: rsvpData.plusOneName || null,
+                eventId: rsvpData.eventId,
+                status: 'confirmed',
+            })
+            .returning()
 
-    const [newRsvp] = await db.insert(rsvps)
-        .values({
-            name: rsvpData.name,
-            email: rsvpData.email,
-            phone: rsvpData.phone,
-            plusOne: rsvpData.plusOne,
-            plusOneName: rsvpData.plusOneName || null,
-            eventId: rsvpData.eventId,
-            status: 'confirmed',
-            cancelToken,
-        })
-        .returning()
-
-    return newRsvp
+        return newRsvp
+    } catch (err: any) {
+        // A2-H06: a concurrent insert that won the race trips the unique index.
+        if (err?.code === '23505' || /unique|duplicate key/i.test(err?.message || '')) {
+            throw new Error('Ya existe un RSVP con este email para este evento')
+        }
+        throw err
+    }
 }
 
 /**
@@ -93,10 +124,20 @@ export async function updateRSVP(
 ): Promise<RSVP> {
     if (!db) throw new Error('Database not configured')
 
-    const [updated] = await db.update(rsvps)
-        .set(data)
-        .where(eq(rsvps.id, rsvpId))
-        .returning()
+    let updated
+    try {
+        [updated] = await db.update(rsvps)
+            .set(data)
+            .where(eq(rsvps.id, rsvpId))
+            .returning()
+    } catch (err: any) {
+        // Editing an email to one already used for this event trips the unique
+        // index (A2-H06) — surface a duplicate error, not a raw 500.
+        if (err?.code === '23505' || /unique|duplicate key/i.test(err?.message || '')) {
+            throw new Error('Ya existe un RSVP con este email para este evento')
+        }
+        throw err
+    }
 
     if (!updated) throw new Error('RSVP no encontrado')
     return updated

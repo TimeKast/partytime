@@ -1,4 +1,5 @@
-import { pgTable, text, boolean, timestamp, integer, jsonb, varchar } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, timestamp, integer, jsonb, varchar, uniqueIndex } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 
 // Helper to generate IDs safely across environments
 const generateId = () => {
@@ -104,7 +105,12 @@ export const rsvps = pgTable('rsvps', {
 
     // Timestamps
     createdAt: timestamp('created_at').defaultNow().notNull(),
-})
+}, (table) => ({
+    // A2-H05/A2-H06: one RSVP per (event, email) case-insensitively. Enforced at
+    // the DB so concurrent duplicate inserts fail instead of racing past the
+    // application-level check. Applied to prod as `rsvps_event_email_unique`.
+    eventEmailUnique: uniqueIndex('rsvps_event_email_unique').on(table.eventId, sql`lower(${table.email})`),
+}))
 
 // Application settings for global configuration
 export const appSettings = pgTable('app_settings', {
