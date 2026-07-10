@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isDatabaseConfigured } from "@/lib/db";
 import { resend, FROM_EMAIL } from "@/lib/resend";
 import { generateConfirmationEmail, EventData } from "@/lib/email-template";
+import { timingSafeEqualStr } from "@/lib/timing-safe";
 import eventConfig from "@/event-config.json";
 
 export const dynamic = "force-dynamic";
@@ -23,17 +24,30 @@ export async function GET(request: NextRequest) {
   const vercelCronHeader = request.headers.get("x-vercel-cron-secret"); // Vercel's auto cron
   const cronSecret = process.env.CRON_SECRET;
 
-  // If CRON_SECRET is set, validate it (support both Vercel cron and manual calls)
-  if (cronSecret) {
-    const isVercelCron = vercelCronHeader === cronSecret;
-    const isManualCall = authHeader === `Bearer ${cronSecret}`;
+  // Fail-closed (FS-03): without a configured secret the endpoint must NOT run.
+  // Previously the whole check was wrapped in `if (cronSecret)`, so a missing
+  // secret left the mass-email endpoint fully open.
+  if (!cronSecret) {
+    console.error(
+      "❌ [CRON] CRON_SECRET no configurado — se rechaza la ejecución (fail-closed)",
+    );
+    return NextResponse.json({ error: "Cron not configured" }, { status: 500 });
+  }
 
-    if (!isVercelCron && !isManualCall) {
-      console.log(
-        "❌ [CRON] Unauthorized request - invalid or missing CRON_SECRET",
-      );
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  // Constant-time comparison (FS-17). Both the Vercel-cron and manual-call
+  // headers are accepted to avoid breaking the live cron.
+  const isVercelCron = vercelCronHeader
+    ? timingSafeEqualStr(vercelCronHeader, cronSecret)
+    : false;
+  const isManualCall = authHeader
+    ? timingSafeEqualStr(authHeader, `Bearer ${cronSecret}`)
+    : false;
+
+  if (!isVercelCron && !isManualCall) {
+    console.log(
+      "❌ [CRON] Unauthorized request - invalid or missing CRON_SECRET",
+    );
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   if (!isDatabaseConfigured()) {
