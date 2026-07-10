@@ -437,22 +437,22 @@ export default function AdminDashboard() {
       console.log('[isEventPast] Parsed date string:', dateStr, '-> day:', day, 'monthStr:', monthStr, 'month:', month)
 
       if (month !== undefined) {
-        // Try current year first
-        let year = now.getFullYear()
+        // A4-01: free-text dates carry no year. Assume the NEAREST UPCOMING
+        // occurrence instead of the previous "more than 2 months ahead => last
+        // year" rule, which wrongly marked legitimately-future events (e.g. a
+        // November event viewed in July) as past and blocked all manual sends.
+        const year = now.getFullYear()
         let eventDate = new Date(year, month, day)
 
-        // If the event date with current year is more than 2 months in the future,
-        // it was probably last year
-        const twoMonthsAhead = new Date(now)
-        twoMonthsAhead.setMonth(twoMonthsAhead.getMonth() + 2)
-        if (eventDate > twoMonthsAhead) {
-          year = now.getFullYear() - 1
-          eventDate = new Date(year, month, day)
+        // If this year's occurrence is well in the past (>60 days), it most
+        // likely refers to next year (e.g. a January event viewed in December).
+        const sixtyDaysAgo = new Date(today)
+        sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+        if (eventDate < sixtyDaysAgo) {
+          eventDate = new Date(year + 1, month, day)
         }
 
-        const isPast = eventDate < today
-        console.log('[isEventPast] Event date:', eventDate, '< today:', today, '=', isPast)
-        return isPast
+        return eventDate < today
       }
     }
 
