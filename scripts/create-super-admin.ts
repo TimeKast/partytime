@@ -24,9 +24,11 @@ async function createSuperAdmin() {
     const db = drizzle(sql, { schema })
 
     // Super admin credentials — read from env (never hardcode; FS-04).
+    // Prefers SEED_ADMIN_*; falls back to the documented ADMIN_* vars so the
+    // existing bootstrap command keeps working.
     // Usage: SEED_ADMIN_EMAIL=... SEED_ADMIN_PASSWORD=... npx tsx scripts/create-super-admin.ts
-    const email = process.env.SEED_ADMIN_EMAIL
-    const password = process.env.SEED_ADMIN_PASSWORD
+    const email = process.env.SEED_ADMIN_EMAIL || process.env.ADMIN_EMAIL || process.env.ADMIN_USERNAME
+    const password = process.env.SEED_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD
     const name = process.env.SEED_ADMIN_NAME || 'Super Admin'
 
     if (!email || !password) {

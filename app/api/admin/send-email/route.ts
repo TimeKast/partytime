@@ -61,10 +61,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // A1-13: use displayTitle when set (matching the public page), else title —
+    // resolved ONCE and used for both the email body and the subject.
+    const eventTitle = (event.displayTitle && event.displayTitle.trim()) ? event.displayTitle : event.title
+
     // Build EventData from the actual event (dynamic).
     const theme = (event.theme as any) || eventConfig.theme
     const eventData: EventData = {
-      title: event.title,
+      title: eventTitle,
       subtitle: event.subtitle || '',
       date: event.date || '',
       time: event.time || '',
@@ -104,8 +108,6 @@ export async function POST(request: NextRequest) {
       eventData,
     })
 
-    // A1-13: emails use displayTitle when set (matching the public page), else title.
-    const eventTitle = (event.displayTitle && event.displayTitle.trim()) ? event.displayTitle : event.title
     let subject
     if (isCancelled) {
       subject = `Te extrañamos - ${eventTitle}`
