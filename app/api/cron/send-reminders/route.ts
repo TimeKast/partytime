@@ -84,11 +84,13 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Rollout guard: unless REMINDERS_SEND_ENABLED === 'true', run a DRY RUN that
-    // reports what WOULD be sent without sending or marking anything. This lets a
-    // reminder-logic change be deployed and verified against production before the
-    // 12h cron can mass-send. Flip the env var to 'true' once verified.
-    if (process.env.REMINDERS_SEND_ENABLED !== "true") {
+    // Rollout guard (opt-OUT): sending is the DEFAULT so existing deployments
+    // keep delivering reminders. Set REMINDERS_SEND_ENABLED='false' to force a
+    // DRY RUN that reports what WOULD be sent without sending or marking anything.
+    // Used to deploy+verify a reminder-logic change against production before the
+    // 12h cron can mass-send: set the env to 'false', deploy, trigger manually to
+    // inspect the dry-run, then remove the env to resume real sends.
+    if (process.env.REMINDERS_SEND_ENABLED === "false") {
       const dryRun = [];
       for (const event of eventsToRemind) {
         const rsvps = await getConfirmedRSVPsForReminder(event.slug);
