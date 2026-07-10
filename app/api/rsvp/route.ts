@@ -34,7 +34,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Determine eventId: use eventSlug if provided, otherwise fall back to static config
     let eventId = eventConfig.event.id
     let eventForEmail: Awaited<ReturnType<typeof import('@/lib/queries').getEventBySlug>> = null
 
@@ -42,26 +41,37 @@ export async function POST(request: NextRequest) {
     if (isDatabaseConfigured()) {
       const { saveRSVP, getEventBySlug } = await import('@/lib/queries')
 
-      // If eventSlug was provided, look up the event
-      if (eventSlug) {
-        const event = await getEventBySlug(eventSlug)
-        if (event) {
-          eventId = event.slug
-          eventForEmail = event // Store for email sending later
+      // Resolve the target event on EVERY path — the explicit eventSlug, or the
+      // configured default. Resolving unconditionally means the isActive /
+      // rsvpClosed guards below always run, closing both the direct-POST bypass
+      // (A2-H01) and the unvalidated legacy-fallback that produced orphan RSVPs
+      // (A2-H15).
+      const event = await getEventBySlug(eventSlug || eventConfig.event.id)
+      if (!event) {
+        return NextResponse.json(
+          { error: 'Evento no encontrado' },
+          { status: 404 }
+        )
+      }
 
-          // Check if event accepts RSVPs
-          if (!event.isActive) {
-            return NextResponse.json(
-              { error: 'Las inscripciones para este evento están cerradas' },
-              { status: 400 }
-            )
-          }
-        } else {
-          return NextResponse.json(
-            { error: 'Evento no encontrado' },
-            { status: 404 }
-          )
-        }
+      eventId = event.slug
+      eventForEmail = event // Store for email sending later
+
+      if (!event.isActive) {
+        return NextResponse.json(
+          { error: 'Las inscripciones para este evento están cerradas' },
+          { status: 400 }
+        )
+      }
+
+      // A2-H01: enforce rsvpClosed at the API. Previously only the UI hid the
+      // button, so a guest with the tab already open (or a direct POST) could
+      // still create an RSVP — and trigger a confirmation email — on a closed event.
+      if (event.rsvpClosed) {
+        return NextResponse.json(
+          { error: event.rsvpClosedMessage || 'Las inscripciones para este evento están cerradas' },
+          { status: 400 }
+        )
       }
 
       const rsvp = await saveRSVP({
