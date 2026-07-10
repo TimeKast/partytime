@@ -28,6 +28,10 @@
 
 **Estado:** **cero exposiciones de seguridad vivas** + todos los 🔴 funcionales cerrables sin migración de DB, cerrados (A3-01, A4-01, A2-H01). 7 PRs merged, cada uno con CI + Codex review.
 
+- ✅ **B7 reminders** (PR #7, `3fc972f`) — **A1-01** (re-arm solo si cambia schedule, decidido server-side), **A1-03** (round-trip datetime-local estable), **A1-02** (timing absoluto `scheduledAt <= now` + gracia 30h). Rollout con flag opt-out `REMINDERS_SEND_ENABLED`: desplegado en dry-run → verificado (0 pendientes; los 4 eventos con reminders past/disabled, ninguno re-dispara) → flag removido → envío real restaurado. 4 iteraciones de Codex review. **Cierra los 🔴 de reminders.**
+
+**Estado: TODOS los 🔴 cerrados salvo los que dependen de migración de DB** (A2-H02 capacidad, A2-H03 dedup, A3-02+A6-09 FK delete). 8 PRs merged. Backup hecho + datos verificados limpios → migraciones listas para aplicar.
+
 **Gates pendientes (requieren decisión/tiempo):**
 - **Migraciones de DB** (B4 capacidad atómica + unique dedup, B6 delete-safety/FK, B0.5, B15): necesitan **backup + branch de Neon + OK de José** antes de aplicar sobre datos de prod.
 - **B7 reminders** (A1-01/A1-02/A1-04): riesgo de email masivo → requiere el flag `REMINDERS_SEND_ENABLED` OFF en rollout. Se hace con cuidado.
