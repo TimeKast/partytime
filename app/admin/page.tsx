@@ -308,7 +308,12 @@ export default function AdminDashboard() {
             emailConfirmationEnabled: data.settings.emailConfig?.confirmationEnabled || false,
             reminderEnabled: data.settings.emailConfig?.reminderEnabled || false,
             reminderScheduledAt: data.settings.emailConfig?.reminderScheduledAt
-              ? new Date(data.settings.emailConfig.reminderScheduledAt).toISOString().slice(0, 16)
+              // A1-03: load the stored UTC instant as a LOCAL wall-clock for the
+              // datetime-local input. Saving does `new Date(value).toISOString()`
+              // (local -> UTC), so producing local here makes the round-trip
+              // stable (was UTC wall-clock -> reinterpreted as local -> +offset
+              // drift every save, which defeated the A1-01 re-arm check).
+              ? (() => { const d = new Date(data.settings.emailConfig.reminderScheduledAt); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16) })()
               : '',
             reminderSentAt: data.settings.emailConfig?.reminderSentAt || null,
             // Plus-one configuration

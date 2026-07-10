@@ -463,10 +463,11 @@ export async function getEventsWithPendingReminders(): Promise<Event[]> {
 
     // A1-02: fire when the scheduled MOMENT has passed (absolute-time compare),
     // not "scheduled sometime today in UTC" — the old UTC day-window sent up to
-    // ~24h early and ignored the chosen time. A grace window (last 3 days) lets a
-    // missed run retry on the next cron cycle (A1-06) without resurrecting an
-    // ancient, long-past schedule as a surprise send.
-    const GRACE_MS = 3 * 24 * 60 * 60 * 1000
+    // ~24h early and ignored the chosen time. A short grace window lets a missed
+    // run retry on the next 1-2 cron cycles (A1-06) while keeping the exposure to
+    // a post-event send small (P2). A robust past-event filter needs a structured
+    // event date (A1-04 / B15) — event.date is currently free text.
+    const GRACE_MS = 30 * 60 * 60 * 1000 // 30h ≈ next couple of 12h cron runs
     const graceStart = new Date(now.getTime() - GRACE_MS)
 
     const result = await db.select()
