@@ -21,7 +21,9 @@ type Attempt = { count: number; firstAt: number; lockedUntil: number }
 const attempts = new Map<string, Attempt>()
 
 function rateKey(ip: string, email: string): string {
-    return `${ip}|${email.toLowerCase()}`
+    // Must match getUserByEmail's normalization (.toLowerCase().trim()) so
+    // whitespace/case variants of the same email share one lockout counter.
+    return `${ip}|${email.toLowerCase().trim()}`
 }
 function isLocked(key: string, now: number): boolean {
     const a = attempts.get(key)
