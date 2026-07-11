@@ -432,7 +432,20 @@ export async function deleteEvent(eventId: string, hardDelete: boolean = false):
     if (!db) throw new Error('Database not configured')
 
     if (hardDelete) {
-        await db.delete(events).where(eq(events.id, eventId))
+        // A3-02/A6-09: deleting only the events row left the RSVPs orphaned,
+        // and a recycled slug inherited them (wrong-recipient bulk emails).
+        // The FK (ON DELETE RESTRICT) now blocks that at the DB; an intentional
+        // hard delete removes RSVPs + event in one batch — a single transaction
+        // on neon-http, so a failure leaves both intact.
+        const [ev] = await db.select({ slug: events.slug })
+            .from(events)
+            .where(eq(events.id, eventId))
+            .limit(1)
+        if (!ev) return true
+        await db.batch([
+            db.delete(rsvps).where(eq(rsvps.eventId, ev.slug)),
+            db.delete(events).where(eq(events.id, eventId)),
+        ])
     } else {
         await db.update(events)
             .set({ isActive: false, updatedAt: new Date() })
@@ -491,7 +504,10 @@ export async function updateEventSlug(
         .where(eq(events.id, eventId))
         .returning()
 
-    // 6. Update all RSVPs that reference the old slug
+    // 6. Update any RSVPs still referencing the old slug. With the FK's
+    // ON UPDATE CASCADE this is a 0-row no-op (step 5 already moved them
+    // atomically); it stays as the fallback for a deploy window where this
+    // code runs before the FK migration (adversarial-review finding).
     const result = await db.update(rsvps)
         .set({ eventId: newSlug })
         .where(eq(rsvps.eventId, oldSlug))
