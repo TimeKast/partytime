@@ -16,16 +16,32 @@ import type { Event, NewEvent, RSVP, NewRSVP } from './schema'
 // seat-adding write. The helpers below only translate its errors.
 export const CAPACITY_FULL_MESSAGE = 'El evento ha alcanzado su capacidad máxima'
 
-function isCapacityFullError(err: any): boolean {
-    return /CAPACITY_FULL/.test(err?.message || '')
+// drizzle >= 0.44 wraps driver errors in DrizzleQueryError: err.message is
+// "Failed query: <sql>" and the real NeonDbError (with .code / the PG
+// message) lives in err.cause. Walk the cause chain so classification sees
+// the root Postgres error.
+export function unwrapDbError(err: any): { code?: string; message: string } {
+    let root = err
+    for (let i = 0; i < 3 && root?.cause; i++) root = root.cause
+    return { code: root?.code, message: String(root?.message ?? err?.message ?? '') }
+}
+
+export function isCapacityFullError(err: any): boolean {
+    return /CAPACITY_FULL/.test(unwrapDbError(err).message)
+}
+
+export function isUniqueViolationError(err: any): boolean {
+    const { code, message } = unwrapDbError(err)
+    return code === '23505' || /unique|duplicate key/i.test(message)
 }
 
 // A rare but real deadlock exists between an RSVP update (child row lock →
 // trigger locks parent event) and a concurrent slug rename (parent lock →
 // cascade/manual update of child rows). Postgres resolves it by aborting one
 // side with 40P01; a single retry makes that benign.
-function isDeadlockError(err: any): boolean {
-    return err?.code === '40P01' || /deadlock detected/i.test(err?.message || '')
+export function isDeadlockError(err: any): boolean {
+    const { code, message } = unwrapDbError(err)
+    return code === '40P01' || /deadlock detected/i.test(message)
 }
 
 async function withDeadlockRetry<T>(fn: () => Promise<T>): Promise<T> {
@@ -124,7 +140,7 @@ async function saveRSVPOnce(rsvpData: {
         return newRsvp
     } catch (err: any) {
         // A2-H06: a concurrent insert that won the race trips the unique index.
-        if (err?.code === '23505' || /unique|duplicate key/i.test(err?.message || '')) {
+        if (isUniqueViolationError(err)) {
             throw new Error('Ya existe un RSVP con este email para este evento')
         }
         if (isCapacityFullError(err)) throw new Error(CAPACITY_FULL_MESSAGE)
@@ -178,7 +194,7 @@ export async function updateRSVP(
     } catch (err: any) {
         // Editing an email to one already used for this event trips the unique
         // index (A2-H06) — surface a duplicate error, not a raw 500.
-        if (err?.code === '23505' || /unique|duplicate key/i.test(err?.message || '')) {
+        if (isUniqueViolationError(err)) {
             throw new Error('Ya existe un RSVP con este email para este evento')
         }
         // Reconfirming or adding a +1 on a full event trips the capacity
