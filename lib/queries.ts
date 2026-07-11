@@ -44,6 +44,21 @@ export function isDeadlockError(err: any): boolean {
     return code === '40P01' || /deadlock detected/i.test(message)
 }
 
+// A2-H04: does a guest edit ADD seats? Reconfirming a cancelled RSVP or
+// turning on plus_one while confirmed both take a seat; everything else
+// (contact edits, removing the +1, cancelling) is seat-neutral or -removing
+// and must never be blocked by closure state.
+export function isSeatAddingChange(
+    current: Pick<RSVP, 'status' | 'plusOne'>,
+    update: { status?: string; plusOne?: boolean | null },
+): boolean {
+    const currentSeats = current.status === 'confirmed' ? 1 + (current.plusOne ? 1 : 0) : 0
+    const nextStatus = update.status ?? current.status
+    const nextPlusOne = update.plusOne ?? current.plusOne
+    const nextSeats = nextStatus === 'confirmed' ? 1 + (nextPlusOne ? 1 : 0) : 0
+    return nextSeats > currentSeats
+}
+
 async function withDeadlockRetry<T>(fn: () => Promise<T>): Promise<T> {
     try {
         return await fn()
@@ -461,6 +476,17 @@ export async function deleteEvent(eventId: string, hardDelete: boolean = false):
  * @returns The updated event and the count of updated RSVPs
  */
 export async function updateEventSlug(
+    eventId: string,
+    newSlug: string
+): Promise<{ event: Event; updatedRsvps: number }> {
+    // A rename can be picked as the deadlock victim in the race against a
+    // concurrent RSVP edit (see isDeadlockError). The retry is safe: if the
+    // first attempt already renamed the event, the re-run early-returns on
+    // oldSlug === newSlug.
+    return withDeadlockRetry(() => updateEventSlugOnce(eventId, newSlug))
+}
+
+async function updateEventSlugOnce(
     eventId: string,
     newSlug: string
 ): Promise<{ event: Event; updatedRsvps: number }> {

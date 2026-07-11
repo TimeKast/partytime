@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { updateRSVP, validateCancelToken, getRSVPById } from '@/lib/queries'
+import { updateRSVP, validateCancelToken, getRSVPById, getEventBySlug, isSeatAddingChange } from '@/lib/queries'
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,6 +45,20 @@ export async function POST(request: NextRequest) {
     // Si se está reconfirmando, cambiar status a 'confirmed'
     if (reconfirm && currentRSVP.status === 'cancelled') {
       updateData.status = 'confirmed'
+    }
+
+    // A2-H04: este endpoint era ciego al evento — con un link válido se podía
+    // re-confirmar o añadir un +1 en un evento cerrado o desactivado. Los
+    // cambios que AÑADEN asientos respetan el estado de cierre; las ediciones
+    // seat-neutral y las que liberan asientos nunca se bloquean.
+    if (isSeatAddingChange(currentRSVP, updateData)) {
+      const event = await getEventBySlug(currentRSVP.eventId)
+      if (!event || !event.isActive || event.rsvpClosed) {
+        return NextResponse.json(
+          { error: event?.rsvpClosedMessage || 'Las inscripciones para este evento están cerradas' },
+          { status: 400 }
+        )
+      }
     }
 
     // Actualizar RSVP
