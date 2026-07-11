@@ -32,16 +32,18 @@
 
 - ✅ **B4-dedup** (PR #8, `5b4098c`) — **A2-H03** (🔴): cancelado puede re-inscribirse (reactiva row, condicional a status para evitar carrera); **A2-H05/H06**: dedup case-insensitive + **UNIQUE index `(event_id, lower(email))` APLICADO EN PROD** (SQL directo, backup previo, 0 dups verificados); A1-15/FS-23 (cancelToken muerto removido). 1er cambio de schema en prod.
 
-**Estado: todos los 🔴 urgentes cerrados. Quedan 2 🔴 menos agudos + cola:**
-- **A2-H02** capacidad (overbooking) — requiere INSERT condicional atómico.
-- **A3-02+A6-09** FK delete-safety — hoy MITIGADO (API-only, sin UI de borrado). FK va a `events.slug` (tiene UNIQUE), datos sin huérfanos.
-- Backup JSON + datos limpios verificados → ambas migraciones listas para aplicar. `events.slug` ya tiene UNIQUE (soporta el FK).
+- ✅ **B4-capacity** (PR #9 `6b3991d` + fix PR #10 `d1b2c83`, 2026-07-10) — **A2-H02** (🔴) + FS-11: trigger `rsvps_capacity_check` (BEFORE INSERT/UPDATE OF status, plus_one) con `FOR NO KEY UPDATE` sobre la fila del evento + recuento con snapshot fresco → enforcement exacto bajo concurrencia en TODOS los paths de escritura. 1 asiento por confirmado + 1 por `plus_one`; cancelaciones nunca bloqueadas; renames de slug no disparan capacidad. App: mapeo `CAPACITY_FULL`→409 en 3 rutas + retry único ante deadlock 40P01. **Plan del batch pasó adversarial review de Codex (3 findings, 3 incorporados: orden deploy/migración, NO KEY UPDATE + retry, suite en branch de Neon).** PR #10: drizzle ≥0.44 envuelve errores del driver (`err.cause`) — `unwrapDbError()` arregla la clasificación nueva Y el bug latente del 23505 de PR #8. Validado 16/16 en branch de Neon (clon prod); **trigger aplicado en prod** (backup fresco `~/TimeKast/partytime-backups/json-20260710-183224`); smoke HTTP: POST a evento lleno → 409 con mensaje correcto. ⚠️ Nota ops: `carrillo-fest` estaba YA sobrevendido (63 asientos / límite 50) → queda lleno para nuevos asientos; José decide si sube el límite.
+
+- ✅ **B6-delete-safety** (PR #11 `823b086`, 2026-07-10) — **A3-02+A6-09** (🔴, el ÚLTIMO): FK `rsvps.event_id → events.slug` con `ON UPDATE CASCADE` (renames atómicos) + `ON DELETE RESTRICT` (huérfanos imposibles); `deleteEvent(hard)` = `db.batch(delete rsvps, delete event)` en una tx; `updateEventSlug` conserva el update manual como fallback no-op (finding critical del review: ventana deploy-antes-de-migración). Validado 10/10 en branch de Neon incl. convivencia con el trigger de capacidad; **FK aplicado en prod** con re-verificación de 0 huérfanos inmediatamente previa; smoke: DELETE directo bloqueado por RESTRICT, 4 eventos / 167 rsvps intactos.
+
+- ✅ **B4-guards** (PR #12 `764e478`, 2026-07-10) — **A2-H04** (🟡): el update de invitado era ciego al evento → guard `isSeatAddingChange` (solo cambios que añaden asientos exigen evento activo/abierto; cancelaciones nunca bloqueadas). + retry de deadlock en `updateEventSlug` + **`npm run verify:db`** (verifica trigger/FK/unique/0-huérfanos en cualquier entorno; corrido vs prod 4/4 ✅). Los 3 findings del post-review de Codex sobre #9-#11, incorporados (el del journal: mitigado con verify:db, la normalización sigue en B0.5-formal).
+
+**Estado: 🎉 LOS 13 🔴 DE LA AUDITORÍA CERRADOS (12 PRs, cada uno CI + Codex review + verificación en prod).**
 
 **Gates pendientes (requieren decisión/tiempo):**
-- **Migraciones de DB** (B4 capacidad atómica + unique dedup, B6 delete-safety/FK, B0.5, B15): necesitan **backup + branch de Neon + OK de José** antes de aplicar sobre datos de prod.
-- **B7 reminders** (A1-01/A1-02/A1-04): riesgo de email masivo → requiere el flag `REMINDERS_SEND_ENABLED` OFF en rollout. Se hace con cuidado.
-- **Cola P1/P2** (B9-B18): mayormente code-only, volumen grande.
-- **Purga de `dave1511` del historial de git**: decisión de José (reescribe historia).
+- **Cola P1/P2** (B9-B18): mayormente code-only, volumen grande. Incluye los 🔶 parciales: FS-17 (constant-time en cancel-token/login → B2-resto), FS-05 (HMAC del cancel-token con grace window → B2-resto), columna `cancelToken` muerta (B15).
+- **B0.5-formal** (journal de migraciones drizzle desincronizado — el contrato slug/id ya quedó RESUELTO de facto con el FK a `events.slug`; el driver sigue neon-http con el patrón trigger/batch validado).
+- **Purga de `dave1511` del historial de git**: al final (reescribe historia).
 
 ---
 
