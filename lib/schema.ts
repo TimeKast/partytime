@@ -80,8 +80,13 @@ export const events = pgTable('events', {
 export const rsvps = pgTable('rsvps', {
     id: text('id').primaryKey().$defaultFn(generateId),
 
-    // Reference to event (by slug for compatibility)
-    eventId: text('event_id').notNull(),
+    // Reference to event (by slug for compatibility — the A6-14 contract:
+    // this column stores events.slug, NOT events.id).
+    // A3-02/A6-09: FK so a deleted/renamed event can never leave orphan RSVPs
+    // that a recycled slug would inherit. ON UPDATE CASCADE makes slug renames
+    // atomic; ON DELETE RESTRICT forces deleters to remove RSVPs explicitly.
+    eventId: text('event_id').notNull()
+        .references(() => events.slug, { onUpdate: 'cascade', onDelete: 'restrict' }),
 
     // Guest info
     name: text('name').notNull(),
