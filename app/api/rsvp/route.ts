@@ -192,6 +192,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // A2-H02: el trigger de capacidad rechazó el asiento (evento lleno).
+    if (error.message?.includes('capacidad máxima')) {
+      return NextResponse.json(
+        { error: 'El evento está lleno — se alcanzó el límite de invitados' },
+        { status: 409 }
+      )
+    }
+
     return NextResponse.json(
       { error: 'Error al procesar el RSVP. Por favor intenta de nuevo.' },
       { status: 500 }

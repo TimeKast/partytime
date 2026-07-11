@@ -84,6 +84,23 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Error en POST /api/admin/update-rsvp:', error)
+
+    // A2-H02: el trigger de capacidad también aplica a ediciones de admin
+    // (reconfirmar / añadir +1 en evento lleno) — 409, no 500.
+    if (error.message?.includes('capacidad máxima')) {
+      return NextResponse.json(
+        { error: 'El evento está lleno — este cambio excede el límite de invitados' },
+        { status: 409 }
+      )
+    }
+
+    if (error.message?.includes('Ya existe un RSVP')) {
+      return NextResponse.json(
+        { error: 'Ya existe un RSVP con este email para este evento' },
+        { status: 409 }
+      )
+    }
+
     return NextResponse.json(
       { error: 'Error al actualizar RSVP', details: error.message },
       { status: 500 }

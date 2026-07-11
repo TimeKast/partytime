@@ -58,6 +58,23 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Error en POST /api/rsvp/update:', error)
+
+    // A2-H02: reconfirmar o añadir +1 en un evento lleno lo rechaza el
+    // trigger de capacidad — 409 con mensaje claro, no un 500 genérico.
+    if (error.message?.includes('capacidad máxima')) {
+      return NextResponse.json(
+        { error: 'El evento está lleno — no hay lugares disponibles para este cambio' },
+        { status: 409 }
+      )
+    }
+
+    if (error.message?.includes('Ya existe un RSVP')) {
+      return NextResponse.json(
+        { error: 'Ya existe un RSVP con este email para este evento' },
+        { status: 409 }
+      )
+    }
+
     return NextResponse.json(
       { error: 'Error al actualizar RSVP', details: error.message },
       { status: 500 }

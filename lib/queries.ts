@@ -11,10 +11,48 @@ import type { Event, NewEvent, RSVP, NewRSVP } from './schema'
 // RSVP Functions
 // ============================================
 
+// A2-H02: capacity is enforced by the rsvps_capacity_check trigger (see
+// drizzle/0002_enforce_event_capacity.sql) — the single authority for every
+// seat-adding write. The helpers below only translate its errors.
+export const CAPACITY_FULL_MESSAGE = 'El evento ha alcanzado su capacidad máxima'
+
+function isCapacityFullError(err: any): boolean {
+    return /CAPACITY_FULL/.test(err?.message || '')
+}
+
+// A rare but real deadlock exists between an RSVP update (child row lock →
+// trigger locks parent event) and a concurrent slug rename (parent lock →
+// cascade/manual update of child rows). Postgres resolves it by aborting one
+// side with 40P01; a single retry makes that benign.
+function isDeadlockError(err: any): boolean {
+    return err?.code === '40P01' || /deadlock detected/i.test(err?.message || '')
+}
+
+async function withDeadlockRetry<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+        return await fn()
+    } catch (err: any) {
+        // A deadlock abort means nothing committed — one retry is safe.
+        if (isDeadlockError(err)) return await fn()
+        throw err
+    }
+}
+
 /**
  * Save a new RSVP
  */
 export async function saveRSVP(rsvpData: {
+    name: string
+    email: string
+    phone: string
+    plusOne: boolean
+    plusOneName?: string | null
+    eventId: string
+}): Promise<RSVP> {
+    return withDeadlockRetry(() => saveRSVPOnce(rsvpData))
+}
+
+async function saveRSVPOnce(rsvpData: {
     name: string
     email: string
     phone: string
@@ -47,17 +85,23 @@ export async function saveRSVP(rsvpData: {
         // The predicate requires status STILL 'cancelled' so two concurrent
         // re-registrations don't both reactivate and both send a confirmation:
         // the loser gets an empty result and is treated as a duplicate.
-        const [reactivated] = await db.update(rsvps)
-            .set({
-                name: rsvpData.name,
-                email,
-                phone: rsvpData.phone,
-                plusOne: rsvpData.plusOne,
-                plusOneName: rsvpData.plusOneName || null,
-                status: 'confirmed',
-            })
-            .where(and(eq(rsvps.id, prev.id), eq(rsvps.status, 'cancelled')))
-            .returning()
+        let reactivated
+        try {
+            [reactivated] = await db.update(rsvps)
+                .set({
+                    name: rsvpData.name,
+                    email,
+                    phone: rsvpData.phone,
+                    plusOne: rsvpData.plusOne,
+                    plusOneName: rsvpData.plusOneName || null,
+                    status: 'confirmed',
+                })
+                .where(and(eq(rsvps.id, prev.id), eq(rsvps.status, 'cancelled')))
+                .returning()
+        } catch (err: any) {
+            if (isCapacityFullError(err)) throw new Error(CAPACITY_FULL_MESSAGE)
+            throw err
+        }
         if (!reactivated) {
             throw new Error('Ya existe un RSVP con este email para este evento')
         }
@@ -83,6 +127,7 @@ export async function saveRSVP(rsvpData: {
         if (err?.code === '23505' || /unique|duplicate key/i.test(err?.message || '')) {
             throw new Error('Ya existe un RSVP con este email para este evento')
         }
+        if (isCapacityFullError(err)) throw new Error(CAPACITY_FULL_MESSAGE)
         throw err
     }
 }
@@ -126,16 +171,19 @@ export async function updateRSVP(
 
     let updated
     try {
-        [updated] = await db.update(rsvps)
+        [updated] = await withDeadlockRetry(() => db!.update(rsvps)
             .set(data)
             .where(eq(rsvps.id, rsvpId))
-            .returning()
+            .returning())
     } catch (err: any) {
         // Editing an email to one already used for this event trips the unique
         // index (A2-H06) — surface a duplicate error, not a raw 500.
         if (err?.code === '23505' || /unique|duplicate key/i.test(err?.message || '')) {
             throw new Error('Ya existe un RSVP con este email para este evento')
         }
+        // Reconfirming or adding a +1 on a full event trips the capacity
+        // trigger (A2-H02).
+        if (isCapacityFullError(err)) throw new Error(CAPACITY_FULL_MESSAGE)
         throw err
     }
 

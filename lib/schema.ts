@@ -110,6 +110,9 @@ export const rsvps = pgTable('rsvps', {
     // the DB so concurrent duplicate inserts fail instead of racing past the
     // application-level check. Applied to prod as `rsvps_event_email_unique`.
     eventEmailUnique: uniqueIndex('rsvps_event_email_unique').on(table.eventId, sql`lower(${table.email})`),
+    // A2-H02: capacity is enforced by the DB trigger `rsvps_capacity_check`
+    // (drizzle doesn't model triggers — see drizzle/0002_enforce_event_capacity.sql).
+    // Any seat-adding INSERT/UPDATE on a full event raises CAPACITY_FULL.
 }))
 
 // Application settings for global configuration
