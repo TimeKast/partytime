@@ -1,6 +1,7 @@
 import sharp from 'sharp'
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { PATCHWRK_OG_CACHE_VERSION } from '@/lib/og-image-url'
 
 const mocks = vi.hoisted(() => ({
     getEventBySlugWithSettings: vi.fn(),
@@ -95,22 +96,29 @@ describe('OG image route raster contract', () => {
         await expectJpegResponse(await callRoute())
     })
 
-    it('serves a conforming repository JPEG unchanged before querying event image sources', async () => {
+    it('fetches the versioned repository JPEG without cache and serves it before event image sources', async () => {
         const slug = 'patchwrk-260815'
         const customJpeg = readFileSync(`public/og-${slug}.jpg`)
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://party.timekast.mx'
+        const customJpegUrl = `${baseUrl}/og-${slug}.jpg?v=${PATCHWRK_OG_CACHE_VERSION}`
 
-        vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => {
-            if (String(url).endsWith(`/og-${slug}.jpg`)) {
+        const fetchMock = vi.fn(async (url: string | URL | Request) => {
+            if (String(url) === customJpegUrl) {
                 return new Response(new Uint8Array(customJpeg), {
                     headers: { 'Content-Type': 'image/jpeg' },
                 })
             }
             return new Response(null, { status: 404 })
-        }))
+        })
+        vi.stubGlobal('fetch', fetchMock)
 
         const response = await callRoute(slug)
         const responseImage = Buffer.from(await response.arrayBuffer())
 
+        expect(fetchMock).toHaveBeenCalledWith(customJpegUrl, expect.objectContaining({
+            method: 'GET',
+            cache: 'no-store',
+        }))
         expect(response.headers.get('content-type')).toBe('image/jpeg')
         expect(responseImage).toEqual(customJpeg)
         await expect(sharp(responseImage).metadata()).resolves.toMatchObject({
