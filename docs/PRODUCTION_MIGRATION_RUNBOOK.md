@@ -175,7 +175,7 @@ BEGIN
   actual AS (
     SELECT c.*,
       ARRAY(
-        SELECT attribute.attname
+        SELECT attribute.attname::text
         FROM unnest(c.conkey) WITH ORDINALITY AS key_column(attnum, position)
         JOIN pg_attribute attribute
           ON attribute.attrelid = c.conrelid AND attribute.attnum = key_column.attnum
@@ -204,12 +204,12 @@ BEGIN
     WITH fk AS (
       SELECT c.*,
         ARRAY(
-          SELECT a.attname FROM unnest(c.conkey) WITH ORDINALITY AS k(attnum, position)
+          SELECT a.attname::text FROM unnest(c.conkey) WITH ORDINALITY AS k(attnum, position)
           JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
           ORDER BY k.position
         ) AS columns,
         ARRAY(
-          SELECT a.attname FROM unnest(c.confkey) WITH ORDINALITY AS k(attnum, position)
+          SELECT a.attname::text FROM unnest(c.confkey) WITH ORDINALITY AS k(attnum, position)
           JOIN pg_attribute a ON a.attrelid = c.confrelid AND a.attnum = k.attnum
           ORDER BY k.position
         ) AS referenced_columns,
@@ -263,7 +263,7 @@ BEGIN
     WITH trg AS (
       SELECT t.*,
         ARRAY(
-          SELECT a.attname FROM unnest(t.tgattr::smallint[]) WITH ORDINALITY AS k(attnum, position)
+          SELECT a.attname::text FROM unnest(t.tgattr::smallint[]) WITH ORDINALITY AS k(attnum, position)
           JOIN pg_attribute a ON a.attrelid = t.tgrelid AND a.attnum = k.attnum
           ORDER BY k.position
         ) AS update_columns,

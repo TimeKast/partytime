@@ -173,6 +173,9 @@ describe('production migration safety', () => {
         ]) {
             expect(runbook, guard).toContain(guard)
         }
+
+        expect(runbook.match(/attname::text/g)).toHaveLength(4)
+        expect(runbook).not.toMatch(/SELECT (?:attribute|a)\.attname(?:\s|FROM)/)
     })
 
     it('contains no direct schema-push command in operator docs or package scripts', () => {
