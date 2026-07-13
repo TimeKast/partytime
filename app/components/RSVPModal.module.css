@@ -346,7 +346,7 @@
 
 /* Modern presentation variant */
 .modernOverlay {
-  background: rgba(15, 23, 42, 0.68);
+  background: rgba(0, 0, 0, 0.76);
   backdrop-filter: blur(10px);
 }
 
@@ -354,8 +354,9 @@
   box-sizing: border-box;
   border-width: 1px;
   border-radius: 20px;
-  color: #111827;
+  color: #ffffff;
   padding: 36px 32px 32px;
+  scrollbar-color: rgba(255, 255, 255, 0.28) rgba(255, 255, 255, 0.05);
 }
 
 .modernModal .closeButton {
@@ -363,16 +364,16 @@
   right: 14px;
   width: 44px;
   height: 44px;
-  border: 1px solid #d1d5db;
-  background: rgba(255, 255, 255, 0.78);
-  color: #374151;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
   font-size: 1.25rem;
   transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .modernModal .closeButton:hover {
-  background: #f3f4f6;
-  color: #111827;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
   transform: none;
 }
 
@@ -380,7 +381,7 @@
 .modernModal .submitButton:focus-visible,
 .modernModal .countrySelector:focus-visible,
 .modernModal .checkbox:focus-visible {
-  outline: 3px solid #111827;
+  outline: 3px solid rgba(255, 255, 255, 0.92);
   outline-offset: 3px;
 }
 
@@ -390,7 +391,7 @@
 }
 
 .modernModal .modalTitle {
-  color: #111827;
+  color: #ffffff;
   font-size: 1.75rem;
   font-weight: 700;
   line-height: 1.2;
@@ -399,7 +400,7 @@
 }
 
 .modernModal .modalSubtitle {
-  color: #4b5563;
+  color: rgba(255, 255, 255, 0.68);
   line-height: 1.5;
 }
 
@@ -412,7 +413,7 @@
 }
 
 .modernModal .label {
-  color: #1f2937;
+  color: rgba(255, 255, 255, 0.78);
   font-weight: 600;
   letter-spacing: 0;
 }
@@ -422,23 +423,23 @@
   box-sizing: border-box;
   min-width: 0;
   min-height: 48px;
-  border: 1px solid #cbd5e1 !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.9) !important;
-  color: #111827 !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  color: #ffffff !important;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
 .modernModal .input::placeholder,
 .modernModal .phoneInputField::placeholder {
-  color: #6b7280 !important;
+  color: rgba(255, 255, 255, 0.5) !important;
 }
 
 .modernModal .input:focus,
 .modernModal .phoneInputField:focus {
-  border-color: #111827 !important;
-  background: #ffffff !important;
-  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.18) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.16) !important;
 }
 
 .modernModal .phoneInput {
@@ -449,17 +450,17 @@
   box-sizing: border-box;
   min-width: 78px;
   min-height: 48px;
-  border: 1px solid #cbd5e1 !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
   border-right: 0 !important;
   border-radius: 10px 0 0 10px !important;
-  background: rgba(255, 255, 255, 0.9) !important;
-  color: #111827;
+  background: rgba(255, 255, 255, 0.07) !important;
+  color: #ffffff;
   transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .modernModal .countrySelector:hover {
-  border-color: #9ca3af !important;
-  background: #f8fafc !important;
+  border-color: rgba(255, 255, 255, 0.34) !important;
+  background: rgba(255, 255, 255, 0.12) !important;
 }
 
 .modernModal .phoneInputField {
@@ -469,51 +470,51 @@
 }
 
 .modernModal .phoneInput :global(.react-international-phone-country-selector-button__button-content) {
-  color: #111827;
+  color: #ffffff;
 }
 
 .modernModal .phoneInput :global(.react-international-phone-country-selector-dropdown) {
   max-width: calc(100vw - 48px);
-  border: 1px solid #d1d5db !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
   border-radius: 10px !important;
-  background: #ffffff !important;
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18) !important;
+  background: rgba(15, 15, 16, 0.98) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.36) !important;
 }
 
 .modernModal .phoneInput :global(.react-international-phone-country-selector-dropdown__list-item) {
-  color: #111827 !important;
+  color: rgba(255, 255, 255, 0.9) !important;
 }
 
 .modernModal .phoneInput :global(.react-international-phone-country-selector-dropdown__list-item:hover),
 .modernModal .phoneInput :global(.react-international-phone-country-selector-dropdown__list-item--focused) {
-  background: #f3f4f6 !important;
+  background: rgba(255, 255, 255, 0.1) !important;
 }
 
 .modernModal .phoneInput :global(.react-international-phone-country-selector-dropdown__list-item--selected) {
-  background: #e5e7eb !important;
+  background: rgba(255, 255, 255, 0.16) !important;
 }
 
 .modernModal .checkboxLabel {
   box-sizing: border-box;
   min-height: 48px;
-  border: 1px solid #d1d5db;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.06);
   transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .modernModal .checkboxLabel:hover {
-  border-color: #9ca3af;
-  background: #ffffff;
+  border-color: rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .modernModal .checkboxLabel:has(.checkbox:focus-visible) {
-  outline: 3px solid #111827;
+  outline: 3px solid rgba(255, 255, 255, 0.92);
   outline-offset: 2px;
 }
 
 .modernModal .checkboxText {
-  color: #1f2937;
+  color: #ffffff;
   font-weight: 600;
   letter-spacing: 0;
 }
@@ -521,7 +522,7 @@
 .modernModal .submitButton {
   min-height: 52px;
   margin-top: 4px;
-  border: 1px solid rgba(17, 24, 39, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 10px;
   font-size: 1rem;
   font-weight: 700;
@@ -538,10 +539,10 @@
 
 .modernModal .successMessage {
   margin-top: 8px;
-  border: 1px solid color-mix(in srgb, var(--rsvp-primary) 28%, #d1d5db);
+  border: 1px solid color-mix(in srgb, var(--rsvp-primary) 42%, rgba(255, 255, 255, 0.18));
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
-  color: #374151;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.78);
   padding: 36px 20px;
 }
 
@@ -552,30 +553,30 @@
 }
 
 .modernModal .successMessage h3 {
-  color: #111827;
+  color: #ffffff;
   font-size: 1.75rem;
   font-weight: 700;
 }
 
 .modernModal .successMessage p {
-  color: #4b5563;
+  color: rgba(255, 255, 255, 0.7);
   font-size: 1rem;
 }
 
 .modernModal .errorMessage {
-  border: 1px solid #fecaca;
+  border: 1px solid rgba(252, 165, 165, 0.5);
   border-radius: 10px;
-  background: #fef2f2;
-  color: #991b1b;
+  background: rgba(127, 29, 29, 0.32);
+  color: #fecaca;
 }
 
 .modernModal::-webkit-scrollbar-track {
-  background: #f3f4f6;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .modernModal::-webkit-scrollbar-thumb,
 .modernModal::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: rgba(255, 255, 255, 0.28);
 }
 
 @media (max-width: 480px) {

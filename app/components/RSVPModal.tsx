@@ -37,9 +37,9 @@ export default function RSVPModal({ isOpen, onClose, variant, eventSlug, require
   const modalStyle: ModalStyle = isModern
     ? {
         '--rsvp-primary': ctaColors.background,
-        borderColor: 'rgba(15, 23, 42, 0.16)',
-        boxShadow: '0 24px 70px rgba(15, 23, 42, 0.24)',
-        background: 'rgba(250, 250, 249, 0.97)',
+        borderColor: 'rgba(255, 255, 255, 0.18)',
+        boxShadow: '0 18px 50px rgba(0, 0, 0, 0.32)',
+        background: 'rgba(15, 15, 16, 0.96)',
       }
     : {
         borderColor: `${activeTheme.primaryColor}80`,
@@ -193,10 +193,7 @@ export default function RSVPModal({ isOpen, onClose, variant, eventSlug, require
           <h2
             id="rsvp-modal-title"
             className={styles.modalTitle}
-            style={isModern ? {
-              color: '#111827',
-              textShadow: 'none',
-            } : {
+            style={isModern ? undefined : {
               color: activeTheme.primaryColor,
               textShadow: `0 0 10px ${activeTheme.primaryColor}99, 0 0 20px ${activeTheme.primaryColor}66`
             }}
