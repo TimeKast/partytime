@@ -32,15 +32,6 @@ export async function normalizeOgImage(imageBuffer: Buffer): Promise<Buffer> {
         .toBuffer()
 }
 
-export async function isReadyOgJpeg(imageBuffer: Buffer): Promise<boolean> {
-    const metadata = await sharp(imageBuffer).metadata()
-
-    return metadata.format === 'jpeg'
-        && metadata.width === OG_IMAGE_WIDTH
-        && metadata.height === OG_IMAGE_HEIGHT
-        && (!metadata.orientation || metadata.orientation === 1)
-}
-
 function escapeXml(text: string): string {
     return text
         .replace(/&/g, '&amp;')

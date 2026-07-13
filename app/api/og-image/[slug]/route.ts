@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getEventBySlugWithSettings } from '@/lib/queries'
 import { normalizeOptionalString } from '@/lib/event-presentation'
-import { PATCHWRK_OG_CACHE_VERSION, PATCHWRK_OG_SLUG } from '@/lib/og-image-url'
 import {
   createOgFallbackRaster,
-  isReadyOgJpeg,
   normalizeOgImage,
   selectOgImageUrl,
   type OgFallbackContent,
@@ -34,14 +32,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   // Preserve support for repository-provided per-event OG files, but normalize
   // them as well so every successful response is safe for social scrapers.
-  const customOgVersion = slug === PATCHWRK_OG_SLUG ? `?v=${PATCHWRK_OG_CACHE_VERSION}` : ''
   for (const ext of ['png', 'jpg']) {
-    const customOgUrl = `${baseUrl}/og-${slug}.${ext}${customOgVersion}`
+    const customOgUrl = `${baseUrl}/og-${slug}.${ext}`
     try {
       console.log(`[OG-Image] Checking for custom OG image: ${customOgUrl}`)
       const customRes = await fetch(customOgUrl, {
         method: 'GET',
-        cache: 'no-store',
         headers: { 'User-Agent': 'OG-Image-Generator/1.0' },
       })
 
@@ -54,11 +50,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       }
 
       const imageBuffer = Buffer.from(await customRes.arrayBuffer())
-      if (slug === PATCHWRK_OG_SLUG && await isReadyOgJpeg(imageBuffer)) {
-        console.log(`[OG-Image] Returning repository-provided OG JPEG without re-encoding (${(imageBuffer.length / 1024).toFixed(0)}KB)`)
-        return rasterResponse(imageBuffer)
-      }
-
       const raster = await normalizeOgImage(imageBuffer)
       console.log(`[OG-Image] Normalized custom image from ${(imageBuffer.length / 1024).toFixed(0)}KB to ${(raster.length / 1024).toFixed(0)}KB`)
       return rasterResponse(raster)
