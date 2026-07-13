@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 import type { Event } from '@/types/event'
 import {
     buildEventInvitationViewModel,
@@ -144,5 +145,19 @@ describe('event invitation view model', () => {
         expect(bundledFallback).toBe('/background.png')
         expect(getNextBackgroundSourceAfterError(bundledFallback)).toBeNull()
         expect(getNextBackgroundSourceAfterError(null)).toBeNull()
+    })
+})
+
+describe('RSVP modal accessibility contract', () => {
+    it('exposes dialog semantics and keeps keyboard focus inside the modal', () => {
+        const source = readFileSync('app/components/RSVPModal.tsx', 'utf8')
+
+        expect(source).toContain('role="dialog"')
+        expect(source).toContain('aria-modal="true"')
+        expect(source).toContain('aria-labelledby="rsvp-modal-title"')
+        expect(source).toContain('aria-label="Cerrar formulario RSVP"')
+        expect(source).toContain("event.key === 'Escape'")
+        expect(source).toContain("event.key !== 'Tab'")
+        expect(source).toContain('previouslyFocused?.focus()')
     })
 })

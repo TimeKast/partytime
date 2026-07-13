@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { useEffect, useRef, useState, FormEvent } from 'react'
 import { motion } from 'framer-motion'
 import { PhoneInput } from 'react-international-phone'
 import 'react-international-phone/style.css'
@@ -36,6 +36,48 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    const focusFrame = requestAnimationFrame(() => closeButtonRef.current?.focus())
+
+    const handleDialogKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        return
+      }
+
+      if (event.key !== 'Tab' || !dialogRef.current) return
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )).filter(element => element.getClientRects().length > 0)
+      if (focusable.length === 0) return
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleDialogKeyDown)
+    return () => {
+      cancelAnimationFrame(focusFrame)
+      document.removeEventListener('keydown', handleDialogKeyDown)
+      previouslyFocused?.focus()
+    }
+  }, [isOpen, onClose])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -105,7 +147,11 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
       onClick={onClose}
     >
       <motion.div
+        ref={dialogRef}
         className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="rsvp-modal-title"
         initial={{ scale: 0.8, y: 50 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.8, y: 50 }}
@@ -117,8 +163,10 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
         }}
       >
         <button
+          ref={closeButtonRef}
           className={styles.closeButton}
           onClick={onClose}
+          aria-label="Cerrar formulario RSVP"
           style={{ borderColor: `${activeTheme.primaryColor}80` }}
         >
           ✕
@@ -126,6 +174,7 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
 
         <div className={styles.modalHeader}>
           <h2
+            id="rsvp-modal-title"
             className={styles.modalTitle}
             style={{
               color: activeTheme.primaryColor,
