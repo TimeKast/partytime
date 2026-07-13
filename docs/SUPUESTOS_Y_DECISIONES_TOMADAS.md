@@ -215,7 +215,9 @@
 
 - **Supuesto:** No hay FK constraints definidas en el schema (Drizzle allows this). Las relaciones son lógicas, no físicas.
 - **Supuesto:** No hay soft-delete para RSVPs — la cancelación cambia status a 'cancelled'.
-- **Supuesto:** Las migraciones se aplican con `drizzle-kit push` (schema push, no migration files).
+- **Decisión vigente:** Producción usa SQL de migración versionado y verificado;
+  la sincronización directa desde el schema quedó retirada por no ofrecer una
+  línea base histórica auditable.
 
 ### 5.4 Auth y Roles
 

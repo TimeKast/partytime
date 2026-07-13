@@ -22,10 +22,14 @@ npm run lint
 
 ## 🗄️ Base de Datos (Drizzle + Neon)
 
-### Ejecutar migraciones
+### Preflight de migraciones (solo lectura)
 ```bash
-npx drizzle-kit push
+DATABASE_URL='<conexión inyectada por el operador>' npm run db:preflight -- --json
 ```
+
+La ausencia o inconsistencia del registro bloquea la migración. La línea base y
+la aplicación transaccional se realizan únicamente con el SQL revisado en
+[`docs/PRODUCTION_MIGRATION_RUNBOOK.md`](docs/PRODUCTION_MIGRATION_RUNBOOK.md).
 
 ### Generar migraciones
 ```bash
@@ -37,10 +41,7 @@ npx drizzle-kit generate
 npx drizzle-kit studio
 ```
 
-### Ver cambios pendientes
-```bash
-npx drizzle-kit diff
-```
+`npm run db:generate` solo genera/revisa archivos; no aplica cambios a la base.
 
 ---
 
