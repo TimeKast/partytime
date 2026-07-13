@@ -5,7 +5,8 @@ import { cookies } from 'next/headers'
 import { validateSession } from '@/lib/auth-utils'
 import { userHasEventAccess } from '@/lib/user-queries'
 import { resend, FROM_EMAIL } from '@/lib/resend'
-import { generateConfirmationEmail, EventData } from '@/lib/email-template'
+import { generateConfirmationEmail } from '@/lib/email-template'
+import { buildEventEmailData, buildEventEmailSubject } from '@/lib/event-email-data'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,27 +89,7 @@ export async function POST(request: NextRequest) {
         try {
           const { generateCancelToken, recordEmailSent } = await import('@/lib/queries')
           
-          // Build EventData for the email template
-          const theme = (eventForEmail.theme as any) || {}
-          const eventData: EventData = {
-            title: eventForEmail.title,
-            subtitle: eventForEmail.subtitle || '',
-            date: eventForEmail.date || '',
-            time: eventForEmail.time || '',
-            location: eventForEmail.location || '',
-            details: eventForEmail.details || '',
-            price: eventForEmail.priceEnabled ? `$${eventForEmail.priceAmount} ${eventForEmail.priceCurrency || 'MXN'}` : null,
-            backgroundImageUrl: eventForEmail.backgroundImageUrl || '/background.png',
-            theme: {
-              primaryColor: theme.primaryColor || '#FF1493',
-              secondaryColor: theme.secondaryColor || '#00FFFF',
-              accentColor: theme.accentColor || '#FFD700',
-              backgroundColor: theme.backgroundColor || '#1a0033'
-            },
-            contact: {
-              hostEmail: eventForEmail.hostEmail || eventConfig.contact?.hostEmail
-            }
-          }
+          const eventData = buildEventEmailData(eventForEmail)
 
           // Generate cancel token and URL
           const cancelToken = generateCancelToken(rsvp.id, email)
@@ -129,7 +110,7 @@ export async function POST(request: NextRequest) {
           const { error: emailError } = await resend.emails.send({
             from: `Party Time! <${FROM_EMAIL}>`,
             to: email,
-            subject: `Confirmación - ${eventForEmail.title}`,
+            subject: buildEventEmailSubject(eventData, 'confirmation'),
             html: htmlContent
           })
 

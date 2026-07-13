@@ -8,6 +8,9 @@ Plataforma web profesional para gestión de invitaciones y RSVPs, diseñada con 
 - **Diseño impactante** mobile-first con animaciones Framer Motion
 - **Soporte multi-evento** - Cada evento tiene su URL única (`/mi-evento`)
 - **Temas personalizables** - Colores, imágenes de fondo, información
+- **Tres presentaciones públicas** - Clásica, moderna con información y solo imagen + RSVP
+- **Campos públicos opcionales** - Título visible, subtítulo, fecha, hora, ubicación y detalles se omiten sin dejar espacios vacíos
+- **Arte adaptable** - La imagen puede cubrir la pantalla o mostrarse completa sin recortes
 - **OG Images dinámicas** para compartir en redes sociales
 
 ### 📊 Panel de Administración (`/admin`)
@@ -33,6 +36,15 @@ Plataforma web profesional para gestión de invitaciones y RSVPs, diseñada con 
 - Cada evento tiene su propio **slug** URL
 - RSVPs, configuración y emails **aislados por evento**
 - **Evento de inicio** configurable
+
+### 🖼️ Presentación pública por evento
+
+- Los eventos existentes permanecen en modo **Clásica (compatibilidad)** hasta que un administrador los cambie.
+- Los eventos nuevos usan **Moderna con información** por defecto; solo el slug y el nombre interno son obligatorios.
+- **Solo imagen + RSVP** oculta título, datos, precio y cupo en la invitación pública, pero conserva la información poblada en administración, emails y exportaciones.
+- El texto sobre el botón puede quedar vacío. El texto del botón RSVP es obligatorio y admite hasta 80 caracteres.
+- El oscurecimiento del fondo acepta valores de 0% a 80%. Para artes con texto cerca de los bordes se recomienda **Mostrar imagen completa** (`contain`).
+- Precio y capacidad conservan sus toggles actuales; no aparecen cuando están desactivados.
 
 ---
 

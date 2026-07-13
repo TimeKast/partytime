@@ -12,14 +12,20 @@ set -euo pipefail
 export LC_ALL=C
 export LANG=C
 
-for command in initdb pg_ctl createdb psql node; do
+for command in initdb pg_ctl createdb psql node python3; do
     if ! command -v "$command" >/dev/null 2>&1; then
         echo "missing required command: $command" >&2
         exit 2
     fi
 done
 
-PORT="${PARTYTIME_PG_TEST_PORT:-55432}"
+PORT="${PARTYTIME_PG_TEST_PORT:-$(python3 - <<'PY'
+import socket
+with socket.socket() as listener:
+    listener.bind(('127.0.0.1', 0))
+    print(listener.getsockname()[1])
+PY
+)}"
 ROOT="$(mktemp -d /tmp/pt-cap.XXXXXX)"
 PGDATA="$ROOT/data"
 PGSOCKET="$ROOT/socket"

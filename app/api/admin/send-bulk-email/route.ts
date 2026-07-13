@@ -3,7 +3,12 @@ import { cookies } from 'next/headers'
 import { validateSession } from '@/lib/auth-utils'
 import { userHasEventAccess } from '@/lib/user-queries'
 import { resend, FROM_EMAIL } from '@/lib/resend'
-import { generateConfirmationEmail, EventData } from '@/lib/email-template'
+import { generateConfirmationEmail, type EventData } from '@/lib/email-template'
+import {
+  buildEventEmailData,
+  buildEventEmailSubject,
+  type EventEmailSubjectKind,
+} from '@/lib/event-email-data'
 import { getRSVPsByEvent, generateCancelToken, recordEmailSent, getEventBySlug } from '@/lib/queries'
 import eventConfig from '@/event-config.json'
 
@@ -33,31 +38,12 @@ export async function POST(request: NextRequest) {
     const event = await getEventBySlug(eventIdOrSlug)
     const eventUUID = event?.id || eventIdOrSlug
     const eventSlug = event?.slug || eventIdOrSlug
-    const eventTitle = event?.title || eventConfig.event.title
+    const eventTitle = event ? buildEventEmailData(event).title : eventConfig.event.title
 
     // Build EventData from the actual event for email template
     let eventData: EventData | undefined
     if (event) {
-      const theme = (event.theme as any) || eventConfig.theme
-      eventData = {
-        title: event.title,
-        subtitle: event.subtitle || '',
-        date: event.date || '',
-        time: event.time || '',
-        location: event.location || '',
-        details: event.details || '',
-        price: event.priceEnabled ? `$${event.priceAmount} ${event.priceCurrency || 'MXN'}` : null,
-        backgroundImageUrl: event.backgroundImageUrl || eventConfig.event.backgroundImage || '/background.png',
-        theme: {
-          primaryColor: theme.primaryColor || eventConfig.theme.primaryColor,
-          secondaryColor: theme.secondaryColor || eventConfig.theme.secondaryColor,
-          accentColor: theme.accentColor || eventConfig.theme.accentColor,
-          backgroundColor: theme.backgroundColor || eventConfig.theme.backgroundColor
-        },
-        contact: {
-          hostEmail: event.hostEmail || eventConfig.contact.hostEmail
-        }
-      }
+      eventData = buildEventEmailData(event)
     }
 
     // Check permissions using UUID
@@ -117,14 +103,12 @@ export async function POST(request: NextRequest) {
         })
 
         // Asunto según tipo de email
-        let subject
-        if (isCancelled) {
-          subject = `Te extrañamos - ${eventTitle}`
-        } else if (isReminder) {
-          subject = `Recordatorio - ${eventTitle}`
-        } else {
-          subject = `Confirmación - ${eventTitle}`
-        }
+        const subjectKind: EventEmailSubjectKind = isCancelled
+          ? 're-invitation'
+          : isReminder
+            ? 'reminder'
+            : 'confirmation'
+        const subject = buildEventEmailSubject({ title: eventTitle }, subjectKind)
 
         const { error } = await resend.emails.send({
           from: `Party Time! <${FROM_EMAIL}>`,

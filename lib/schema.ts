@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, integer, jsonb, varchar, uniqueIndex } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, timestamp, integer, jsonb, varchar, uniqueIndex, check } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
 // Helper to generate IDs safely across environments
@@ -14,7 +14,7 @@ export const events = pgTable('events', {
     id: text('id').primaryKey().notNull().$defaultFn(generateId),
     slug: varchar('slug', { length: 100 }).notNull().unique(),
     title: text('title').notNull(),
-    displayTitle: text('display_title').default(''), // Title shown on invitation page (if empty, uses title)
+    displayTitle: text('display_title').default(''), // Empty means no visible title on the invitation page
     subtitle: text('subtitle').default(''),
     date: text('date').default(''),
     time: text('time').default(''),
@@ -32,7 +32,14 @@ export const events = pgTable('events', {
 
     // Background image (for the event page)
     backgroundImageUrl: text('background_image_url').default('/background.png'),
-    
+
+    // Public invitation presentation. Database defaults preserve existing events.
+    presentationMode: varchar('presentation_mode', { length: 24 }).notNull().default('classic'),
+    rsvpTitle: text('rsvp_title').notNull().default('RSVP INDISPENSABLE'),
+    rsvpButtonLabel: varchar('rsvp_button_label', { length: 80 }).notNull().default('CONFIRMAR ASISTENCIA'),
+    backgroundOverlayStrength: integer('background_overlay_strength').notNull().default(20),
+    backgroundImageFit: varchar('background_image_fit', { length: 12 }).notNull().default('cover'),
+
     // OG image (for social previews - WhatsApp, Facebook, Twitter)
     // Recommended: 1200x630 (1.9:1 aspect ratio)
     ogImageUrl: text('og_image_url'),
@@ -74,7 +81,24 @@ export const events = pgTable('events', {
     // Timestamps
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
+}, (table) => ({
+    presentationModeCheck: check(
+        'events_presentation_mode_check',
+        sql`${table.presentationMode} in ('classic', 'modern_details', 'artwork_only')`,
+    ),
+    backgroundImageFitCheck: check(
+        'events_background_image_fit_check',
+        sql`${table.backgroundImageFit} in ('cover', 'contain')`,
+    ),
+    backgroundOverlayStrengthCheck: check(
+        'events_background_overlay_strength_check',
+        sql`${table.backgroundOverlayStrength} between 0 and 80`,
+    ),
+    rsvpButtonLabelCheck: check(
+        'events_rsvp_button_label_check',
+        sql`char_length(btrim(${table.rsvpButtonLabel})) between 1 and 80`,
+    ),
+}))
 
 // RSVPs table
 export const rsvps = pgTable('rsvps', {
@@ -178,4 +202,3 @@ export type UserSession = typeof userSessions.$inferSelect
 export type NewUserSession = typeof userSessions.$inferInsert
 export type UserEventAssignment = typeof userEventAssignments.$inferSelect
 export type NewUserEventAssignment = typeof userEventAssignments.$inferInsert
-

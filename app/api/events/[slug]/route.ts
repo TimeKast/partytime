@@ -5,6 +5,8 @@ import { validateSession } from '@/lib/auth-utils'
 import { userHasEventAccess } from '@/lib/user-queries'
 import { existsSync, renameSync } from 'fs'
 import { join } from 'path'
+import { validateAndApplyEventUpdate } from '@/lib/event-api-contract'
+import { buildPublicEventDto } from '@/lib/public-event'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,15 +45,6 @@ function renameOgImages(oldSlug: string, newSlug: string): { renamed: string[], 
     return { renamed, errors }
 }
 
-// Default theme colors (used when event has no theme set)
-const DEFAULT_THEME = {
-    primaryColor: '#FF1493',
-    secondaryColor: '#00FFFF',
-    accentColor: '#FFD700',
-    backgroundColor: '#1a0033',
-    textColor: '#ffffff'
-}
-
 interface RouteParams {
     params: Promise<{ slug: string }>
 }
@@ -70,37 +63,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             const event = await getEventBySlug(slug)
 
             if (event) {
-                // Extract theme from jsonb or use defaults
-                const theme = (event.theme as any) || DEFAULT_THEME
-
-                const formattedEvent = {
-                    ...event,
-                    backgroundImage: {
-                        url: event.backgroundImageUrl || '/background.png'
-                    },
-                    price: {
-                        enabled: event.priceEnabled ?? false,
-                        amount: event.priceAmount ?? 0,
-                        currency: event.priceCurrency || 'MXN'
-                    },
-                    rsvpClosed: event.rsvpClosed ?? false,
-                    rsvpClosedMessage: event.rsvpClosedMessage ?? '¡Nos vemos en el próximo evento!',
-                    capacity: {
-                        enabled: event.capacityEnabled ?? false,
-                        limit: event.capacityLimit ?? 0
-                    },
-                    theme: {
-                        primaryColor: theme.primaryColor || DEFAULT_THEME.primaryColor,
-                        secondaryColor: theme.secondaryColor || DEFAULT_THEME.secondaryColor,
-                        accentColor: theme.accentColor || DEFAULT_THEME.accentColor,
-                        backgroundColor: theme.backgroundColor || DEFAULT_THEME.backgroundColor,
-                        textColor: theme.textColor || DEFAULT_THEME.textColor
-                    }
-                }
-
                 return NextResponse.json({
                     success: true,
-                    event: formattedEvent
+                    event: buildPublicEventDto(event)
                 })
             }
 
@@ -172,75 +137,31 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         }
 
         const body = await request.json()
-
-        // Handle slug change separately (requires updating RSVPs too)
-        let updatedRsvpsCount = 0
-        let finalEvent = existingEvent
-        let ogImagesRenamed: string[] = []
-        let ogImagesErrors: string[] = []
-        
-        if (body.newSlug !== undefined && body.newSlug !== slug) {
-            // Only super_admin can change slugs (it's a more sensitive operation)
-            if (currentUser.role !== 'super_admin') {
-                return NextResponse.json({
-                    success: false,
-                    error: 'Solo un Super Admin puede cambiar el slug de un evento'
-                }, { status: 403 })
-            }
-
-            try {
-                const result = await updateEventSlug(existingEvent.id, body.newSlug)
-                finalEvent = result.event
-                updatedRsvpsCount = result.updatedRsvps
-
-                // Rename OG images in /public if they exist
-                const ogResult = renameOgImages(slug, body.newSlug)
-                ogImagesRenamed = ogResult.renamed
-                ogImagesErrors = ogResult.errors
-            } catch (error: any) {
-                return NextResponse.json({
-                    success: false,
-                    error: error.message || 'Error al cambiar el slug'
-                }, { status: 400 })
-            }
+        const result = await validateAndApplyEventUpdate(
+            body,
+            slug,
+            existingEvent,
+            currentUser.role === 'super_admin',
+            { updateSlug: updateEventSlug, updateEvent },
+        )
+        if (!result.success) {
+            return NextResponse.json({ success: false, error: result.error }, { status: result.status })
         }
 
-        // Build update object (only include provided fields, excluding slug)
-        const updates: any = {}
-
-        if (body.title !== undefined) updates.title = body.title
-        if (body.subtitle !== undefined) updates.subtitle = body.subtitle
-        if (body.date !== undefined) updates.date = body.date
-        if (body.time !== undefined) updates.time = body.time
-        if (body.location !== undefined) updates.location = body.location
-        if (body.details !== undefined) updates.details = body.details
-        if (body.price?.enabled !== undefined) updates.priceEnabled = body.price.enabled
-        if (body.price?.amount !== undefined) updates.priceAmount = body.price.amount
-        if (body.capacity?.enabled !== undefined) updates.capacityEnabled = body.capacity.enabled
-        if (body.capacity?.limit !== undefined) updates.capacityLimit = body.capacity.limit
-        if (body.backgroundImage?.url !== undefined) updates.backgroundImageUrl = body.backgroundImage.url
-        if (body.theme !== undefined) updates.theme = body.theme
-        if (body.contact?.hostName !== undefined) updates.hostName = body.contact.hostName
-        if (body.contact?.hostEmail !== undefined) updates.hostEmail = body.contact.hostEmail
-        if (body.isActive !== undefined) updates.isActive = body.isActive
-        if (body.rsvpClosed !== undefined) updates.rsvpClosed = body.rsvpClosed
-        if (body.rsvpClosedMessage !== undefined) updates.rsvpClosedMessage = body.rsvpClosedMessage
-
-        // Only call updateEvent if there are updates beyond slug
-        if (Object.keys(updates).length > 0) {
-            finalEvent = await updateEvent(finalEvent.id, updates)
-        }
+        const ogResult = result.newSlug
+            ? renameOgImages(slug, result.newSlug)
+            : { renamed: [], errors: [] }
 
         return NextResponse.json({
             success: true,
-            event: finalEvent,
-            ...(body.newSlug && body.newSlug !== slug && { 
+            event: result.event,
+            ...(result.newSlug && {
                 slugChanged: true,
-                updatedRsvps: updatedRsvpsCount,
-                newSlug: body.newSlug,
+                updatedRsvps: result.updatedRsvps,
+                newSlug: result.newSlug,
                 ogImages: {
-                    renamed: ogImagesRenamed,
-                    errors: ogImagesErrors
+                    renamed: ogResult.renamed,
+                    errors: ogResult.errors
                 }
             })
         })
@@ -312,4 +233,3 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         }, { status: 500 })
     }
 }
-

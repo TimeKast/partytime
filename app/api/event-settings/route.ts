@@ -3,6 +3,10 @@ import { cookies } from 'next/headers'
 import { validateSession } from '@/lib/auth-utils'
 import { userHasEventAccess } from '@/lib/user-queries'
 import eventConfig from '@/event-config.json'
+import {
+  LEGACY_PRESENTATION_DEFAULTS,
+  normalizeEventPresentation,
+} from '@/lib/event-presentation'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,7 +51,12 @@ export async function GET(request: NextRequest) {
       }
 
       // Extract theme from jsonb or use defaults
-      const theme = (event.theme as any) || {}
+      const theme = event.theme || {
+        primaryColor: '#FF1493',
+        secondaryColor: '#00FFFF',
+        accentColor: '#FFD700',
+      }
+      const presentation = normalizeEventPresentation(event)
 
       return NextResponse.json({
         success: true,
@@ -60,6 +69,7 @@ export async function GET(request: NextRequest) {
           time: event.time || '',
           location: event.location || '',
           details: event.details || '',
+          ...presentation,
           price: {
             enabled: event.priceEnabled || false,
             amount: event.priceAmount || 0,
@@ -110,6 +120,7 @@ export async function GET(request: NextRequest) {
         time: eventConfig.event.time,
         location: eventConfig.event.location,
         details: eventConfig.event.details,
+        ...LEGACY_PRESENTATION_DEFAULTS,
         price: {
           enabled: false,
           amount: 0,

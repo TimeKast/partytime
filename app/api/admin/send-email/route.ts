@@ -3,9 +3,13 @@ import { cookies } from 'next/headers'
 import { validateSession } from '@/lib/auth-utils'
 import { userHasEventAccess } from '@/lib/user-queries'
 import { resend, FROM_EMAIL } from '@/lib/resend'
-import { generateConfirmationEmail, EventData } from '@/lib/email-template'
+import { generateConfirmationEmail } from '@/lib/email-template'
+import {
+  buildEventEmailData,
+  buildEventEmailSubject,
+  type EventEmailSubjectKind,
+} from '@/lib/event-email-data'
 import { generateCancelToken, recordEmailSent, getRSVPById, getEventBySlug } from '@/lib/queries'
-import eventConfig from '@/event-config.json'
 
 export async function POST(request: NextRequest) {
   // Check auth
@@ -63,29 +67,8 @@ export async function POST(request: NextRequest) {
 
     // A1-13: use displayTitle when set (matching the public page), else title —
     // resolved ONCE and used for both the email body and the subject.
-    const eventTitle = (event.displayTitle && event.displayTitle.trim()) ? event.displayTitle : event.title
-
-    // Build EventData from the actual event (dynamic).
-    const theme = (event.theme as any) || eventConfig.theme
-    const eventData: EventData = {
-      title: eventTitle,
-      subtitle: event.subtitle || '',
-      date: event.date || '',
-      time: event.time || '',
-      location: event.location || '',
-      details: event.details || '',
-      price: event.priceEnabled ? `$${event.priceAmount} ${event.priceCurrency || 'MXN'}` : null,
-      backgroundImageUrl: event.backgroundImageUrl || eventConfig.event.backgroundImage || '/background.png',
-      theme: {
-        primaryColor: theme.primaryColor || eventConfig.theme.primaryColor,
-        secondaryColor: theme.secondaryColor || eventConfig.theme.secondaryColor,
-        accentColor: theme.accentColor || eventConfig.theme.accentColor,
-        backgroundColor: theme.backgroundColor || eventConfig.theme.backgroundColor,
-      },
-      contact: {
-        hostEmail: event.hostEmail || eventConfig.contact.hostEmail,
-      },
-    }
+    const eventData = buildEventEmailData(event)
+    const eventTitle = eventData.title
 
     // Recipient and email TYPE are derived from the DB row, not the body.
     const recipient = rsvp.email
@@ -108,14 +91,12 @@ export async function POST(request: NextRequest) {
       eventData,
     })
 
-    let subject
-    if (isCancelled) {
-      subject = `Te extrañamos - ${eventTitle}`
-    } else if (isReminder) {
-      subject = `Recordatorio - ${eventTitle}`
-    } else {
-      subject = `Confirmación - ${eventTitle}`
-    }
+    const subjectKind: EventEmailSubjectKind = isCancelled
+      ? 're-invitation'
+      : isReminder
+        ? 'reminder'
+        : 'confirmation'
+    const subject = buildEventEmailSubject({ title: eventTitle }, subjectKind)
 
     // Enviar email con Resend
     const { data, error } = await resend.emails.send({

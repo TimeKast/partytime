@@ -3,6 +3,7 @@ import eventConfig from '../event-config.json'
 import { unstable_noStore as noStore } from 'next/cache'
 import { getAppSetting, getEventById, getEventBySlugWithSettings } from '@/lib/queries'
 import { Metadata } from 'next'
+import { buildEventMetadata } from '@/lib/event-presentation'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -46,8 +47,7 @@ export async function generateMetadata(): Promise<Metadata> {
       }
     }
 
-    const title = `${event.title} - ${event.subtitle}`
-    const description = `${event.date} ${event.time} - ${event.location}`
+    const { title, description } = buildEventMetadata(event)
 
     // Para WhatsApp: servir SIEMPRE desde nuestro dominio (proxy+fallback) para evitar bloqueos del host de la imagen.
     const imageUrl = `${baseUrl}/api/og-image/${event.slug}`

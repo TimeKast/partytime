@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import { getEventBySlugWithSettings } from '@/lib/queries'
+import { buildEventMetadata } from '@/lib/event-presentation'
 
 // Forzar regeneración dinámica de metadatos en cada request
 export const dynamic = 'force-dynamic'
@@ -25,8 +26,7 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
             }
         }
 
-        const title = `${event.title} - ${event.subtitle}`
-        const description = `${event.date} ${event.time} - ${event.location}`
+        const { title, description } = buildEventMetadata(event)
 
         // Para WhatsApp: servir SIEMPRE desde nuestro dominio (proxy+fallback) para evitar bloqueos del host de la imagen.
         // El parámetro v= fuerza invalidación de caché cuando se cambia la imagen OG

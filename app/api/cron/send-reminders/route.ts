@@ -10,9 +10,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isDatabaseConfigured } from "@/lib/db";
 import { resend, FROM_EMAIL } from "@/lib/resend";
-import { generateConfirmationEmail, EventData } from "@/lib/email-template";
+import { generateConfirmationEmail } from "@/lib/email-template";
+import { buildEventEmailData, buildEventEmailSubject } from "@/lib/event-email-data";
 import { timingSafeEqualStr } from "@/lib/timing-safe";
-import eventConfig from "@/event-config.json";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 minutes max for sending many emails
@@ -150,29 +150,7 @@ export async function GET(request: NextRequest) {
         await markReminderSent(event.id);
         console.log(`🔒 [CRON] Event ${event.slug} locked to prevent duplicates`);
 
-        // Build EventData for the email template
-        const theme = (event.theme as any) || {};
-        const eventData: EventData = {
-          title: event.title,
-          subtitle: event.subtitle || "",
-          date: event.date || "",
-          time: event.time || "",
-          location: event.location || "",
-          details: event.details || "",
-          price: event.priceEnabled
-            ? `$${event.priceAmount} ${event.priceCurrency || "MXN"}`
-            : null,
-          backgroundImageUrl: event.backgroundImageUrl || "/background.png",
-          theme: {
-            primaryColor: theme.primaryColor || "#FF1493",
-            secondaryColor: theme.secondaryColor || "#00FFFF",
-            accentColor: theme.accentColor || "#FFD700",
-            backgroundColor: theme.backgroundColor || "#1a0033",
-          },
-          contact: {
-            hostEmail: event.hostEmail || eventConfig.contact?.hostEmail,
-          },
-        };
+        const eventData = buildEventEmailData(event);
 
         // Send reminder to each RSVP
         for (const rsvp of rsvps) {
@@ -196,7 +174,7 @@ export async function GET(request: NextRequest) {
             const { error: emailError } = await resend.emails.send({
               from: `Party Time! <${FROM_EMAIL}>`,
               to: rsvp.email,
-              subject: `Recordatorio - ${event.title}`,
+              subject: buildEventEmailSubject(eventData, "reminder"),
               html: htmlContent,
             });
 

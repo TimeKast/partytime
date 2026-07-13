@@ -46,10 +46,27 @@ Al iniciar sesión como administrador, verás:
 Accede haciendo clic en **"⚙️ Config"** en el header.
 
 #### Información del Evento
-- Título y subtítulo
-- Fecha y hora
-- Ubicación y detalles
+- **Nombre interno del evento**: obligatorio; se usa en administración y exportaciones
+- Título visible y subtítulo: opcionales
+- Fecha, hora, ubicación y detalles: opcionales; los valores vacíos no crean filas ni espacios
 - Imagen de fondo (URL)
+
+#### Presentación pública
+
+En **Config → Presentación pública** hay tres modos:
+
+- **Clásica (compatibilidad)**: conserva el diseño original. Todos los eventos existentes permanecen en este modo por defecto.
+- **Moderna con información**: diseño actual con únicamente los campos que tengan contenido. Es el modo inicial de eventos nuevos.
+- **Solo imagen + RSVP**: muestra el arte y una superficie compacta con el botón o estado de RSVP; oculta los datos públicos, precio y cupo.
+
+Controles adicionales:
+
+- **Texto sobre el botón** puede quedar vacío.
+- **Texto del botón RSVP** es obligatorio y admite entre 1 y 80 caracteres.
+- **Oscurecimiento del fondo** va de 0% a 80%.
+- **Ajuste de la imagen** permite `Cubrir pantalla` o `Mostrar imagen completa`. Usa la segunda opción cuando el arte tenga texto cerca de los bordes para evitar recortes en celular.
+
+El modo de presentación solo cambia la invitación pública. Los datos poblados continúan disponibles en emails, PDF y Excel. Los toggles de precio y capacidad siguen controlando si esos valores se muestran; la capacidad se continúa aplicando en servidor aunque el modo `Solo imagen + RSVP` oculte la fila.
 
 #### Configuración de Emails ⭐ NUEVO
 
