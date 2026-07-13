@@ -60,9 +60,13 @@ describe('event invitation view model', () => {
         expect(model.heading.subtitle).toBe(presentationMode === 'artwork_only' ? null : 'Una gran noche')
     })
 
-    it.each(['classic', 'modern_details', 'artwork_only'] as const)(
-        'models the open RSVP CTA and modal contract in %s mode',
-        presentationMode => {
+    it.each([
+        ['classic', 'classic'],
+        ['modern_details', 'modern'],
+        ['artwork_only', 'modern'],
+    ] as const)(
+        'maps %s presentation to the %s RSVP modal variant',
+        (presentationMode, modalVariant) => {
             const model = buildEventInvitationViewModel({ ...baseEvent, presentationMode })
 
             expect(model.rsvp).toEqual({
@@ -70,6 +74,7 @@ describe('event invitation view model', () => {
                 title: 'Confirma aquí',
                 buttonLabel: 'Confirmar asistencia',
                 modal: {
+                    variant: modalVariant,
                     eventSlug: 'fiesta-principal',
                     requirePlusOneName: true,
                 },

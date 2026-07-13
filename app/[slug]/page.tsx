@@ -103,6 +103,7 @@ export default function EventPage() {
                     <RSVPModal
                         isOpen={isModalOpen}
                         onClose={() => setIsModalOpen(false)}
+                        variant={invitationViewModel.rsvp.modal.variant}
                         eventSlug={invitationViewModel.rsvp.modal.eventSlug}
                         requirePlusOneName={invitationViewModel.rsvp.modal.requirePlusOneName}
                         theme={event.theme}

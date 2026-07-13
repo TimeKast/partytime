@@ -14,12 +14,15 @@ export interface InvitationHeadingViewModel {
     subtitle: string | null
 }
 
+export type RsvpModalVariant = 'classic' | 'modern'
+
 export type InvitationRsvpViewModel =
     | {
         kind: 'open'
         title: string | null
         buttonLabel: string
         modal: {
+            variant: RsvpModalVariant
             eventSlug: string
             requirePlusOneName: boolean
         }
@@ -86,6 +89,7 @@ export function buildEventInvitationViewModel(event: PublicEvent): EventInvitati
                 title: rsvpTitle || null,
                 buttonLabel: event.rsvpButtonLabel,
                 modal: {
+                    variant: event.presentationMode === 'classic' ? 'classic' : 'modern',
                     eventSlug: event.slug,
                     requirePlusOneName: event.requirePlusOneName === true,
                 },

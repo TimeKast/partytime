@@ -1,14 +1,17 @@
 'use client'
 
-import { useEffect, useRef, useState, FormEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { motion } from 'framer-motion'
 import { PhoneInput } from 'react-international-phone'
 import 'react-international-phone/style.css'
+import { getSolidCtaColors } from '@/lib/event-presentation'
+import type { RsvpModalVariant } from '@/lib/event-invitation-view-model'
 import styles from './RSVPModal.module.css'
 
 interface RSVPModalProps {
   isOpen: boolean
   onClose: () => void
+  variant: RsvpModalVariant
   eventSlug?: string
   requirePlusOneName?: boolean
   theme?: {
@@ -18,13 +21,31 @@ interface RSVPModalProps {
   }
 }
 
-export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneName, theme }: RSVPModalProps) {
+type ModalStyle = CSSProperties & {
+  '--rsvp-primary'?: string
+}
+
+export default function RSVPModal({ isOpen, onClose, variant, eventSlug, requirePlusOneName, theme }: RSVPModalProps) {
   // Configuración por defecto si no se provee el tema
   const activeTheme = theme || {
     primaryColor: '#FF1493',
     secondaryColor: '#00FFFF',
     accentColor: '#FFD700'
   }
+  const isModern = variant === 'modern'
+  const ctaColors = getSolidCtaColors(activeTheme.primaryColor)
+  const modalStyle: ModalStyle = isModern
+    ? {
+        '--rsvp-primary': ctaColors.background,
+        borderColor: 'rgba(15, 23, 42, 0.16)',
+        boxShadow: '0 24px 70px rgba(15, 23, 42, 0.24)',
+        background: 'rgba(250, 250, 249, 0.97)',
+      }
+    : {
+        borderColor: `${activeTheme.primaryColor}80`,
+        boxShadow: `0 0 40px ${activeTheme.primaryColor}66, 0 0 80px ${activeTheme.secondaryColor}33`,
+        background: `linear-gradient(135deg, rgba(26, 0, 51, 0.98), ${activeTheme.primaryColor}15)`,
+      }
 
   const [formData, setFormData] = useState({
     name: '',
@@ -140,7 +161,7 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
 
   return (
     <motion.div
-      className={styles.overlay}
+      className={`${styles.overlay} ${isModern ? styles.modernOverlay : ''}`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -148,7 +169,7 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
     >
       <motion.div
         ref={dialogRef}
-        className={styles.modal}
+        className={`${styles.modal} ${isModern ? styles.modernModal : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="rsvp-modal-title"
@@ -156,18 +177,14 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.8, y: 50 }}
         onClick={(e) => e.stopPropagation()}
-        style={{
-          borderColor: `${activeTheme.primaryColor}80`,
-          boxShadow: `0 0 40px ${activeTheme.primaryColor}66, 0 0 80px ${activeTheme.secondaryColor}33`,
-          background: `linear-gradient(135deg, rgba(26, 0, 51, 0.98), ${activeTheme.primaryColor}15)`
-        }}
+        style={modalStyle}
       >
         <button
           ref={closeButtonRef}
           className={styles.closeButton}
           onClick={onClose}
           aria-label="Cerrar formulario RSVP"
-          style={{ borderColor: `${activeTheme.primaryColor}80` }}
+          style={isModern ? undefined : { borderColor: `${activeTheme.primaryColor}80` }}
         >
           ✕
         </button>
@@ -176,7 +193,10 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
           <h2
             id="rsvp-modal-title"
             className={styles.modalTitle}
-            style={{
+            style={isModern ? {
+              color: '#111827',
+              textShadow: 'none',
+            } : {
               color: activeTheme.primaryColor,
               textShadow: `0 0 10px ${activeTheme.primaryColor}99, 0 0 20px ${activeTheme.primaryColor}66`
             }}
@@ -185,7 +205,7 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
           </h2>
           <p
             className={styles.modalSubtitle}
-            style={{ color: activeTheme.secondaryColor }}
+            style={isModern ? undefined : { color: activeTheme.secondaryColor }}
           >
             Necesitamos tus datos para el RSVP
           </p>
@@ -197,7 +217,7 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 200 }}
-            style={{
+            style={isModern ? undefined : {
               background: `${activeTheme.secondaryColor}10`,
               borderRadius: '20px',
               border: `1px solid ${activeTheme.secondaryColor}33`,
@@ -206,7 +226,7 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
             }}
           >
             <div className={styles.successIcon}>🎉</div>
-            <h3 style={{ color: activeTheme.secondaryColor }}>¡Confirmado!</h3>
+            <h3 style={isModern ? undefined : { color: activeTheme.secondaryColor }}>¡Confirmado!</h3>
             <p>Nos vemos en la fiesta</p>
           </motion.div>
         ) : (
@@ -225,9 +245,9 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
                 className={styles.input}
                 placeholder="Tu nombre"
                 disabled={isSubmitting}
-                style={{ borderColor: `${activeTheme.primaryColor}4d` }}
-                onFocus={(e) => (e.target.style.borderColor = activeTheme.primaryColor)}
-                onBlur={(e) => (e.target.style.borderColor = `${activeTheme.primaryColor}4d`)}
+                style={isModern ? undefined : { borderColor: `${activeTheme.primaryColor}4d` }}
+                onFocus={isModern ? undefined : (e) => (e.target.style.borderColor = activeTheme.primaryColor)}
+                onBlur={isModern ? undefined : (e) => (e.target.style.borderColor = `${activeTheme.primaryColor}4d`)}
               />
             </div>
 
@@ -245,9 +265,9 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
                 className={styles.input}
                 placeholder="tu@email.com"
                 disabled={isSubmitting}
-                style={{ borderColor: `${activeTheme.primaryColor}4d` }}
-                onFocus={(e) => (e.target.style.borderColor = activeTheme.primaryColor)}
-                onBlur={(e) => (e.target.style.borderColor = `${activeTheme.primaryColor}4d`)}
+                style={isModern ? undefined : { borderColor: `${activeTheme.primaryColor}4d` }}
+                onFocus={isModern ? undefined : (e) => (e.target.style.borderColor = activeTheme.primaryColor)}
+                onBlur={isModern ? undefined : (e) => (e.target.style.borderColor = `${activeTheme.primaryColor}4d`)}
               />
             </div>
 
@@ -265,13 +285,14 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
                 countrySelectorStyleProps={{
                   buttonClassName: styles.countrySelector
                 }}
+                inputProps={{ id: 'phone', name: 'phone' }}
                 disableDialCodePrefill={false}
                 forceDialCode={true}
               />
             </div>
 
             <div className={styles.formGroup}>
-              <label className={styles.checkboxLabel} style={{ borderColor: `${activeTheme.primaryColor}4d` }}>
+              <label className={styles.checkboxLabel} style={isModern ? undefined : { borderColor: `${activeTheme.primaryColor}4d` }}>
                 <input
                   type="checkbox"
                   name="plusOne"
@@ -279,7 +300,7 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
                   onChange={handleChange}
                   className={styles.checkbox}
                   disabled={isSubmitting}
-                  style={{ accentColor: activeTheme.primaryColor } as any}
+                  style={{ accentColor: activeTheme.primaryColor }}
                 />
                 <span className={styles.checkboxText}>¿Vienes con +1?</span>
               </label>
@@ -307,9 +328,9 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
                   className={styles.input}
                   placeholder="Nombre completo del +1"
                   disabled={isSubmitting}
-                  style={{ borderColor: `${activeTheme.primaryColor}4d` }}
-                  onFocus={(e) => (e.target.style.borderColor = activeTheme.primaryColor)}
-                  onBlur={(e) => (e.target.style.borderColor = `${activeTheme.primaryColor}4d`)}
+                  style={isModern ? undefined : { borderColor: `${activeTheme.primaryColor}4d` }}
+                  onFocus={isModern ? undefined : (e) => (e.target.style.borderColor = activeTheme.primaryColor)}
+                  onBlur={isModern ? undefined : (e) => (e.target.style.borderColor = `${activeTheme.primaryColor}4d`)}
                 />
               </motion.div>
             )}
@@ -327,7 +348,11 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
               disabled={isSubmitting}
               whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
               whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
-              style={{
+              style={isModern ? {
+                background: ctaColors.background,
+                color: ctaColors.text,
+                boxShadow: 'none',
+              } : {
                 background: `linear-gradient(135deg, ${activeTheme.primaryColor}, ${activeTheme.secondaryColor})`,
                 boxShadow: `0 0 20px ${activeTheme.primaryColor}80, 0 0 40px ${activeTheme.secondaryColor}4d`
               }}
@@ -335,7 +360,7 @@ export default function RSVPModal({ isOpen, onClose, eventSlug, requirePlusOneNa
               {isSubmitting ? (
                 <span className={styles.spinner}>Enviando...</span>
               ) : (
-                'CONFIRMAR ASISTENCIA'
+                isModern ? 'Confirmar asistencia' : 'CONFIRMAR ASISTENCIA'
               )}
             </motion.button>
           </form>
