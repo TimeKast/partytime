@@ -55,6 +55,8 @@ export async function GET(request: NextRequest) {
         primaryColor: '#FF1493',
         secondaryColor: '#00FFFF',
         accentColor: '#FFD700',
+        backgroundColor: '#1a0033',
+        textColor: '#ffffff',
       }
       const presentation = normalizeEventPresentation(event)
 
@@ -88,7 +90,9 @@ export async function GET(request: NextRequest) {
           theme: {
             primaryColor: theme.primaryColor || '#FF1493',
             secondaryColor: theme.secondaryColor || '#00FFFF',
-            accentColor: theme.accentColor || '#FFD700'
+            accentColor: theme.accentColor || '#FFD700',
+            backgroundColor: theme.backgroundColor || '#1a0033',
+            textColor: theme.textColor || '#ffffff'
           },
           // Email configuration
           emailConfig: {
@@ -139,7 +143,9 @@ export async function GET(request: NextRequest) {
         theme: {
           primaryColor: eventConfig.theme?.primaryColor || '#FF1493',
           secondaryColor: eventConfig.theme?.secondaryColor || '#00FFFF',
-          accentColor: eventConfig.theme?.accentColor || '#FFD700'
+          accentColor: eventConfig.theme?.accentColor || '#FFD700',
+          backgroundColor: eventConfig.theme?.backgroundColor || '#1a0033',
+          textColor: eventConfig.theme?.textColor || '#ffffff'
         },
         // Email configuration (defaults)
         emailConfig: {

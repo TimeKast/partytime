@@ -9,6 +9,7 @@ import {
   normalizeBackgroundImageUrl,
   normalizeOptionalString,
   parseEventPresentationPatch,
+  parseStrictHexColor,
 } from '@/lib/event-presentation'
 
 /**
@@ -35,6 +36,19 @@ export async function POST(request: NextRequest) {
     const presentationPatch = parseEventPresentationPatch(body)
     if (!presentationPatch.success) {
       return NextResponse.json({ success: false, message: presentationPatch.error }, { status: 400 })
+    }
+    let requestedBackgroundColor: string | undefined
+    if (
+      body.theme
+      && typeof body.theme === 'object'
+      && !Array.isArray(body.theme)
+      && Object.prototype.hasOwnProperty.call(body.theme, 'backgroundColor')
+    ) {
+      const backgroundColor = parseStrictHexColor(body.theme.backgroundColor)
+      if (!backgroundColor) {
+        return NextResponse.json({ success: false, message: 'El color de relleno debe ser un HEX de 6 dígitos' }, { status: 400 })
+      }
+      requestedBackgroundColor = backgroundColor
     }
 
     // Validar campos requeridos - eventId siempre es necesario
@@ -161,7 +175,7 @@ export async function POST(request: NextRequest) {
           primaryColor: body.theme?.primaryColor || existingTheme.primaryColor || '#FF1493',
           secondaryColor: body.theme?.secondaryColor || existingTheme.secondaryColor || '#00FFFF',
           accentColor: body.theme?.accentColor || existingTheme.accentColor || '#FFD700',
-          backgroundColor: body.theme?.backgroundColor || existingTheme.backgroundColor || '#1a0033',
+          backgroundColor: (requestedBackgroundColor ?? existingTheme.backgroundColor) || '#1a0033',
           textColor: body.theme?.textColor || existingTheme.textColor || '#ffffff'
         }
         // Plus-one configuration

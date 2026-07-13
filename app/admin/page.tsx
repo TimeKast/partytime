@@ -63,6 +63,7 @@ export default function AdminDashboard() {
     primaryColor: '#FF1493',
     secondaryColor: '#00FFFF',
     accentColor: '#FFD700',
+    backgroundColor: '#1a0033',
     // Email configuration
     emailConfirmationEnabled: false,
     reminderEnabled: false,
@@ -317,6 +318,7 @@ export default function AdminDashboard() {
             primaryColor: data.settings.theme?.primaryColor || '#FF1493',
             secondaryColor: data.settings.theme?.secondaryColor || '#00FFFF',
             accentColor: data.settings.theme?.accentColor || '#FFD700',
+            backgroundColor: data.settings.theme?.backgroundColor || '#1a0033',
             // Email configuration
             emailConfirmationEnabled: data.settings.emailConfig?.confirmationEnabled || false,
             reminderEnabled: data.settings.emailConfig?.reminderEnabled || false,
@@ -834,7 +836,8 @@ export default function AdminDashboard() {
         theme: {
           primaryColor: configForm.primaryColor,
           secondaryColor: configForm.secondaryColor,
-          accentColor: configForm.accentColor
+          accentColor: configForm.accentColor,
+          backgroundColor: configForm.backgroundColor
         },
         // Email configuration
         emailConfig: {
@@ -1809,6 +1812,11 @@ export default function AdminDashboard() {
                 backgroundImageFit: configForm.backgroundImageFit,
               }}
               onChange={(presentation) => setConfigForm(current => ({ ...current, ...presentation }))}
+              backgroundColor={configForm.backgroundColor}
+              backgroundImageUrl={configForm.backgroundImage}
+              onBackgroundColorChange={(backgroundColor) => (
+                setConfigForm(current => ({ ...current, backgroundColor }))
+              )}
             />
 
             <div className={styles.configSection}>
@@ -1887,12 +1895,6 @@ export default function AdminDashboard() {
                 </div>
               )}
 
-              {/* Vista previa (para ambos métodos) */}
-              {configForm.backgroundImage && (
-                <div className={styles.configImagePreview}>
-                  <img src={configForm.backgroundImage} alt="Preview" />
-                </div>
-              )}
             </div>
 
             {/* OG IMAGE SECTION - For social media previews */}

@@ -82,6 +82,11 @@ export function normalizeBackgroundImageUrl(value: unknown): string | null {
     }
 }
 
+export function parseStrictHexColor(value: unknown): string | null {
+    if (typeof value !== 'string' || !/^#[0-9a-f]{6}$/i.test(value)) return null
+    return value.toLowerCase()
+}
+
 export function normalizeEventPresentation(
     input: EventPresentationInput,
     defaults: EventPresentation = LEGACY_PRESENTATION_DEFAULTS,

@@ -13,6 +13,7 @@ import {
     normalizeRsvpButtonLabel,
     parseBackgroundImageFit,
     parseEventPresentationPatch,
+    parseStrictHexColor,
     parseOverlayStrength,
     parsePresentationMode,
 } from '@/lib/event-presentation'
@@ -128,6 +129,15 @@ describe('event presentation contract', () => {
             const cta = getSolidCtaColors(color)
             expect(cta.background).toBe('#2563eb')
             expect(getContrastRatio(cta.background, cta.text)).toBeGreaterThanOrEqual(4.5)
+        }
+    })
+
+    it('parses only complete six-digit HEX colors for persisted theme values', () => {
+        expect(parseStrictHexColor('#120b18')).toBe('#120b18')
+        expect(parseStrictHexColor('#A1B2C3')).toBe('#a1b2c3')
+
+        for (const color of ['#abc', '#12345', '#1234567', '120b18', '#12zz18', '', null]) {
+            expect(parseStrictHexColor(color)).toBeNull()
         }
     })
 })
