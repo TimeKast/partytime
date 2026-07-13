@@ -41,11 +41,11 @@ DATABASE_URL=postgresql://user:pass@ep-xxx.us-east-1.aws.neon.tech/dbname?sslmod
 
 ### 2.3 Ejecutar Migraciones
 
-```bash
-npx drizzle-kit push
-```
-
-Esto creará las tablas: `events`, `rsvps`, `users`
+En una base local vacía, aplica los archivos `drizzle/0000` a `drizzle/0005` en
+orden y ejecuta `npm run verify:db`. Nunca sincronices producción directamente
+desde el schema TypeScript. Producción requiere el preflight, la línea base
+histórica y la aplicación transaccional descritos en
+[`docs/PRODUCTION_MIGRATION_RUNBOOK.md`](docs/PRODUCTION_MIGRATION_RUNBOOK.md).
 
 ---
 

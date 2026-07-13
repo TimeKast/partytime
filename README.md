@@ -66,11 +66,13 @@ CANCEL_TOKEN_SECRET=tu-secret-aleatorio
 CRON_SECRET=tu-cron-secret
 ```
 
-### 3. Ejecutar Migraciones
+### 3. Preparar la Base de Datos
 
-```bash
-npx drizzle-kit push
-```
+No sincronices producción directamente desde el schema TypeScript. Las migraciones
+se revisan y aplican como SQL versionado. Para una base local nueva, aplica
+`drizzle/0000` a `drizzle/0005` en orden. Para producción, sigue obligatoriamente
+[el runbook de migración](docs/PRODUCTION_MIGRATION_RUNBOOK.md); el registro histórico
+requiere una línea base controlada antes de aplicar `0005`.
 
 ### 4. Crear Super Admin
 

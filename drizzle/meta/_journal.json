@@ -8,6 +8,34 @@
       "when": 1769835675204,
       "tag": "0000_add_og_image_url",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1772324897000,
+      "tag": "0001_add_rsvp_closed",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783729900000,
+      "tag": "0002_enforce_event_capacity",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783730776000,
+      "tag": "0003_rsvps_event_fk",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783939800000,
+      "tag": "0004_schema_foundation",
+      "breakpoints": true
     }
   ]
 }
