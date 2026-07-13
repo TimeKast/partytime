@@ -61,7 +61,6 @@ export function generateConfirmationEmail({
     contact: eventConfig.contact
   }
 
-  const theme = event.theme || eventConfig.theme
   const contactEmail = event.contact?.hostEmail || eventConfig.contact.hostEmail
 
   // Limpiar cualquier = al inicio de la URL (bug de encoding)
@@ -140,9 +139,9 @@ export function generateConfirmationEmail({
                     <h1 style="margin: 0; color: #fbbf24; font-size: 36px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase;">
                       ${event.title}
                     </h1>
-                    <h2 style="margin: 8px 0 0 0; color: #f59e0b; font-size: 18px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase;">
+                    ${event.subtitle ? `<h2 style="margin: 8px 0 0 0; color: #f59e0b; font-size: 18px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase;">
                       ${event.subtitle}
-                    </h2>
+                    </h2>` : ''}
                   </td>
                 </tr>
 
@@ -171,13 +170,15 @@ export function generateConfirmationEmail({
                             ${closingText}
                           </p>
 
+                          ${event.date || event.time || event.location || event.price || plusOne ? `
                           <!-- Detalles del evento en card interna -->
                           <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #252530; border-radius: 12px; margin-bottom: 32px; border: 1px solid #333340;">
                             <tr>
                               <td style="padding: 28px;">
                                 
+                                ${event.date ? `
                                 <!-- Fecha -->
-                                <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                                <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: ${event.time || event.location || event.price || plusOne ? '20px' : '0'};">
                                   <tr>
                                     <td style="width: 40px; vertical-align: top; padding-right: 16px;">
                                       <table role="presentation" style="border-collapse: collapse;">
@@ -188,15 +189,17 @@ export function generateConfirmationEmail({
                                         </tr>
                                       </table>
                                     </td>
-                                    <td style="vertical-align: middle; border-bottom: 1px solid #333340; padding-bottom: 20px;">
+                                    <td style="vertical-align: middle; ${event.time || event.location || event.price || plusOne ? 'border-bottom: 1px solid #333340; padding-bottom: 20px;' : ''}">
                                       <p style="margin: 0 0 2px 0; font-size: 11px; color: #888899; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Fecha</p>
                                       <p style="margin: 0; font-size: 16px; color: #ffffff; font-weight: 600;">${event.date}</p>
                                     </td>
                                   </tr>
                                 </table>
+                                ` : ''}
 
+                                ${event.time ? `
                                 <!-- Hora -->
-                                <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                                <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: ${event.location || event.price || plusOne ? '20px' : '0'};">
                                   <tr>
                                     <td style="width: 40px; vertical-align: top; padding-right: 16px;">
                                       <table role="presentation" style="border-collapse: collapse;">
@@ -207,13 +210,15 @@ export function generateConfirmationEmail({
                                         </tr>
                                       </table>
                                     </td>
-                                    <td style="vertical-align: middle; border-bottom: 1px solid #333340; padding-bottom: 20px;">
+                                    <td style="vertical-align: middle; ${event.location || event.price || plusOne ? 'border-bottom: 1px solid #333340; padding-bottom: 20px;' : ''}">
                                       <p style="margin: 0 0 2px 0; font-size: 11px; color: #888899; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">Hora</p>
                                       <p style="margin: 0; font-size: 16px; color: #ffffff; font-weight: 600;">${event.time}</p>
                                     </td>
                                   </tr>
                                 </table>
+                                ` : ''}
 
+                                ${event.location ? `
                                 <!-- Lugar -->
                                 <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: ${event.price || plusOne ? '20px' : '0'};">
                                   <tr>
@@ -232,6 +237,7 @@ export function generateConfirmationEmail({
                                     </td>
                                   </tr>
                                 </table>
+                                ` : ''}
 
                                 ${event.price ? `
                                 <!-- Cuota -->
@@ -278,7 +284,9 @@ export function generateConfirmationEmail({
                               </td>
                             </tr>
                           </table>
+                          ` : ''}
 
+                          ${event.details ? `
                           <!-- Detalles adicionales -->
                           <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 32px;">
                             <tr>
@@ -289,6 +297,7 @@ export function generateConfirmationEmail({
                               </td>
                             </tr>
                           </table>
+                          ` : ''}
 
                           <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #999999; text-align: center;">
                             ${isCancelled

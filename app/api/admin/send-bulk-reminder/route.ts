@@ -11,8 +11,8 @@ import { validateSession } from '@/lib/auth-utils'
 import { userHasEventAccess } from '@/lib/user-queries'
 import { isDatabaseConfigured } from '@/lib/db'
 import { resend, FROM_EMAIL } from '@/lib/resend'
-import { generateConfirmationEmail, EventData } from '@/lib/email-template'
-import eventConfig from '@/event-config.json'
+import { generateConfirmationEmail } from '@/lib/email-template'
+import { buildEventEmailData, buildEventEmailSubject } from '@/lib/event-email-data'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes max
@@ -73,27 +73,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // Build EventData for email template
-        const theme = (event.theme as any) || {}
-        const eventData: EventData = {
-            title: event.title,
-            subtitle: event.subtitle || '',
-            date: event.date || '',
-            time: event.time || '',
-            location: event.location || '',
-            details: event.details || '',
-            price: event.priceEnabled ? `$${event.priceAmount} ${event.priceCurrency || 'MXN'}` : null,
-            backgroundImageUrl: event.backgroundImageUrl || '/background.png',
-            theme: {
-                primaryColor: theme.primaryColor || '#FF1493',
-                secondaryColor: theme.secondaryColor || '#00FFFF',
-                accentColor: theme.accentColor || '#FFD700',
-                backgroundColor: theme.backgroundColor || '#1a0033'
-            },
-            contact: {
-                hostEmail: event.hostEmail || eventConfig.contact?.hostEmail
-            }
-        }
+        const eventData = buildEventEmailData(event)
 
         let sent = 0
         let failed = 0
@@ -140,7 +120,7 @@ export async function POST(request: NextRequest) {
                 const { error: emailError } = await resend.emails.send({
                     from: `Party Time! <${FROM_EMAIL}>`,
                     to: rsvp.email,
-                    subject: `Recordatorio - ${event.title}`,
+                    subject: buildEventEmailSubject(eventData, 'reminder'),
                     html: htmlContent
                 })
 

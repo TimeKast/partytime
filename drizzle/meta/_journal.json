@@ -36,6 +36,13 @@
       "when": 1783939800000,
       "tag": "0004_schema_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783940004620,
+      "tag": "0005_invitation_presentation",
+      "breakpoints": true
     }
   ]
 }

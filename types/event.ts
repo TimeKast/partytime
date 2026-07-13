@@ -1,16 +1,12 @@
 /**
  * Event type definition for multi-party support
  */
-export interface Event {
-    id?: string
+import type { BackgroundImageFit, PresentationMode } from '@/lib/event-presentation'
+
+export interface PublicEvent {
     slug: string           // URL-friendly identifier (e.g., 'andrreas')
-    /**
-     * Access role of the current authenticated user for this event.
-     * Returned by `/api/events` for non-super-admin users.
-     */
-    accessRole?: 'manager' | 'viewer'
     title: string
-    displayTitle?: string   // Optional: title shown on invitation page (if empty, uses title)
+    displayTitle?: string   // Optional: empty means no visible title on the invitation page
     subtitle: string
     date: string
     time: string
@@ -29,6 +25,11 @@ export interface Event {
         url: string
         uploadedAt?: string
     }
+    presentationMode: PresentationMode
+    rsvpTitle: string
+    rsvpButtonLabel: string
+    backgroundOverlayStrength: number
+    backgroundImageFit: BackgroundImageFit
     theme: {
         primaryColor: string
         secondaryColor: string
@@ -36,13 +37,25 @@ export interface Event {
         backgroundColor: string
         textColor: string
     }
+    isActive: boolean      // Can guests still RSVP?
+    requirePlusOneName?: boolean  // If true, +1 name is mandatory in RSVP
+    rsvpClosed?: boolean  // If true, RSVP period is closed
+    rsvpClosedMessage?: string  // Message to show when RSVP is closed
+}
+
+export interface Event extends PublicEvent {
+    id?: string
+    /**
+     * Access role of the current authenticated user for this event.
+     * Returned by `/api/events` for non-super-admin users.
+     */
+    accessRole?: 'manager' | 'viewer'
     contact: {
         hostName: string
         hostEmail: string
         hostPhone?: string
     }
-    isActive: boolean      // Can guests still RSVP?
-    
+
     // Email configuration
     emailConfig: {
         confirmationEnabled: boolean  // Send automatic confirmation on RSVP
@@ -50,13 +63,6 @@ export interface Event {
         reminderScheduledAt: string | null  // When to send the reminder
         reminderSentAt: string | null       // When the reminder was actually sent
     }
-    
-    // Plus-one configuration
-    requirePlusOneName?: boolean  // If true, +1 name is mandatory in RSVP
-    
-    // RSVP Closed configuration
-    rsvpClosed?: boolean  // If true, RSVP period is closed
-    rsvpClosedMessage?: string  // Message to show when RSVP is closed
     
     createdAt: string
     updatedAt: string

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getEventBySlugWithSettings } from '@/lib/queries'
+import { normalizeOptionalString } from '@/lib/event-presentation'
 import sharp from 'sharp'
 
 export const runtime = 'nodejs'
@@ -76,6 +77,18 @@ function escapeXml(text: string): string {
 
 // Genera una imagen OG como SVG - funciona universalmente sin dependencias problemáticas
 function createOgSvg(title: string, subtitle: string, date: string, time: string, location: string): NextResponse {
+  const lines = [
+    { text: title, size: 64, weight: 800, color: '#ff6b9d', glow: true },
+    ...(subtitle ? [{ text: subtitle, size: 32, weight: 600, color: '#00f5ff', glow: true }] : []),
+    ...((date || time) ? [{ text: [date, time].filter(Boolean).join('  •  '), size: 26, weight: 500, color: '#ffffff', glow: false }] : []),
+    ...(location ? [{ text: `📍 ${location}`, size: 22, weight: 500, color: '#b8b8b8', glow: false }] : []),
+  ]
+  const lineGap = 76
+  const startY = 315 - ((lines.length - 1) * lineGap) / 2
+  const textElements = lines.map((line, index) => (
+    `<text x="600" y="${startY + index * lineGap}" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif" font-size="${line.size}" font-weight="${line.weight}" fill="${line.color}"${line.glow ? ' filter="url(#glow)"' : ''}>${escapeXml(line.text)}</text>`
+  )).join('\n  ')
+
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${OG_SIZE.width}" height="${OG_SIZE.height}" xmlns="http://www.w3.org/2000/svg">
   <defs>
@@ -93,10 +106,7 @@ function createOgSvg(title: string, subtitle: string, date: string, time: string
     </filter>
   </defs>
   <rect width="100%" height="100%" fill="url(#bg)"/>
-  <text x="600" y="200" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif" font-size="64" font-weight="800" fill="#ff6b9d" filter="url(#glow)">${escapeXml(title)}</text>
-  <text x="600" y="280" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif" font-size="32" fill="#00f5ff" filter="url(#glow)">${escapeXml(subtitle)}</text>
-  <text x="600" y="380" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif" font-size="26" fill="#ffffff">${escapeXml(date)}  •  ${escapeXml(time)}</text>
-  <text x="600" y="440" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif" font-size="22" fill="#b8b8b8">📍 ${escapeXml(location)}</text>
+  ${textElements}
 </svg>`
 
   return new NextResponse(svg, {
@@ -187,11 +197,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   try {
     const event = await getEventBySlugWithSettings(slug)
     if (event) {
-      title = event.title || 'Evento'
-      subtitle = event.subtitle || ''
-      date = event.date || ''
-      time = event.time || ''
-      location = event.location || ''
+      title = normalizeOptionalString(event.displayTitle) || normalizeOptionalString(event.title) || 'Evento'
+      subtitle = normalizeOptionalString(event.subtitle)
+      date = normalizeOptionalString(event.date)
+      time = normalizeOptionalString(event.time)
+      location = normalizeOptionalString(event.location)
       // Priority: ogImageUrl (dedicated social preview) > backgroundImageUrl (fallback)
       imageUrl = event.ogImageUrl || event.backgroundImageUrl || null
       console.log(`[OG-Image] Event found: ${title}, ogImageUrl: ${event.ogImageUrl}, backgroundImageUrl: ${event.backgroundImageUrl}, using: ${imageUrl}`)

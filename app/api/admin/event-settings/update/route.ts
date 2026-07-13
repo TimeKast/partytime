@@ -3,6 +3,13 @@ import { isDatabaseConfigured } from '@/lib/db'
 import { cookies } from 'next/headers'
 import { validateSession } from '@/lib/auth-utils'
 import { userHasEventAccess } from '@/lib/user-queries'
+import type { Event as DatabaseEvent } from '@/lib/schema'
+import { parseFullUpdatePrice } from '@/lib/event-api-contract'
+import {
+  normalizeBackgroundImageUrl,
+  normalizeOptionalString,
+  parseEventPresentationPatch,
+} from '@/lib/event-presentation'
 
 /**
  * POST /api/admin/event-settings/update
@@ -25,6 +32,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
+    const presentationPatch = parseEventPresentationPatch(body)
+    if (!presentationPatch.success) {
+      return NextResponse.json({ success: false, message: presentationPatch.error }, { status: 400 })
+    }
 
     // Validar campos requeridos - eventId siempre es necesario
     if (!body.eventId) {
@@ -65,56 +76,98 @@ export async function POST(request: NextRequest) {
       const isPartialUpdate = (body.backgroundImage || body.ogImage) && body.title === undefined
       
       // Prepare update data
-      const updates: any = {}
+      const updates: Partial<Omit<DatabaseEvent, 'id' | 'createdAt'>> = {
+        ...presentationPatch.value,
+      }
       
       if (isPartialUpdate) {
         // Partial update: only update provided images
-        if (body.backgroundImage?.url) {
-          console.log('📸 [update] Partial update - backgroundImageUrl:', body.backgroundImage.url)
-          updates.backgroundImageUrl = body.backgroundImage.url
+        if (body.backgroundImage?.url !== undefined) {
+          const backgroundImageUrl = normalizeBackgroundImageUrl(body.backgroundImage.url)
+          if (!backgroundImageUrl) {
+            return NextResponse.json({ success: false, message: 'URL de imagen de fondo inválida' }, { status: 400 })
+          }
+          console.log('📸 [update] Partial update - backgroundImageUrl:', backgroundImageUrl)
+          updates.backgroundImageUrl = backgroundImageUrl
         }
-        if (body.ogImage?.url) {
-          console.log('🖼️ [update] Partial update - ogImageUrl:', body.ogImage.url)
-          updates.ogImageUrl = body.ogImage.url
+        if (body.ogImage?.url !== undefined) {
+          const ogImageUrl = normalizeOptionalString(body.ogImage.url)
+          const normalizedOgImageUrl = ogImageUrl ? normalizeBackgroundImageUrl(ogImageUrl) : ''
+          if (normalizedOgImageUrl === null) {
+            return NextResponse.json({ success: false, message: 'URL de imagen OG inválida' }, { status: 400 })
+          }
+          console.log('🖼️ [update] Partial update - ogImageUrl:', normalizedOgImageUrl)
+          updates.ogImageUrl = normalizedOgImageUrl
         }
       } else {
-        // Full update: title can be empty string (for events with title in image)
-        // Only check if title key exists in body (allows empty string)
-        if (body.title === undefined) {
+        const title = normalizeOptionalString(body.title)
+        if (!title) {
           return NextResponse.json({
             success: false,
-            message: 'Falta el título del evento'
+            message: 'El nombre interno del evento es requerido'
           }, { status: 400 })
         }
         
         console.log('📝 [update] Full update with location:', body.location)
         
-        updates.title = body.title // Can be empty string
-        updates.displayTitle = body.displayTitle ?? '' // Title for invitation page
-        updates.subtitle = body.subtitle || ''
-        updates.date = body.date || ''
-        updates.time = body.time || ''
-        updates.location = body.location || ''
-        updates.details = body.details || ''
-        updates.priceEnabled = body.price?.enabled || false
-        updates.priceAmount = body.price?.amount || 0
-        updates.priceCurrency = body.price?.currency || 'MXN'
-        updates.capacityEnabled = body.capacity?.enabled || false
-        updates.capacityLimit = body.capacity?.limit || 0
-        updates.backgroundImageUrl = body.backgroundImage?.url || event.backgroundImageUrl
-        updates.ogImageUrl = body.ogImage?.url || event.ogImageUrl
+        const price = parseFullUpdatePrice(body.price)
+        if (!price.success) {
+          return NextResponse.json({ success: false, message: price.error }, { status: 400 })
+        }
+        const capacityEnabled = body.capacity?.enabled === true
+        const capacityLimit = body.capacity?.limit ?? 0
+        if (capacityEnabled && (!Number.isInteger(capacityLimit) || capacityLimit < 1)) {
+          return NextResponse.json({ success: false, message: 'El límite de capacidad debe ser un entero positivo' }, { status: 400 })
+        }
+
+        updates.title = title
+        if (body.displayTitle !== undefined) updates.displayTitle = normalizeOptionalString(body.displayTitle)
+        updates.subtitle = normalizeOptionalString(body.subtitle)
+        updates.date = normalizeOptionalString(body.date)
+        updates.time = normalizeOptionalString(body.time)
+        updates.location = normalizeOptionalString(body.location)
+        updates.details = normalizeOptionalString(body.details)
+        updates.priceEnabled = price.value.priceEnabled
+        updates.priceAmount = price.value.priceAmount
+        updates.priceCurrency = price.value.priceCurrency
+        updates.capacityEnabled = capacityEnabled
+        updates.capacityLimit = capacityLimit
+
+        if (body.backgroundImage?.url !== undefined) {
+          const backgroundImageUrl = normalizeBackgroundImageUrl(body.backgroundImage.url)
+          if (!backgroundImageUrl) {
+            return NextResponse.json({ success: false, message: 'URL de imagen de fondo inválida' }, { status: 400 })
+          }
+          updates.backgroundImageUrl = backgroundImageUrl
+        }
+        if (body.ogImage?.url !== undefined) {
+          const ogImageUrl = normalizeOptionalString(body.ogImage.url)
+          const normalizedOgImageUrl = ogImageUrl ? normalizeBackgroundImageUrl(ogImageUrl) : ''
+          if (normalizedOgImageUrl === null) {
+            return NextResponse.json({ success: false, message: 'URL de imagen OG inválida' }, { status: 400 })
+          }
+          updates.ogImageUrl = normalizedOgImageUrl
+        }
         // A3-06: preserve custom backgroundColor/textColor instead of clobbering
         // them with hardcodes (these ARE consumed by the email senders).
-        const existingTheme = (event.theme as any) || {}
+        const existingTheme = event.theme || {
+          primaryColor: '#FF1493',
+          secondaryColor: '#00FFFF',
+          accentColor: '#FFD700',
+          backgroundColor: '#1a0033',
+          textColor: '#ffffff',
+        }
         updates.theme = {
-          primaryColor: body.theme?.primaryColor || '#FF1493',
-          secondaryColor: body.theme?.secondaryColor || '#00FFFF',
-          accentColor: body.theme?.accentColor || '#FFD700',
+          primaryColor: body.theme?.primaryColor || existingTheme.primaryColor || '#FF1493',
+          secondaryColor: body.theme?.secondaryColor || existingTheme.secondaryColor || '#00FFFF',
+          accentColor: body.theme?.accentColor || existingTheme.accentColor || '#FFD700',
           backgroundColor: body.theme?.backgroundColor || existingTheme.backgroundColor || '#1a0033',
           textColor: body.theme?.textColor || existingTheme.textColor || '#ffffff'
         }
         // Plus-one configuration
-        updates.requirePlusOneName = body.requirePlusOneName ?? false
+        if (body.requirePlusOneName !== undefined) {
+          updates.requirePlusOneName = body.requirePlusOneName
+        }
         // RSVP Closed configuration (A3-01): only change when explicitly provided,
         // so a full settings save that omits it does NOT reopen a closed RSVP.
         if (body.rsvpClosed !== undefined) {

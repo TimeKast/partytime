@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 import { validateSession } from '@/lib/auth-utils'
 import { getUserEventAssignments } from '@/lib/user-queries'
 import type { Event } from '@/lib/schema'
+import { parseCreateEventRequest } from '@/lib/event-api-contract'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,50 +92,11 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json()
-
-        // Validate required fields
-        if (!body.slug || !body.title) {
-            return NextResponse.json({
-                success: false,
-                error: 'slug y title son requeridos'
-            }, { status: 400 })
+        const parsedEvent = parseCreateEventRequest(body)
+        if (!parsedEvent.success) {
+            return NextResponse.json({ success: false, error: parsedEvent.error }, { status: 400 })
         }
-
-        // Validate slug format (URL-friendly)
-        if (!/^[a-z0-9-]+$/.test(body.slug)) {
-            return NextResponse.json({
-                success: false,
-                error: 'El slug solo puede contener letras minúsculas, números y guiones'
-            }, { status: 400 })
-        }
-
-        // Build event input with defaults
-        const eventInput = {
-            slug: body.slug,
-            title: body.title,
-            subtitle: body.subtitle || '',
-            date: body.date || '',
-            time: body.time || '',
-            location: body.location || '',
-            details: body.details || '',
-            priceEnabled: body.price?.enabled || false,
-            priceAmount: body.price?.amount || 0,
-            priceCurrency: body.price?.currency || 'MXN',
-            capacityEnabled: body.capacity?.enabled || false,
-            capacityLimit: body.capacity?.limit || 0,
-            backgroundImageUrl: body.backgroundImage?.url || '/background.png',
-            theme: body.theme || {
-                primaryColor: '#FF1493',
-                secondaryColor: '#00FFFF',
-                accentColor: '#FFD700',
-                backgroundColor: '#1a0033',
-                textColor: '#ffffff'
-            },
-            hostName: body.contact?.hostName || '',
-            hostEmail: body.contact?.hostEmail || '',
-            hostPhone: body.contact?.hostPhone || '',
-            isActive: body.isActive !== undefined ? body.isActive : true
-        }
+        const eventInput = parsedEvent.value
 
         if (isDatabaseConfigured()) {
             const { createEvent } = await import('@/lib/queries')
@@ -161,13 +123,14 @@ export async function POST(request: NextRequest) {
                 note: 'Modo Demo: Datos en memoria temporal'
             }, { status: 201 })
         }
-    } catch (error: any) {
+    } catch (error) {
         console.error('Error creating event:', error)
 
-        if (error.message?.includes('Ya existe')) {
+        const message = error instanceof Error ? error.message : ''
+        if (message.includes('Ya existe')) {
             return NextResponse.json({
                 success: false,
-                error: error.message
+                error: message
             }, { status: 409 })
         }
 
@@ -177,5 +140,3 @@ export async function POST(request: NextRequest) {
         }, { status: 500 })
     }
 }
-
-

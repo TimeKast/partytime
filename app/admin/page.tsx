@@ -10,8 +10,14 @@ import * as XLSX from 'xlsx'
 import eventConfig from '@/event-config.json'
 import styles from './admin.module.css'
 import type { Event } from '@/types/event'
+import {
+  normalizeEventPresentation,
+  type BackgroundImageFit,
+  type PresentationMode,
+} from '@/lib/event-presentation'
+import { buildEventExportMetadataRows, createEventExportFilename } from '@/lib/event-export'
 // H-008 FIX: Import extracted components to reduce monolithic file size
-import { StatsCards, UserManagement, ReminderStatusSection, type RSVP } from './components'
+import { EventPresentationSettings, StatsCards, UserManagement, ReminderStatusSection, type RSVP } from './components'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -36,7 +42,7 @@ export default function AdminDashboard() {
   // Estado para configuración del evento
   const [configForm, setConfigForm] = useState({
     title: eventConfig.event.title,
-    displayTitle: '', // Title shown on invitation page (if empty, uses title)
+    displayTitle: '', // Empty means no visible title on the invitation page
     subtitle: eventConfig.event.subtitle,
     date: eventConfig.event.date,
     time: eventConfig.event.time,
@@ -47,6 +53,11 @@ export default function AdminDashboard() {
     capacityEnabled: true,
     capacityLimit: 100,
     backgroundImage: eventConfig.event.backgroundImage,
+    presentationMode: 'classic' as PresentationMode,
+    rsvpTitle: 'RSVP INDISPENSABLE',
+    rsvpButtonLabel: 'CONFIRMAR ASISTENCIA',
+    backgroundOverlayStrength: 20,
+    backgroundImageFit: 'cover' as BackgroundImageFit,
     ogImage: '', // Dedicated OG image for social previews (1200x630)
     // Theme colors
     primaryColor: '#FF1493',
@@ -286,6 +297,7 @@ export default function AdminDashboard() {
         const data = await response.json()
         if (data.success && data.settings) {
           console.log('✅ Configuración cargada:', data.settings.title)
+          const presentation = normalizeEventPresentation(data.settings)
           setConfigForm({
             title: data.settings.title || '',
             displayTitle: data.settings.displayTitle || '',
@@ -294,6 +306,7 @@ export default function AdminDashboard() {
             time: data.settings.time || '',
             location: data.settings.location || '',
             details: data.settings.details || '',
+            ...presentation,
             priceEnabled: data.settings.price?.enabled || false,
             priceAmount: data.settings.price?.amount || 0,
             capacityEnabled: data.settings.capacity?.enabled || false,
@@ -797,6 +810,11 @@ export default function AdminDashboard() {
         time: configForm.time,
         location: configForm.location,
         details: configForm.details,
+        presentationMode: configForm.presentationMode,
+        rsvpTitle: configForm.rsvpTitle,
+        rsvpButtonLabel: configForm.rsvpButtonLabel,
+        backgroundOverlayStrength: configForm.backgroundOverlayStrength,
+        backgroundImageFit: configForm.backgroundImageFit,
         price: {
           enabled: configForm.priceEnabled,
           amount: configForm.priceAmount,
@@ -1014,31 +1032,27 @@ export default function AdminDashboard() {
   const exportInformativeList = () => {
     const doc = new jsPDF()
     const confirmedRsvps = rsvps.filter(r => r.status === 'confirmed')
+    const metadataRows = buildEventExportMetadataRows(configForm).map(stripEmojis)
+    const headerHeight = Math.max(40, 20 + (metadataRows.length - 1) * 8)
 
     // Header elegante
     doc.setFillColor(102, 102, 234) // Color morado del tema
-    doc.rect(0, 0, 210, 40, 'F')
+    doc.rect(0, 0, 210, headerHeight, 'F')
 
     doc.setTextColor(255, 255, 255)
-    doc.setFontSize(24)
-    doc.setFont('helvetica', 'bold')
-    doc.text(stripEmojis(configForm.title), 105, 18, { align: 'center' })
-
-    doc.setFontSize(12)
-    doc.setFont('helvetica', 'normal')
-    doc.text(stripEmojis(configForm.subtitle), 105, 27, { align: 'center' })
-    doc.text(`${stripEmojis(configForm.date)} - ${stripEmojis(configForm.time)}`, 105, 34, { align: 'center' })
-
-    // Información del evento
-    doc.setTextColor(0, 0, 0)
-    doc.setFontSize(10)
-    doc.text(stripEmojis(configForm.location), 105, 48, { align: 'center' })
+    metadataRows.forEach((row, index) => {
+      doc.setFontSize(index === 0 ? 24 : 12)
+      doc.setFont('helvetica', index === 0 ? 'bold' : 'normal')
+      doc.text(row, 105, 18 + index * 8, { align: 'center' })
+    })
 
     // Stats
     const totalGuests = confirmedRsvps.length + confirmedRsvps.filter(r => r.plusOne).length
+    const statsY = headerHeight + 14
+    doc.setTextColor(0, 0, 0)
     doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
-    doc.text(`Lista de Invitados - ${confirmedRsvps.length} Confirmaciones - ${totalGuests} Personas`, 14, 60)
+    doc.text(`Lista de Invitados - ${confirmedRsvps.length} Confirmaciones - ${totalGuests} Personas`, 14, statsY)
 
     // Tabla con datos - incluir filas para +1 con nombre si existe
     const tableData: (string | number)[][] = []
@@ -1053,10 +1067,10 @@ export default function AdminDashboard() {
         rsvp.emailSent ? new Date(rsvp.emailSent).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : 'No enviado'
       ])
       // Si tiene +1 con nombre, agregar fila indentada
-      if (rsvp.plusOne && (rsvp as any).plusOneName) {
+      if (rsvp.plusOne && rsvp.plusOneName) {
         tableData.push([
           '',
-          `   + ${stripEmojis((rsvp as any).plusOneName)}`,
+          `   + ${stripEmojis(rsvp.plusOneName)}`,
           '',
           '',
           'Acomp.',
@@ -1066,7 +1080,7 @@ export default function AdminDashboard() {
     })
 
     autoTable(doc, {
-      startY: 68,
+      startY: statsY + 8,
       head: [['#', 'Nombre', 'Email', 'Teléfono', '+1', 'Email']],
       body: tableData,
       theme: 'grid',
@@ -1095,7 +1109,7 @@ export default function AdminDashboard() {
     })
 
     // Footer
-    const pageCount = (doc as any).internal.getNumberOfPages()
+    const pageCount = doc.getNumberOfPages()
     doc.setFontSize(8)
     doc.setTextColor(128, 128, 128)
     doc.text(
@@ -1105,8 +1119,11 @@ export default function AdminDashboard() {
       { align: 'center' }
     )
 
-    // Nombre del archivo con subtitle normalizado (sin espacios ni caracteres especiales)
-    const fileName = `lista-invitados-${configForm.subtitle.toLowerCase().replace(/\s+/g, '-')}.pdf`
+    const fileName = createEventExportFilename({
+      slug: selectedEventId,
+      title: configForm.title,
+      subtitle: configForm.subtitle,
+    }, 'pdf')
     doc.save(fileName)
   }
 
@@ -1118,10 +1135,7 @@ export default function AdminDashboard() {
     // Crear datos para la hoja
     const wsData = [
       // Header rows con info del evento
-      [configForm.title],
-      [configForm.subtitle],
-      [`${configForm.date} - ${configForm.time}`],
-      [configForm.location],
+      ...buildEventExportMetadataRows(configForm).map(row => [row]),
       [],
       [`Lista de Invitados - ${confirmedRsvps.length} Confirmaciones - ${totalGuests} Personas`],
       [],
@@ -1134,7 +1148,7 @@ export default function AdminDashboard() {
         rsvp.email,
         rsvp.phone,
         rsvp.plusOne ? 'Sí' : 'No',
-        (rsvp as any).plusOneName || '',
+        rsvp.plusOneName || '',
         rsvp.emailSent ? new Date(rsvp.emailSent).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : 'No enviado'
       ])
     ]
@@ -1158,7 +1172,11 @@ export default function AdminDashboard() {
     XLSX.utils.book_append_sheet(wb, ws, 'Invitados')
 
     // Generar archivo y descargar
-    const fileName = `lista-invitados-${configForm.subtitle.toLowerCase().replace(/\s+/g, '-')}.xlsx`
+    const fileName = createEventExportFilename({
+      slug: selectedEventId,
+      title: configForm.title,
+      subtitle: configForm.subtitle,
+    }, 'xlsx')
     XLSX.writeFile(wb, fileName)
   }
 
@@ -1588,7 +1606,7 @@ export default function AdminDashboard() {
               <h3 className={styles.configSectionTitle}>📝 Información Básica</h3>
 
               <div className={styles.configFormGroup}>
-                <label className={styles.configLabel}>Nombre del Evento (para gestión) *</label>
+                <label className={styles.configLabel}>Nombre interno del evento *</label>
                 <input
                   type="text"
                   className={styles.configInput}
@@ -1603,7 +1621,7 @@ export default function AdminDashboard() {
               </div>
 
               <div className={styles.configFormGroup}>
-                <label className={styles.configLabel}>Título en Invitación (opcional)</label>
+                <label className={styles.configLabel}>Título visible en la invitación (opcional)</label>
                 <input
                   type="text"
                   className={styles.configInput}
@@ -1617,7 +1635,7 @@ export default function AdminDashboard() {
               </div>
 
               <div className={styles.configFormGroup}>
-                <label className={styles.configLabel}>Subtítulo</label>
+                <label className={styles.configLabel}>Subtítulo (opcional)</label>
                 <input
                   type="text"
                   className={styles.configInput}
@@ -1628,43 +1646,40 @@ export default function AdminDashboard() {
 
               <div className={styles.configFormRow}>
                 <div className={styles.configFormGroup}>
-                  <label className={styles.configLabel}>Fecha *</label>
+                  <label className={styles.configLabel}>Fecha (opcional)</label>
                   <input
                     type="text"
                     className={styles.configInput}
                     value={configForm.date}
                     onChange={(e) => setConfigForm({ ...configForm, date: e.target.value })}
                     placeholder="Ej: Sábado 15 de Febrero"
-                    required
                   />
                 </div>
 
                 <div className={styles.configFormGroup}>
-                  <label className={styles.configLabel}>Hora *</label>
+                  <label className={styles.configLabel}>Hora (opcional)</label>
                   <input
                     type="text"
                     className={styles.configInput}
                     value={configForm.time}
                     onChange={(e) => setConfigForm({ ...configForm, time: e.target.value })}
                     placeholder="Ej: 7:00 PM"
-                    required
                   />
                 </div>
               </div>
 
               <div className={styles.configFormGroup}>
-                <label className={styles.configLabel}>Ubicación *</label>
+                <label className={styles.configLabel}>Ubicación (opcional)</label>
                 <input
                   type="text"
                   className={styles.configInput}
                   value={configForm.location}
                   onChange={(e) => setConfigForm({ ...configForm, location: e.target.value })}
-                  required
                 />
               </div>
 
               <div className={styles.configFormGroup}>
-                <label className={styles.configLabel}>Detalles del Evento</label>
+                <label className={styles.configLabel}>Detalles adicionales (opcional)</label>
                 <textarea
                   className={styles.configTextarea}
                   value={configForm.details}
@@ -1718,7 +1733,7 @@ export default function AdminDashboard() {
                   onChange={(e) => setConfigForm({ ...configForm, capacityEnabled: e.target.checked })}
                 />
                 <label htmlFor="capacityEnabled" className={styles.configToggleLabel}>
-                  Mostrar cupo limitado
+                  Limitar capacidad y mostrar cupo
                 </label>
               </div>
 
@@ -1784,6 +1799,17 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
+
+            <EventPresentationSettings
+              value={{
+                presentationMode: configForm.presentationMode,
+                rsvpTitle: configForm.rsvpTitle,
+                rsvpButtonLabel: configForm.rsvpButtonLabel,
+                backgroundOverlayStrength: configForm.backgroundOverlayStrength,
+                backgroundImageFit: configForm.backgroundImageFit,
+              }}
+              onChange={(presentation) => setConfigForm(current => ({ ...current, ...presentation }))}
+            />
 
             <div className={styles.configSection}>
               <h3 className={styles.configSectionTitle}>🖼️ Imagen de Fondo</h3>
@@ -2357,7 +2383,11 @@ export default function AdminDashboard() {
                 if (data.success) {
                   setMessage('✅ ¡Evento creado exitosamente!')
                   form.reset()
-                  loadEvents()
+                  await loadEvents()
+                  if (data.event?.slug) {
+                    setSelectedEventId(data.event.slug)
+                    setActiveTab('config')
+                  }
                 } else {
                   setMessage(`❌ Error: ${data.error}`)
                 }
@@ -2375,37 +2405,37 @@ export default function AdminDashboard() {
                   pattern="[a-z0-9-]+"
                   required
                   placeholder="mi-fiesta-2025"
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '16px' }}
                 />
                 <small style={{ color: '#666' }}>Solo letras minúsculas, números y guiones. Ej: fiesta-enero</small>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Título *</label>
-                  <input name="title" type="text" required placeholder="Party Time!" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} />
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Nombre interno del evento *</label>
+                  <input name="title" type="text" required placeholder="Party Time!" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '16px' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Subtítulo</label>
-                  <input name="subtitle" type="text" placeholder="ENERO 2025" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} />
+                  <input name="subtitle" type="text" placeholder="ENERO 2025" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '16px' }} />
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Fecha *</label>
-                  <input name="date" type="text" required placeholder="SÁBADO, 15 ENE" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} />
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Fecha (opcional)</label>
+                  <input name="date" type="text" placeholder="SÁBADO, 15 ENE" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '16px' }} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Hora *</label>
-                  <input name="time" type="text" required placeholder="DESDE LAS 7:00 PM" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} />
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Hora (opcional)</label>
+                  <input name="time" type="text" placeholder="DESDE LAS 7:00 PM" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '16px' }} />
                 </div>
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Ubicación *</label>
-                <input name="location" type="text" required placeholder="HAMBURGO 108, ZONA ROSA" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} />
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Ubicación (opcional)</label>
+                <input name="location" type="text" placeholder="HAMBURGO 108, ZONA ROSA" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '16px' }} />
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Detalles</label>
-                <textarea name="details" rows={3} placeholder="🍺 Chelas incluidas..." style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} />
+                <textarea name="details" rows={3} placeholder="🍺 Chelas incluidas..." style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '16px' }} />
               </div>
               <button
                 type="submit"

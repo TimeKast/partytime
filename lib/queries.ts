@@ -368,6 +368,7 @@ export async function getEventBySlugWithSettings(slug: string): Promise<{
     id: string
     slug: string
     title: string
+    displayTitle: string
     subtitle: string
     date: string
     time: string
@@ -382,6 +383,7 @@ export async function getEventBySlugWithSettings(slug: string): Promise<{
         id: event.id,
         slug: event.slug,
         title: event.title,
+        displayTitle: event.displayTitle ?? '',
         subtitle: event.subtitle ?? '',
         date: event.date ?? '',
         time: event.time ?? '',

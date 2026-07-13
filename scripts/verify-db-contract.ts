@@ -113,6 +113,64 @@ async function main() {
         WHERE NOT EXISTS (SELECT 1 FROM events e WHERE e.slug = r.event_id)`)
     checks.push(['0 orphan rsvps', orphans[0].n === 0])
 
+    const presentationColumns = await query(`
+        SELECT column_name, is_nullable, column_default
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'events'
+          AND column_name IN (
+              'presentation_mode',
+              'rsvp_title',
+              'rsvp_button_label',
+              'background_overlay_strength',
+              'background_image_fit'
+          )`)
+    const columnByName = new Map(presentationColumns.map(column => [column.column_name, column]))
+    const expectedDefaults = new Map<string, string>([
+        ['presentation_mode', 'classic'],
+        ['rsvp_title', 'RSVP INDISPENSABLE'],
+        ['rsvp_button_label', 'CONFIRMAR ASISTENCIA'],
+        ['background_overlay_strength', '20'],
+        ['background_image_fit', 'cover'],
+    ])
+
+    for (const [columnName, expectedDefault] of expectedDefaults) {
+        const column = columnByName.get(columnName)
+        checks.push([
+            `events.${columnName} exists and is NOT NULL`,
+            column?.is_nullable === 'NO',
+        ])
+        checks.push([
+            `events.${columnName} default is ${expectedDefault}`,
+            typeof column?.column_default === 'string'
+                && column.column_default.includes(expectedDefault),
+        ])
+    }
+
+    const presentationConstraints = await query(`
+        SELECT conname, pg_get_constraintdef(oid) AS definition
+        FROM pg_constraint
+        WHERE conrelid = 'public.events'::regclass
+          AND conname IN (
+              'events_presentation_mode_check',
+              'events_background_image_fit_check',
+              'events_background_overlay_strength_check',
+              'events_rsvp_button_label_check'
+          )`)
+    const constraintByName = new Map(presentationConstraints.map(constraint => [constraint.conname, constraint.definition]))
+    const expectedConstraintFragments = new Map<string, string[]>([
+        ['events_presentation_mode_check', ['classic', 'modern_details', 'artwork_only']],
+        ['events_background_image_fit_check', ['cover', 'contain']],
+        ['events_background_overlay_strength_check', ['>= 0', '<= 80']],
+        ['events_rsvp_button_label_check', ['btrim', 'char_length', '>= 1', '<= 80']],
+    ])
+    for (const [constraintName, fragments] of expectedConstraintFragments) {
+        const definition = constraintByName.get(constraintName)
+        checks.push([
+            `check constraint ${constraintName}`,
+            typeof definition === 'string' && fragments.every(fragment => definition.includes(fragment)),
+        ])
+    }
 
     let failed = 0
     for (const [name, ok] of checks) {
