@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { getEventBySlugWithSettings } from '@/lib/queries'
 import { buildEventMetadata } from '@/lib/event-presentation'
+import { buildOgImageUrl } from '@/lib/og-image-url'
 
 // Forzar regeneración dinámica de metadatos en cada request
 export const dynamic = 'force-dynamic'
@@ -30,7 +31,7 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
 
         // Para WhatsApp: servir SIEMPRE desde nuestro dominio (proxy+fallback) para evitar bloqueos del host de la imagen.
         // El parámetro v= fuerza invalidación de caché cuando se cambia la imagen OG
-        const imageUrl = `${baseUrl}/api/og-image/${slug}?v=5`
+        const imageUrl = buildOgImageUrl(baseUrl, slug, '5')
 
         return {
             metadataBase: new URL(baseUrl),

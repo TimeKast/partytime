@@ -1,4 +1,5 @@
 import sharp from 'sharp'
+import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -35,9 +36,9 @@ async function expectJpegResponse(response: Response) {
     })
 }
 
-async function callRoute() {
+async function callRoute(slug = event.slug) {
     const { GET } = await import('@/app/api/og-image/[slug]/route')
-    return GET({} as never, { params: Promise.resolve({ slug: event.slug }) })
+    return GET({} as never, { params: Promise.resolve({ slug }) })
 }
 
 describe('OG image route raster contract', () => {
@@ -92,5 +93,31 @@ describe('OG image route raster contract', () => {
         }))
 
         await expectJpegResponse(await callRoute())
+    })
+
+    it('serves a conforming repository JPEG unchanged before querying event image sources', async () => {
+        const slug = 'patchwrk-260815'
+        const customJpeg = readFileSync(`public/og-${slug}.jpg`)
+
+        vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => {
+            if (String(url).endsWith(`/og-${slug}.jpg`)) {
+                return new Response(new Uint8Array(customJpeg), {
+                    headers: { 'Content-Type': 'image/jpeg' },
+                })
+            }
+            return new Response(null, { status: 404 })
+        }))
+
+        const response = await callRoute(slug)
+        const responseImage = Buffer.from(await response.arrayBuffer())
+
+        expect(response.headers.get('content-type')).toBe('image/jpeg')
+        expect(responseImage).toEqual(customJpeg)
+        await expect(sharp(responseImage).metadata()).resolves.toMatchObject({
+            format: 'jpeg',
+            width: 1200,
+            height: 630,
+        })
+        expect(mocks.getEventBySlugWithSettings).not.toHaveBeenCalled()
     })
 })
