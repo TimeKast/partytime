@@ -83,6 +83,18 @@ describe('OG metadata cache keys', () => {
         expect(first).not.toBe(second)
     })
 
+    it('advertises an uploaded public Vercel Blob OG directly', async () => {
+        const uploadedOgUrl = 'https://store.public.blob.vercel-storage.com/events/home-event-123.png'
+        const uploadedEvent = { ...event, ogImageUrl: uploadedOgUrl }
+        const eventMetadata = await getEventMetadata(uploadedEvent)
+        const homeMetadata = await getHomeMetadata(uploadedEvent)
+
+        expect(getMetadataImageUrl(eventMetadata)).toBe(uploadedOgUrl)
+        expect(getTwitterImageUrl(eventMetadata)).toBe(uploadedOgUrl)
+        expect(getMetadataImageUrl(homeMetadata)).toBe(uploadedOgUrl)
+        expect(getTwitterImageUrl(homeMetadata)).toBe(uploadedOgUrl)
+    })
+
     it('uses the same metadata image URL for the home and event pages', async () => {
         const eventMetadata = await getEventMetadata(event)
         const homeMetadata = await getHomeMetadata(event)
