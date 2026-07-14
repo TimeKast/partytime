@@ -12,13 +12,15 @@ export const dynamic = 'force-dynamic'
 
 const FETCH_TIMEOUT = 8000
 const CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400'
+type OgSource = 'dedicated' | 'static' | 'background' | 'generated'
 
-function rasterResponse(imageBuffer: Buffer): NextResponse {
+function rasterResponse(imageBuffer: Buffer, source: OgSource): NextResponse {
   return new NextResponse(new Uint8Array(imageBuffer), {
     status: 200,
     headers: {
       'Content-Type': 'image/jpeg',
       'Cache-Control': CACHE_CONTROL,
+      'X-OG-Source': source,
     },
   })
 }
@@ -36,6 +38,7 @@ async function fetchRasterImage(
       redirect: 'follow',
       signal: controller.signal,
       headers,
+      cache: 'no-store',
     })
 
     if (!response.ok) {
@@ -99,7 +102,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const returnFallback = async () => {
     console.log('[OG-Image] Returning generated JPEG fallback')
-    return rasterResponse(await createOgFallbackRaster(fallbackContent))
+    return rasterResponse(await createOgFallbackRaster(fallbackContent), 'generated')
   }
 
   const eventImageHeaders = {
@@ -109,21 +112,25 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     'Referer': baseUrl,
   }
 
-  if (dedicatedImageUrl && dedicatedImageUrl !== '/background.png') {
+  const hasDedicatedImage = Boolean(dedicatedImageUrl)
+
+  if (hasDedicatedImage && dedicatedImageUrl) {
     const imageUrl = dedicatedImageUrl.startsWith('/')
       ? `${baseUrl}${dedicatedImageUrl}`
       : dedicatedImageUrl
     const raster = await fetchRasterImage(imageUrl, eventImageHeaders)
-    if (raster) return rasterResponse(raster)
+    if (raster) return rasterResponse(raster, 'dedicated')
   }
 
-  for (const ext of ['png', 'jpg']) {
-    const customOgUrl = `${baseUrl}/og-${slug}.${ext}`
-    console.log(`[OG-Image] Checking for custom OG image: ${customOgUrl}`)
-    const raster = await fetchRasterImage(customOgUrl, {
-      'User-Agent': 'OG-Image-Generator/1.0',
-    })
-    if (raster) return rasterResponse(raster)
+  if (!hasDedicatedImage) {
+    for (const ext of ['png', 'jpg']) {
+      const customOgUrl = `${baseUrl}/og-${slug}.${ext}`
+      console.log(`[OG-Image] Checking for custom OG image: ${customOgUrl}`)
+      const raster = await fetchRasterImage(customOgUrl, {
+        'User-Agent': 'OG-Image-Generator/1.0',
+      })
+      if (raster) return rasterResponse(raster, 'static')
+    }
   }
 
   if (backgroundImageUrl && backgroundImageUrl !== '/background.png') {
@@ -131,7 +138,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       ? `${baseUrl}${backgroundImageUrl}`
       : backgroundImageUrl
     const raster = await fetchRasterImage(imageUrl, eventImageHeaders)
-    if (raster) return rasterResponse(raster)
+    if (raster) return rasterResponse(raster, 'background')
   }
 
   console.log('[OG-Image] No usable event image configured, using generated fallback')

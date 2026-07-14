@@ -23,9 +23,12 @@ const event = {
     backgroundImageUrl: null as string | null,
 }
 
-async function expectJpegResponse(response: Response) {
+type OgSource = 'dedicated' | 'static' | 'background' | 'generated'
+
+async function expectJpegResponse(response: Response, source: OgSource) {
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toBe('image/jpeg')
+    expect(response.headers.get('x-og-source')).toBe(source)
 
     const image = Buffer.from(await response.arrayBuffer())
     expect(image.subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]))
@@ -36,9 +39,10 @@ async function expectJpegResponse(response: Response) {
     })
 }
 
-async function expectNormalizedSource(response: Response, source: Buffer) {
+async function expectNormalizedSource(response: Response, source: Buffer, sourceCategory: OgSource) {
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toBe('image/jpeg')
+    expect(response.headers.get('x-og-source')).toBe(sourceCategory)
 
     const actual = Buffer.from(await response.arrayBuffer())
     const expected = await normalizeOgImage(source)
@@ -79,7 +83,7 @@ describe('OG image route raster contract', () => {
     it('returns a JPEG fallback when the valid event has no image source', async () => {
         mocks.getEventBySlugWithSettings.mockResolvedValue(event)
 
-        await expectJpegResponse(await callRoute())
+        await expectJpegResponse(await callRoute(), 'generated')
     })
 
     it('returns a JPEG fallback when the selected source fetch fails', async () => {
@@ -89,7 +93,7 @@ describe('OG image route raster contract', () => {
             backgroundImageUrl: 'https://blob.example/background.jpg',
         })
 
-        await expectJpegResponse(await callRoute())
+        await expectJpegResponse(await callRoute(), 'generated')
     })
 
     it('prefers the persisted dedicated image when a static custom image is available', async () => {
@@ -118,16 +122,56 @@ describe('OG image route raster contract', () => {
 
         const response = await callRoute()
 
-        await expectNormalizedSource(response, dedicated)
+        await expectNormalizedSource(response, dedicated, 'dedicated')
+        expect(fetch).toHaveBeenCalledWith(dedicatedUrl, expect.objectContaining({
+            cache: 'no-store',
+        }))
     })
 
-    it('falls through to the static custom image when the dedicated fetch fails', async () => {
+    it('skips a legacy static image and falls through to the background when dedicated fetch fails', async () => {
         const dedicatedUrl = 'https://blob.example/dedicated.png'
+        const backgroundUrl = 'https://blob.example/background.png'
         const staticImage = await createSolidImage('#7c3aed')
-        const fetchMock = vi.fn(async (url: string | URL | Request) => {
+        const background = await createSolidImage('#0ea5e9')
+        const fetchMock = vi.fn(async (url: string | URL | Request, _init?: RequestInit) => {
             if (String(url) === dedicatedUrl) {
                 return new Response(null, { status: 503 })
             }
+            if (String(url).endsWith(`/og-${event.slug}.png`)) {
+                return new Response(new Uint8Array(staticImage), {
+                    headers: { 'Content-Type': 'image/png' },
+                })
+            }
+            if (String(url) === backgroundUrl) {
+                return new Response(new Uint8Array(background), {
+                    headers: { 'Content-Type': 'image/png' },
+                })
+            }
+            return new Response(null, { status: 404 })
+        })
+
+        mocks.getEventBySlugWithSettings.mockResolvedValue({
+            ...event,
+            ogImageUrl: dedicatedUrl,
+            backgroundImageUrl: backgroundUrl,
+        })
+        vi.stubGlobal('fetch', fetchMock)
+
+        const response = await callRoute()
+
+        await expectNormalizedSource(response, background, 'background')
+        expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+            dedicatedUrl,
+            backgroundUrl,
+        ])
+        for (const [, init] of fetchMock.mock.calls) {
+            expect(init).toEqual(expect.objectContaining({ cache: 'no-store' }))
+        }
+    })
+
+    it('uses a legacy static image only when no dedicated image is configured', async () => {
+        const staticImage = await createSolidImage('#7c3aed')
+        const fetchMock = vi.fn(async (url: string | URL | Request, _init?: RequestInit) => {
             if (String(url).endsWith(`/og-${event.slug}.png`)) {
                 return new Response(new Uint8Array(staticImage), {
                     headers: { 'Content-Type': 'image/png' },
@@ -138,17 +182,49 @@ describe('OG image route raster contract', () => {
 
         mocks.getEventBySlugWithSettings.mockResolvedValue({
             ...event,
-            ogImageUrl: dedicatedUrl,
+            ogImageUrl: null,
             backgroundImageUrl: 'https://blob.example/background.jpg',
         })
         vi.stubGlobal('fetch', fetchMock)
 
-        const response = await callRoute()
+        await expectNormalizedSource(await callRoute(), staticImage, 'static')
+        expect(fetchMock.mock.calls[0]?.[1]).toEqual(expect.objectContaining({ cache: 'no-store' }))
+    })
 
-        await expectNormalizedSource(response, staticImage)
+    it('treats a legacy-looking dedicated URL as configured and skips static fallback', async () => {
+        const dedicatedUrl = '/background.png'
+        const resolvedDedicatedUrl = `https://party.timekast.mx${dedicatedUrl}`
+        const backgroundUrl = 'https://blob.example/background.png'
+        const staticImage = await createSolidImage('#7c3aed')
+        const background = await createSolidImage('#0ea5e9')
+        const fetchMock = vi.fn(async (url: string | URL | Request) => {
+            if (String(url) === resolvedDedicatedUrl) {
+                return new Response(null, { status: 404 })
+            }
+            if (String(url).endsWith(`/og-${event.slug}.png`)) {
+                return new Response(new Uint8Array(staticImage), {
+                    headers: { 'Content-Type': 'image/png' },
+                })
+            }
+            if (String(url) === backgroundUrl) {
+                return new Response(new Uint8Array(background), {
+                    headers: { 'Content-Type': 'image/png' },
+                })
+            }
+            return new Response(null, { status: 404 })
+        })
+
+        mocks.getEventBySlugWithSettings.mockResolvedValue({
+            ...event,
+            ogImageUrl: dedicatedUrl,
+            backgroundImageUrl: backgroundUrl,
+        })
+        vi.stubGlobal('fetch', fetchMock)
+
+        await expectNormalizedSource(await callRoute(), background, 'background')
         expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
-            dedicatedUrl,
-            expect.stringMatching(`/og-${event.slug}\\.png$`),
+            resolvedDedicatedUrl,
+            backgroundUrl,
         ])
     })
 
@@ -176,7 +252,38 @@ describe('OG image route raster contract', () => {
             return new Response(null, { status: 404 })
         }))
 
-        await expectNormalizedSource(await callRoute(), background)
+        await expectNormalizedSource(await callRoute(), background, 'background')
+    })
+
+    it('uses the generated fallback instead of static when dedicated content is invalid and no background exists', async () => {
+        const dedicatedUrl = 'https://blob.example/dedicated.png'
+        const staticImage = await createSolidImage('#7c3aed')
+        const fetchMock = vi.fn(async (url: string | URL | Request) => {
+            if (String(url) === dedicatedUrl) {
+                return new Response('<html>not an image</html>', {
+                    headers: { 'Content-Type': 'text/html' },
+                })
+            }
+            if (String(url).endsWith(`/og-${event.slug}.png`)) {
+                return new Response(new Uint8Array(staticImage), {
+                    headers: { 'Content-Type': 'image/png' },
+                })
+            }
+            return new Response(null, { status: 404 })
+        })
+
+        mocks.getEventBySlugWithSettings.mockResolvedValue({
+            ...event,
+            ogImageUrl: dedicatedUrl,
+            backgroundImageUrl: null,
+        })
+        vi.stubGlobal('fetch', fetchMock)
+
+        await expectJpegResponse(await callRoute(), 'generated')
+        expect(fetchMock).toHaveBeenCalledTimes(1)
+        expect(fetchMock).toHaveBeenCalledWith(dedicatedUrl, expect.objectContaining({
+            cache: 'no-store',
+        }))
     })
 
     it('returns a normalized JPEG when the selected source is portrait', async () => {
@@ -204,6 +311,6 @@ describe('OG image route raster contract', () => {
             return new Response(null, { status: 404 })
         }))
 
-        await expectJpegResponse(await callRoute())
+        await expectJpegResponse(await callRoute(), 'dedicated')
     })
 })
