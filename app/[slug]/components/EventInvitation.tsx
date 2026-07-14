@@ -29,6 +29,27 @@ const DETAIL_ICONS: Record<VisibleEventDetail['kind'], string> = {
     capacity: '⚠️',
 }
 
+const CLASSIC_OVERLAY_REFERENCE_STRENGTH = 20
+
+function getBackgroundOverlayStyle(isClassic: boolean, strength: number, primaryColor: string) {
+    if (strength === 0) {
+        return { background: 'transparent' }
+    }
+
+    if (!isClassic) {
+        return { backgroundColor: `rgba(0, 0, 0, ${strength / 100})` }
+    }
+
+    const scaledAlpha = (referenceAlpha: number) => Math.min(
+        255,
+        Math.round(referenceAlpha * strength / CLASSIC_OVERLAY_REFERENCE_STRENGTH),
+    ).toString(16).padStart(2, '0')
+
+    return {
+        background: `linear-gradient(180deg, ${primaryColor}${scaledAlpha(0x10)} 0%, ${primaryColor}${scaledAlpha(0x30)} 100%)`,
+    }
+}
+
 export default function EventInvitation({ event, viewModel, onRsvp }: EventInvitationProps) {
     const shouldReduceMotion = useReducedMotion()
     const [backgroundSrc, setBackgroundSrc] = useState<string | null>(viewModel.background.initialSrc)
@@ -78,9 +99,11 @@ export default function EventInvitation({ event, viewModel, onRsvp }: EventInvit
                 )}
                 <div
                     className={`${styles.overlay} ${isClassic ? styles.classicOverlay : styles.modernOverlay}`}
-                    style={isClassic
-                        ? { background: `linear-gradient(180deg, ${event.theme.primaryColor}10 0%, ${event.theme.primaryColor}30 100%)` }
-                        : { backgroundColor: `rgba(0, 0, 0, ${event.backgroundOverlayStrength / 100})` }}
+                    style={getBackgroundOverlayStyle(
+                        isClassic,
+                        event.backgroundOverlayStrength,
+                        event.theme.primaryColor,
+                    )}
                 />
             </div>
 

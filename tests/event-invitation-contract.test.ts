@@ -186,6 +186,75 @@ describe('event invitation background image position', () => {
     )
 })
 
+describe('event invitation background overlay', () => {
+    it.each([
+        ['classic', false],
+        ['classic', true],
+        ['modern_details', false],
+        ['modern_details', true],
+        ['artwork_only', false],
+        ['artwork_only', true],
+    ] as const)(
+        'renders a fully transparent overlay in %s mode when RSVP closed is %s',
+        (presentationMode, rsvpClosed) => {
+            const event = {
+                ...baseEvent,
+                presentationMode,
+                rsvpClosed,
+                backgroundOverlayStrength: 0,
+            }
+            const markup = renderToStaticMarkup(React.createElement(EventInvitation, {
+                event,
+                viewModel: buildEventInvitationViewModel(event),
+                onRsvp: () => undefined,
+            }))
+
+            const overlayStyle = markup.match(/<div class="[^"]*overlay[^"]*" style="([^"]*)"><\/div>/)?.[1]
+
+            expect(overlayStyle).toBe('background:transparent')
+        },
+    )
+
+    it.each([
+        [20, 'background:linear-gradient(180deg, #2563eb10 0%, #2563eb30 100%)'],
+        [40, 'background:linear-gradient(180deg, #2563eb20 0%, #2563eb60 100%)'],
+    ] as const)('scales the classic gradient with %s%% configured strength', (backgroundOverlayStrength, expectedStyle) => {
+        const event = {
+            ...baseEvent,
+            backgroundOverlayStrength,
+        }
+        const markup = renderToStaticMarkup(React.createElement(EventInvitation, {
+            event,
+            viewModel: buildEventInvitationViewModel(event),
+            onRsvp: () => undefined,
+        }))
+
+        const overlayStyle = markup.match(/<div class="[^"]*overlay[^"]*" style="([^"]*)"><\/div>/)?.[1]
+
+        expect(overlayStyle).toBe(expectedStyle)
+    })
+
+    it.each(['modern_details', 'artwork_only'] as const)(
+        'preserves the non-classic overlay at nonzero strength in %s mode',
+        presentationMode => {
+            const event = {
+                ...baseEvent,
+                presentationMode,
+                backgroundOverlayStrength: 35,
+            }
+            const markup = renderToStaticMarkup(React.createElement(EventInvitation, {
+                event,
+                viewModel: buildEventInvitationViewModel(event),
+                onRsvp: () => undefined,
+            }))
+
+            const overlayStyle = markup.match(/<div class="[^"]*overlay[^"]*" style="([^"]*)"><\/div>/)?.[1]
+
+            expect(overlayStyle).toBe('background-color:rgba(0, 0, 0, 0.35)')
+        },
+    )
+})
+
 describe('RSVP modal accessibility contract', () => {
     it('exposes dialog semantics and keeps keyboard focus inside the modal', () => {
         const source = readFileSync('app/components/RSVPModal.tsx', 'utf8')
