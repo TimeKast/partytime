@@ -213,12 +213,26 @@ async function main() {
     const presentationConstraints = (await sql`
         SELECT conname
         FROM pg_constraint
-        WHERE conname IN (
+        WHERE conrelid = 'public.events'::regclass
+          AND conname IN (
             'events_presentation_mode_check',
             'events_background_image_fit_check',
             'events_background_overlay_strength_check',
             'events_rsvp_button_label_check'
         )`
+    ).map(row => String(row.conname))
+    const imagePositionColumns = (await sql`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'events'
+          AND column_name = 'background_image_position'`
+    ).map(row => String(row.column_name))
+    const imagePositionConstraints = (await sql`
+        SELECT conname
+        FROM pg_constraint
+        WHERE conrelid = 'public.events'::regclass
+          AND conname = 'events_background_image_position_check'`
     ).map(row => String(row.conname))
 
     const objects: MigrationObjectState = {
@@ -233,13 +247,16 @@ async function main() {
         orphanRsvps,
         presentationColumns,
         presentationConstraints,
+        imagePositionColumns,
+        imagePositionConstraints,
     }
     const expected = expectedRegistry()
     const result = classifyMigrationPreflight({
         drizzleRegistry,
         publicRegistry,
         expectedFoundationRegistry: expected.slice(0, 5),
-        expectedCurrentRegistry: expected.slice(0, 6),
+        expectedPresentationRegistry: expected.slice(0, 6),
+        expectedCurrentRegistry: expected.slice(0, 7),
         objects,
     })
 
@@ -253,7 +270,7 @@ async function main() {
         objects,
     }
     console.log(process.argv.includes('--json') ? JSON.stringify(output, null, 2) : output)
-    if (!result.canApply0005 && result.classification !== 'registered-current-schema') {
+    if (!result.canApply0005 && !result.canApply0006 && result.classification !== 'registered-current-schema') {
         process.exitCode = 1
     }
 }

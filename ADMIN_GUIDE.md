@@ -65,6 +65,7 @@ Controles adicionales:
 - **Texto del botón RSVP** es obligatorio y admite entre 1 y 80 caracteres.
 - **Oscurecimiento del fondo** va de 0% a 80%.
 - **Ajuste de la imagen** permite `Cubrir pantalla` o `Mostrar imagen completa`. Usa la segunda opción cuando el arte tenga texto cerca de los bordes para evitar recortes en celular.
+- **Alineación de la imagen completa** aparece únicamente con `Solo imagen + RSVP` y `Mostrar imagen completa`. `Centrada` conserva el comportamiento actual y es el default; usa `Arriba` cuando el CTA cubra contenido importante en la parte inferior del arte. La preferencia se conserva, pero se ignora en `Cubrir pantalla`, Clásica y Moderna.
 
 El modo de presentación solo cambia la invitación pública. Los datos poblados continúan disponibles en emails, PDF y Excel. Los toggles de precio y capacidad siguen controlando si esos valores se muestran; la capacidad se continúa aplicando en servidor aunque el modo `Solo imagen + RSVP` oculte la fila.
 

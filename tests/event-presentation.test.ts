@@ -12,10 +12,12 @@ import {
     normalizeEventPresentation,
     normalizeRsvpButtonLabel,
     parseBackgroundImageFit,
+    parseBackgroundImagePosition,
     parseEventPresentationPatch,
     parseStrictHexColor,
     parseOverlayStrength,
     parsePresentationMode,
+    resolveBackgroundImagePosition,
 } from '@/lib/event-presentation'
 
 describe('event presentation contract', () => {
@@ -31,10 +33,11 @@ describe('event presentation contract', () => {
             rsvpButtonLabel: 'Confirmar asistencia',
             backgroundOverlayStrength: 35,
             backgroundImageFit: 'cover',
+            backgroundImagePosition: 'center',
         })
     })
 
-    it('parses only supported presentation modes and image fits', () => {
+    it('parses only supported presentation modes, image fits, and image positions', () => {
         expect(parsePresentationMode('classic')).toBe('classic')
         expect(parsePresentationMode('modern_details')).toBe('modern_details')
         expect(parsePresentationMode('artwork_only')).toBe('artwork_only')
@@ -42,6 +45,38 @@ describe('event presentation contract', () => {
         expect(parseBackgroundImageFit('cover')).toBe('cover')
         expect(parseBackgroundImageFit('contain')).toBe('contain')
         expect(parseBackgroundImageFit('fill')).toBeNull()
+        expect(parseBackgroundImagePosition('center')).toBe('center')
+        expect(parseBackgroundImagePosition('top')).toBe('top')
+        expect(parseBackgroundImagePosition('bottom')).toBeNull()
+    })
+
+    it('defaults missing image position to center and accepts only supported patch values', () => {
+        expect(normalizeEventPresentation({}).backgroundImagePosition).toBe('center')
+        expect(parseEventPresentationPatch({ backgroundImagePosition: 'top' })).toEqual({
+            success: true,
+            value: { backgroundImagePosition: 'top' },
+        })
+        expect(parseEventPresentationPatch({ backgroundImagePosition: 'bottom' })).toEqual({
+            success: false,
+            error: 'Posición de imagen inválida',
+        })
+    })
+
+    it('applies top only to artwork-only contained images', () => {
+        expect(resolveBackgroundImagePosition({
+            presentationMode: 'artwork_only',
+            backgroundImageFit: 'contain',
+            backgroundImagePosition: 'top',
+        })).toBe('top')
+
+        for (const presentation of [
+            { presentationMode: 'artwork_only', backgroundImageFit: 'contain', backgroundImagePosition: 'center' },
+            { presentationMode: 'artwork_only', backgroundImageFit: 'cover', backgroundImagePosition: 'top' },
+            { presentationMode: 'classic', backgroundImageFit: 'contain', backgroundImagePosition: 'top' },
+            { presentationMode: 'modern_details', backgroundImageFit: 'contain', backgroundImagePosition: 'top' },
+        ] as const) {
+            expect(resolveBackgroundImagePosition(presentation)).toBe('center')
+        }
     })
 
     it('accepts overlay boundaries, rejects invalid input, and clamps display values', () => {

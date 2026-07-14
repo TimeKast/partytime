@@ -1,10 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import * as React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import type { Event } from '@/types/event'
+import EventInvitation from '@/app/[slug]/components/EventInvitation'
 import {
     buildEventInvitationViewModel,
     getNextBackgroundSourceAfterError,
 } from '@/lib/event-invitation-view-model'
+
+vi.stubGlobal('React', React)
 
 const baseEvent: Event = {
     slug: 'fiesta-principal',
@@ -23,6 +28,7 @@ const baseEvent: Event = {
     rsvpButtonLabel: 'Confirmar asistencia',
     backgroundOverlayStrength: 20,
     backgroundImageFit: 'cover',
+    backgroundImagePosition: 'center',
     theme: {
         primaryColor: '#2563eb',
         secondaryColor: '#00ffff',
@@ -151,6 +157,33 @@ describe('event invitation view model', () => {
         expect(getNextBackgroundSourceAfterError(bundledFallback)).toBeNull()
         expect(getNextBackgroundSourceAfterError(null)).toBeNull()
     })
+})
+
+describe('event invitation background image position', () => {
+    it.each([
+        ['artwork_only', 'contain', 'top', 'top'],
+        ['artwork_only', 'contain', 'center', 'center'],
+        ['artwork_only', 'cover', 'top', 'center'],
+        ['modern_details', 'contain', 'top', 'center'],
+        ['classic', 'contain', 'top', 'center'],
+    ] as const)(
+        'renders %s/%s/%s with effective %s position',
+        (presentationMode, backgroundImageFit, backgroundImagePosition, expectedPosition) => {
+            const event = {
+                ...baseEvent,
+                presentationMode,
+                backgroundImageFit,
+                backgroundImagePosition,
+            }
+            const markup = renderToStaticMarkup(React.createElement(EventInvitation, {
+                event,
+                viewModel: buildEventInvitationViewModel(event),
+                onRsvp: () => undefined,
+            }))
+
+            expect(markup).toContain(`object-fit:${backgroundImageFit};object-position:${expectedPosition}`)
+        },
+    )
 })
 
 describe('RSVP modal accessibility contract', () => {

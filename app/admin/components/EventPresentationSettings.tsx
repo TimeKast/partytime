@@ -3,6 +3,7 @@
 import * as React from 'react'
 import {
     parseStrictHexColor,
+    resolveBackgroundImagePosition,
     type EventPresentation,
     type PresentationMode,
 } from '@/lib/event-presentation'
@@ -202,6 +203,29 @@ export default function EventPresentationSettings({
                 )}
             </div>
 
+            {value.presentationMode === 'artwork_only' && value.backgroundImageFit === 'contain' && (
+                <div className={styles.configFormGroup}>
+                    <label className={styles.configLabel} htmlFor="backgroundImagePosition">
+                        Alineación de la imagen completa
+                    </label>
+                    <select
+                        id="backgroundImagePosition"
+                        className={styles.configInput}
+                        value={value.backgroundImagePosition}
+                        onChange={event => update(
+                            'backgroundImagePosition',
+                            event.target.value === 'top' ? 'top' : 'center',
+                        )}
+                    >
+                        <option value="center">Centrada (comportamiento actual)</option>
+                        <option value="top">Arriba</option>
+                    </select>
+                    <p className={styles.configHelper}>
+                        Usa “Arriba” si el CTA cubre contenido importante en la parte inferior del arte.
+                    </p>
+                </div>
+            )}
+
             <div className={`${styles.containBackgroundPanel} ${value.backgroundImageFit === 'cover' ? styles.coverPreviewOnly : ''}`}>
                 {value.backgroundImageFit === 'contain' && (
                     <div className={styles.configFormGroup}>
@@ -279,7 +303,10 @@ export default function EventPresentationSettings({
                             <img
                                 src={backgroundImageUrl}
                                 alt="Previsualización de la imagen de fondo"
-                                style={{ objectFit: value.backgroundImageFit }}
+                                style={{
+                                    objectFit: value.backgroundImageFit,
+                                    objectPosition: resolveBackgroundImagePosition(value),
+                                }}
                             />
                         )}
                     </div>

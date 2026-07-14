@@ -1,7 +1,7 @@
-# Runbook de migración 0005
+# Runbook de migraciones 0005–0006
 
 Este runbook es el único procedimiento autorizado para preparar la migración de
-presentación. No autoriza una escritura por sí mismo: requiere ventana aprobada,
+presentación y posición de imagen. No autoriza una escritura por sí mismo: requiere ventana aprobada,
 snapshot/restauración disponible y revisión humana de la salida de cada paso.
 No despliegues la aplicación antes de completar la verificación de base de datos.
 
@@ -34,10 +34,10 @@ canApply0005: false
 
 El exit code es distinto de cero porque la ausencia del registro bloquea una
 migración. Detente si falta un objeto histórico, aparece cualquier objeto de
-presentación, hay huérfanos/duplicados, existe un registro alterno en `public`, o
+presentación o posición, hay huérfanos/duplicados, existe un registro alterno en `public`, o
 la clasificación difiere. La utilidad comprueba las seis tablas base, constraints
 únicos, columnas de 0001/0004, índice de deduplicación, FK, función/trigger de
-capacidad, huérfanos, duplicados y ausencia/presencia completa de 0005.
+capacidad, huérfanos, duplicados y ausencia/presencia completa de 0005 y 0006.
 
 ## Línea base única 0000–0004
 
@@ -45,7 +45,7 @@ Solo después del preflight anterior, revisado contra el mismo destino y dentro 
 la ventana aprobada:
 
 1. congela despliegues y toda actividad de schema/migración hasta terminar la
-   verificación posterior a `0005`;
+   verificación posterior a `0006`;
 2. registra en el ticket de operación el `target.fingerprint` no secreto emitido
    por el preflight y el SHA del checkout revisado;
 3. confirma con otra persona que el fingerprint y el checkout son los aprobados;
@@ -339,6 +339,18 @@ BEGIN
     RAISE EXCEPTION '0005 objects already exist';
   END IF;
 
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'events'
+      AND column_name = 'background_image_position'
+  ) OR EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE connamespace = to_regnamespace('public')
+      AND conname = 'events_background_image_position_check'
+  ) THEN
+    RAISE EXCEPTION '0006 objects already exist';
+  END IF;
+
   IF to_regclass('drizzle.__drizzle_migrations') IS NOT NULL
      OR to_regclass('public.__drizzle_migrations') IS NOT NULL THEN
     RAISE EXCEPTION 'migration registry appeared during baseline guard';
@@ -366,7 +378,7 @@ COMMIT;
 Vuelve a ejecutar el preflight. Debe salir
 `registered-foundation-ready`, con `canApply0005: true`. Cualquier otro resultado
 es un stop obligatorio. El `target.fingerprint` debe seguir siendo idéntico al
-registrado. Mantén congelada la actividad de schema/deploy hasta terminar `0005`
+registrado. Mantén congelada la actividad de schema/deploy hasta terminar `0006`
 y su verificación.
 
 ## Aplicación transaccional de 0005
@@ -384,23 +396,45 @@ Después:
 
 ```bash
 DATABASE_URL='<misma conexión inyectada>' npm run db:preflight -- --json
+```
+
+La clasificación debe ser `registered-presentation-ready`, con
+`canApply0006: true`. Cualquier otro resultado es un stop obligatorio. No
+despliegues todavía la aplicación.
+
+## Aplicación transaccional de 0006
+
+Con el mismo checkout y destino revisados, aplica la migración aditiva de posición
+y registra el hash/timestamp exactos generados por Drizzle en una sola transacción:
+
+```bash
+psql "$DATABASE_URL" -X --set ON_ERROR_STOP=1 --single-transaction \
+  --file drizzle/0006_invitation_image_position.sql \
+  --command "INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('784c8839c64edfdaf0c5511d6f1ec6c309f47b30d60ed77bdf671a0d1ffe610a', 1783988302596)"
+```
+
+Después:
+
+```bash
+DATABASE_URL='<misma conexión inyectada>' npm run db:preflight -- --json
 DATABASE_URL='<misma conexión inyectada>' npm run verify:db
 ```
 
-La clasificación debe ser `registered-current-schema` y `verify:db` debe terminar
-en exit 0. Solo entonces se puede desplegar la aplicación. El deploy sigue siendo
-una autorización separada.
+La clasificación debe ser `registered-current-schema`, `canApply0006: false` y
+`verify:db` debe terminar en exit 0. Solo entonces se puede desplegar la
+aplicación. El deploy sigue siendo una autorización separada.
 
 ## Rollback
 
-Ante una regresión, revierte primero el código de aplicación y conserva las cinco
+Ante una regresión, revierte primero el código de aplicación y conserva las seis
 columnas y constraints aditivos. No elimines columnas durante el incidente: pueden
 contener configuración ya capturada. Una eliminación posterior requiere otra
 migración revisada, aceptación explícita de pérdida de datos y su propia ventana.
 
-## Separación de revisión
+## Revisión Tier 3
 
-La fundación (0004, journal/snapshots, pruebas y este runbook) y la aplicación que
-depende de ella deben revisarse como cambios separados. Los artefactos patch no
-sustituyen ramas/PRs reales; crear esas ramas y publicarlas sigue siendo un gate de
-release hasta recibir autorización explícita para commit y push.
+Un único review owner focalizado debe revisar la migración, el contrato público,
+la matriz de compatibilidad y la evidencia de gates. No se permiten auditorías
+anidadas. Los artefactos patch no sustituyen ramas/PRs reales; crear esas ramas y
+publicarlas sigue siendo un gate de release hasta recibir autorización explícita
+para commit y push.

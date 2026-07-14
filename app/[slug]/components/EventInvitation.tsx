@@ -5,6 +5,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import type { PublicEvent } from '@/types/event'
 import {
     getSolidCtaColors,
+    resolveBackgroundImagePosition,
     type VisibleEventDetail,
 } from '@/lib/event-presentation'
 import {
@@ -68,7 +69,10 @@ export default function EventInvitation({ event, viewModel, onRsvp }: EventInvit
                         src={backgroundSrc}
                         alt=""
                         className={styles.backgroundImage}
-                        style={{ objectFit: event.backgroundImageFit }}
+                        style={{
+                            objectFit: event.backgroundImageFit,
+                            objectPosition: resolveBackgroundImagePosition(event),
+                        }}
                         onError={handleBackgroundError}
                     />
                 )}

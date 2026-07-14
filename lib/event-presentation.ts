@@ -1,9 +1,11 @@
 export const PRESENTATION_MODES = ['classic', 'modern_details', 'artwork_only'] as const
 export const BACKGROUND_IMAGE_FITS = ['cover', 'contain'] as const
+export const BACKGROUND_IMAGE_POSITIONS = ['center', 'top'] as const
 export const DEFAULT_CTA_BACKGROUND = '#2563eb'
 
 export type PresentationMode = typeof PRESENTATION_MODES[number]
 export type BackgroundImageFit = typeof BACKGROUND_IMAGE_FITS[number]
+export type BackgroundImagePosition = typeof BACKGROUND_IMAGE_POSITIONS[number]
 
 export interface EventPresentation {
     presentationMode: PresentationMode
@@ -11,6 +13,7 @@ export interface EventPresentation {
     rsvpButtonLabel: string
     backgroundOverlayStrength: number
     backgroundImageFit: BackgroundImageFit
+    backgroundImagePosition: BackgroundImagePosition
 }
 
 export const LEGACY_PRESENTATION_DEFAULTS: EventPresentation = {
@@ -19,6 +22,7 @@ export const LEGACY_PRESENTATION_DEFAULTS: EventPresentation = {
     rsvpButtonLabel: 'CONFIRMAR ASISTENCIA',
     backgroundOverlayStrength: 20,
     backgroundImageFit: 'cover',
+    backgroundImagePosition: 'center',
 }
 
 export const NEW_EVENT_PRESENTATION_DEFAULTS: EventPresentation = {
@@ -27,6 +31,7 @@ export const NEW_EVENT_PRESENTATION_DEFAULTS: EventPresentation = {
     rsvpButtonLabel: 'Confirmar asistencia',
     backgroundOverlayStrength: 35,
     backgroundImageFit: 'cover',
+    backgroundImagePosition: 'center',
 }
 
 interface EventPresentationInput {
@@ -35,6 +40,7 @@ interface EventPresentationInput {
     rsvpButtonLabel?: unknown
     backgroundOverlayStrength?: unknown
     backgroundImageFit?: unknown
+    backgroundImagePosition?: unknown
 }
 
 export function parsePresentationMode(value: unknown): PresentationMode | null {
@@ -46,6 +52,12 @@ export function parsePresentationMode(value: unknown): PresentationMode | null {
 export function parseBackgroundImageFit(value: unknown): BackgroundImageFit | null {
     return typeof value === 'string' && BACKGROUND_IMAGE_FITS.includes(value as BackgroundImageFit)
         ? value as BackgroundImageFit
+        : null
+}
+
+export function parseBackgroundImagePosition(value: unknown): BackgroundImagePosition | null {
+    return typeof value === 'string' && BACKGROUND_IMAGE_POSITIONS.includes(value as BackgroundImagePosition)
+        ? value as BackgroundImagePosition
         : null
 }
 
@@ -98,6 +110,8 @@ export function normalizeEventPresentation(
         backgroundOverlayStrength: parseOverlayStrength(input.backgroundOverlayStrength)
             ?? defaults.backgroundOverlayStrength,
         backgroundImageFit: parseBackgroundImageFit(input.backgroundImageFit) ?? defaults.backgroundImageFit,
+        backgroundImagePosition: parseBackgroundImagePosition(input.backgroundImagePosition)
+            ?? defaults.backgroundImagePosition,
     }
 }
 
@@ -154,7 +168,26 @@ export function parseEventPresentationPatch(input: unknown): PresentationPatchRe
         value.backgroundImageFit = backgroundImageFit
     }
 
+    if (hasOwn(source, 'backgroundImagePosition')) {
+        const backgroundImagePosition = parseBackgroundImagePosition(source.backgroundImagePosition)
+        if (!backgroundImagePosition) return { success: false, error: 'Posición de imagen inválida' }
+        value.backgroundImagePosition = backgroundImagePosition
+    }
+
     return { success: true, value }
+}
+
+type BackgroundImagePositionInput = Pick<
+    EventPresentation,
+    'presentationMode' | 'backgroundImageFit' | 'backgroundImagePosition'
+>
+
+export function resolveBackgroundImagePosition(input: BackgroundImagePositionInput): BackgroundImagePosition {
+    return input.presentationMode === 'artwork_only'
+        && input.backgroundImageFit === 'contain'
+        && input.backgroundImagePosition === 'top'
+        ? 'top'
+        : 'center'
 }
 
 export type EventDetailKind = 'date' | 'time' | 'location' | 'details' | 'price' | 'capacity'

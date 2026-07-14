@@ -1,0 +1,2 @@
+ALTER TABLE "events" ADD COLUMN "background_image_position" varchar(12) DEFAULT 'center' NOT NULL;--> statement-breakpoint
+ALTER TABLE "events" ADD CONSTRAINT "events_background_image_position_check" CHECK ("events"."background_image_position" in ('center', 'top'));

@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest'
 import {
     classifyMigrationPreflight,
     REQUIRED_HISTORICAL_OBJECTS,
+    REQUIRED_IMAGE_POSITION_OBJECTS,
+    REQUIRED_PRESENTATION_OBJECTS,
     type MigrationObjectState,
 } from '@/lib/migration-preflight'
 import {
@@ -42,7 +44,22 @@ const observedHistoricalObjects: MigrationObjectState = {
     orphanRsvps: 0,
     presentationColumns: [],
     presentationConstraints: [],
+    imagePositionColumns: [],
+    imagePositionConstraints: [],
 }
+
+const foundationRegistry = Array.from({ length: 5 }, (_, index) => ({
+    hash: `hash-${index}`,
+    createdAt: index,
+}))
+const presentationRegistry = [
+    ...foundationRegistry,
+    { hash: 'hash-5', createdAt: 5 },
+]
+const currentRegistry = [
+    ...presentationRegistry,
+    { hash: 'hash-6', createdAt: 6 },
+]
 
 describe('production migration safety', () => {
     it('accepts the reviewed capacity body and rejects case-changed string literals', () => {
@@ -81,6 +98,7 @@ describe('production migration safety', () => {
             drizzleRegistry: null,
             publicRegistry: null,
             expectedFoundationRegistry: [],
+            expectedPresentationRegistry: [],
             expectedCurrentRegistry: [],
             objects: observedHistoricalObjects,
         })
@@ -99,6 +117,7 @@ describe('production migration safety', () => {
             drizzleRegistry: null,
             publicRegistry: null,
             expectedFoundationRegistry: [],
+            expectedPresentationRegistry: [],
             expectedCurrentRegistry: [],
             objects: { ...observedHistoricalObjects, triggers: [] },
         })
@@ -118,6 +137,7 @@ describe('production migration safety', () => {
             drizzleRegistry: null,
             publicRegistry: null,
             expectedFoundationRegistry: [],
+            expectedPresentationRegistry: [],
             expectedCurrentRegistry: [],
             objects: {
                 ...observedHistoricalObjects,
@@ -129,6 +149,88 @@ describe('production migration safety', () => {
         expect(result.canBaseline0000Through0004).toBe(false)
         expect(result.invalidHistoricalSemantics).toContain(failedCheck)
         expect(result.reasons.join('\n')).toContain('invalid historical semantics')
+    })
+
+    it('allows 0006 only from the exact registered 0005 presentation state', () => {
+        const result = classifyMigrationPreflight({
+            drizzleRegistry: presentationRegistry,
+            publicRegistry: null,
+            expectedFoundationRegistry: foundationRegistry,
+            expectedPresentationRegistry: presentationRegistry,
+            expectedCurrentRegistry: currentRegistry,
+            objects: {
+                ...observedHistoricalObjects,
+                presentationColumns: [...REQUIRED_PRESENTATION_OBJECTS.columns],
+                presentationConstraints: [...REQUIRED_PRESENTATION_OBJECTS.constraints],
+            },
+        })
+
+        expect(result).toMatchObject({
+            classification: 'registered-presentation-ready',
+            canApply0005: false,
+            canApply0006: true,
+            missingImagePositionObjects: [
+                'background_image_position',
+                'events_background_image_position_check',
+            ],
+        })
+    })
+
+    it('scopes presentation constraints to public.events before classifying the schema', () => {
+        const source = readFileSync('scripts/migration-preflight.ts', 'utf8')
+        const presentationQuery = source.slice(
+            source.indexOf('const presentationConstraints'),
+            source.indexOf('const imagePositionColumns'),
+        )
+        const imagePositionQuery = source.slice(
+            source.indexOf('const imagePositionConstraints'),
+            source.indexOf('const objects:'),
+        )
+
+        expect(presentationQuery).toContain("conrelid = 'public.events'::regclass")
+        expect(imagePositionQuery).toContain("conrelid = 'public.events'::regclass")
+    })
+
+    it('accepts registered current schema only with complete 0005 and 0006 objects', () => {
+        const result = classifyMigrationPreflight({
+            drizzleRegistry: currentRegistry,
+            publicRegistry: null,
+            expectedFoundationRegistry: foundationRegistry,
+            expectedPresentationRegistry: presentationRegistry,
+            expectedCurrentRegistry: currentRegistry,
+            objects: {
+                ...observedHistoricalObjects,
+                presentationColumns: [...REQUIRED_PRESENTATION_OBJECTS.columns],
+                presentationConstraints: [...REQUIRED_PRESENTATION_OBJECTS.constraints],
+                imagePositionColumns: [...REQUIRED_IMAGE_POSITION_OBJECTS.columns],
+                imagePositionConstraints: [...REQUIRED_IMAGE_POSITION_OBJECTS.constraints],
+            },
+        })
+
+        expect(result).toMatchObject({
+            classification: 'registered-current-schema',
+            canApply0006: false,
+            missingImagePositionObjects: [],
+        })
+    })
+
+    it('fails closed for a partial 0006 object state', () => {
+        const result = classifyMigrationPreflight({
+            drizzleRegistry: presentationRegistry,
+            publicRegistry: null,
+            expectedFoundationRegistry: foundationRegistry,
+            expectedPresentationRegistry: presentationRegistry,
+            expectedCurrentRegistry: currentRegistry,
+            objects: {
+                ...observedHistoricalObjects,
+                presentationColumns: [...REQUIRED_PRESENTATION_OBJECTS.columns],
+                presentationConstraints: [...REQUIRED_PRESENTATION_OBJECTS.constraints],
+                imagePositionColumns: ['background_image_position'],
+            },
+        })
+
+        expect(result.classification).toBe('registered-inconsistent-schema')
+        expect(result.canApply0006).toBe(false)
     })
 
     it('binds semantic SQL to schema, relations, columns, actions, body and enabled state', () => {
@@ -168,6 +270,9 @@ describe('production migration safety', () => {
             'orphan RSVPs detected',
             'duplicate event/email groups detected',
             '0005 objects already exist',
+            '0006 objects already exist',
+            'registered-presentation-ready',
+            'canApply0006: true',
             CAPACITY_FUNCTION_BODY_FINGERPRINT_SQL,
             EXPECTED_CAPACITY_FUNCTION_BODY_HASH,
         ]) {
@@ -197,16 +302,29 @@ describe('production migration safety', () => {
         }
     })
 
-    it('keeps the reviewed baseline hashes synchronized with migrations 0000-0005', () => {
+    it('keeps the reviewed baseline hashes synchronized with migrations 0000-0006', () => {
         const runbook = readFileSync('docs/PRODUCTION_MIGRATION_RUNBOOK.md', 'utf8')
         const journal = JSON.parse(readFileSync('drizzle/meta/_journal.json', 'utf8')) as {
             entries: Array<{ tag: string }>
         }
 
-        for (const entry of journal.entries.slice(0, 6)) {
+        for (const entry of journal.entries.slice(0, 7)) {
             const sql = readFileSync(`drizzle/${entry.tag}.sql`, 'utf8')
             const hash = createHash('sha256').update(sql).digest('hex')
             expect(runbook, entry.tag).toContain(hash)
         }
+    })
+
+    it('runs the full DB verifier only after 0006 is applied', () => {
+        const runbook = readFileSync('docs/PRODUCTION_MIGRATION_RUNBOOK.md', 'utf8')
+        const after0005 = runbook.split('## Aplicación transaccional de 0005')[1]
+            .split('## Aplicación transaccional de 0006')[0]
+        const after0006 = runbook.split('## Aplicación transaccional de 0006')[1]
+
+        expect(after0005).toContain('registered-presentation-ready')
+        expect(after0005).toContain('canApply0006: true')
+        expect(after0005).not.toContain('npm run verify:db')
+        expect(after0006).toContain('npm run verify:db')
+        expect(after0006).toContain('registered-current-schema')
     })
 })

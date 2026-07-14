@@ -1,7 +1,11 @@
 /**
  * Event type definition for multi-party support
  */
-import type { BackgroundImageFit, PresentationMode } from '@/lib/event-presentation'
+import type {
+    BackgroundImageFit,
+    BackgroundImagePosition,
+    PresentationMode,
+} from '@/lib/event-presentation'
 
 export interface PublicEvent {
     slug: string           // URL-friendly identifier (e.g., 'andrreas')
@@ -30,6 +34,7 @@ export interface PublicEvent {
     rsvpButtonLabel: string
     backgroundOverlayStrength: number
     backgroundImageFit: BackgroundImageFit
+    backgroundImagePosition: BackgroundImagePosition
     theme: {
         primaryColor: string
         secondaryColor: string

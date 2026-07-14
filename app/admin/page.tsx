@@ -13,6 +13,7 @@ import type { Event } from '@/types/event'
 import {
   normalizeEventPresentation,
   type BackgroundImageFit,
+  type BackgroundImagePosition,
   type PresentationMode,
 } from '@/lib/event-presentation'
 import { buildEventExportMetadataRows, createEventExportFilename } from '@/lib/event-export'
@@ -58,6 +59,7 @@ export default function AdminDashboard() {
     rsvpButtonLabel: 'CONFIRMAR ASISTENCIA',
     backgroundOverlayStrength: 20,
     backgroundImageFit: 'cover' as BackgroundImageFit,
+    backgroundImagePosition: 'center' as BackgroundImagePosition,
     ogImage: '', // Dedicated OG image for social previews (1200x630)
     // Theme colors
     primaryColor: '#FF1493',
@@ -817,6 +819,7 @@ export default function AdminDashboard() {
         rsvpButtonLabel: configForm.rsvpButtonLabel,
         backgroundOverlayStrength: configForm.backgroundOverlayStrength,
         backgroundImageFit: configForm.backgroundImageFit,
+        backgroundImagePosition: configForm.backgroundImagePosition,
         price: {
           enabled: configForm.priceEnabled,
           amount: configForm.priceAmount,
@@ -1810,6 +1813,7 @@ export default function AdminDashboard() {
                 rsvpButtonLabel: configForm.rsvpButtonLabel,
                 backgroundOverlayStrength: configForm.backgroundOverlayStrength,
                 backgroundImageFit: configForm.backgroundImageFit,
+                backgroundImagePosition: configForm.backgroundImagePosition,
               }}
               onChange={(presentation) => setConfigForm(current => ({ ...current, ...presentation }))}
               backgroundColor={configForm.backgroundColor}

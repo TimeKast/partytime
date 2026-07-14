@@ -23,6 +23,7 @@ const databaseEvent: DatabaseEvent = {
     rsvpButtonLabel: 'Confirmar asistencia',
     backgroundOverlayStrength: 35,
     backgroundImageFit: 'contain',
+    backgroundImagePosition: 'top',
     ogImageUrl: '/private-og.jpg',
     theme: {
         primaryColor: '#2563eb',
@@ -53,6 +54,7 @@ describe('public event DTO', () => {
         expect(Object.keys(dto).sort()).toEqual([
             'backgroundImage',
             'backgroundImageFit',
+            'backgroundImagePosition',
             'backgroundOverlayStrength',
             'capacity',
             'date',
@@ -80,6 +82,7 @@ describe('public event DTO', () => {
             price: { enabled: true, amount: 500, currency: 'MXN' },
             capacity: { enabled: true, limit: 100 },
             presentationMode: 'modern_details',
+            backgroundImagePosition: 'top',
             requirePlusOneName: true,
         })
     })

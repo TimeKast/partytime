@@ -10,7 +10,7 @@ Plataforma web profesional para gestión de invitaciones y RSVPs, diseñada con 
 - **Temas personalizables** - Colores, imágenes de fondo, información
 - **Tres presentaciones públicas** - Clásica, moderna con información y solo imagen + RSVP
 - **Campos públicos opcionales** - Título visible, subtítulo, fecha, hora, ubicación y detalles se omiten sin dejar espacios vacíos
-- **Arte adaptable** - La imagen puede cubrir la pantalla o mostrarse completa sin recortes
+- **Arte adaptable** - La imagen puede cubrir la pantalla o mostrarse completa, centrada o alineada arriba, sin recortes
 - **OG Images dinámicas** para compartir en redes sociales
 
 ### 📊 Panel de Administración (`/admin`)
@@ -44,6 +44,7 @@ Plataforma web profesional para gestión de invitaciones y RSVPs, diseñada con 
 - **Solo imagen + RSVP** oculta título, datos, precio y cupo en la invitación pública, pero conserva la información poblada en administración, emails y exportaciones.
 - El texto sobre el botón puede quedar vacío. El texto del botón RSVP es obligatorio y admite hasta 80 caracteres.
 - El oscurecimiento del fondo acepta valores de 0% a 80%. Para artes con texto cerca de los bordes se recomienda **Mostrar imagen completa** (`contain`).
+- Al usar **Solo imagen + RSVP** con **Mostrar imagen completa**, la alineación puede quedar **Centrada** (default compatible) o cambiarse a **Arriba**. En `cover`, clásica y moderna siempre permanece centrada.
 - Precio y capacidad conservan sus toggles actuales; no aparecen cuando están desactivados.
 
 ---
@@ -82,9 +83,9 @@ CRON_SECRET=tu-cron-secret
 
 No sincronices producción directamente desde el schema TypeScript. Las migraciones
 se revisan y aplican como SQL versionado. Para una base local nueva, aplica
-`drizzle/0000` a `drizzle/0005` en orden. Para producción, sigue obligatoriamente
+`drizzle/0000` a `drizzle/0006` en orden. Para producción, sigue obligatoriamente
 [el runbook de migración](docs/PRODUCTION_MIGRATION_RUNBOOK.md); el registro histórico
-requiere una línea base controlada antes de aplicar `0005`.
+requiere una línea base controlada antes de aplicar `0005` y luego `0006`.
 
 ### 4. Crear Super Admin
 

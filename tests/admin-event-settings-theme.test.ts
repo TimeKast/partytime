@@ -58,6 +58,7 @@ const storedEvent = {
     rsvpButtonLabel: 'Confirmar',
     backgroundOverlayStrength: 20,
     backgroundImageFit: 'contain',
+    backgroundImagePosition: 'top',
     ogImageUrl: '',
     theme: storedTheme,
     requirePlusOneName: false,
@@ -115,6 +116,7 @@ describe('admin event settings theme round-trip', () => {
 
         expect(response.status).toBe(200)
         expect(payload.settings.theme).toEqual(storedTheme)
+        expect(payload.settings.backgroundImagePosition).toBe('top')
     })
 
     it('returns legacy-compatible color defaults when the event is not in the database', async () => {
@@ -128,6 +130,27 @@ describe('admin event settings theme round-trip', () => {
             backgroundColor: '#1a0033',
             textColor: '#ffffff',
         })
+        expect(payload.settings.backgroundImagePosition).toBe('center')
+    })
+
+    it('persists top image position and rejects invalid values before writing', async () => {
+        const accepted = await updateSettings({
+            ...fullUpdate(storedTheme),
+            backgroundImagePosition: 'top',
+        })
+
+        expect(accepted.status).toBe(200)
+        expect(mocks.updateEvent).toHaveBeenCalledWith(storedEvent.id, expect.objectContaining({
+            backgroundImagePosition: 'top',
+        }))
+
+        mocks.updateEvent.mockClear()
+        const rejected = await updateSettings({
+            ...fullUpdate(storedTheme),
+            backgroundImagePosition: 'bottom',
+        })
+        expect(rejected.status).toBe(400)
+        expect(mocks.updateEvent).not.toHaveBeenCalled()
     })
 
     it('saves a valid backgroundColor while preserving every omitted theme color', async () => {

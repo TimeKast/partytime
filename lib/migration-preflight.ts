@@ -20,12 +20,15 @@ export interface MigrationObjectState {
     orphanRsvps: number
     presentationColumns: string[]
     presentationConstraints: string[]
+    imagePositionColumns: string[]
+    imagePositionConstraints: string[]
 }
 
 export interface MigrationPreflightInput {
     drizzleRegistry: MigrationRegistryRow[] | null
     publicRegistry: MigrationRegistryRow[] | null
     expectedFoundationRegistry: MigrationRegistryRow[]
+    expectedPresentationRegistry: MigrationRegistryRow[]
     expectedCurrentRegistry: MigrationRegistryRow[]
     objects: MigrationObjectState
 }
@@ -33,9 +36,11 @@ export interface MigrationPreflightInput {
 export type MigrationPreflightClassification =
     | 'fresh-empty-database'
     | 'unregistered-historical-schema'
+    | 'unregistered-presentation-schema'
     | 'unregistered-current-schema'
     | 'unregistered-inconsistent-schema'
     | 'registered-foundation-ready'
+    | 'registered-presentation-ready'
     | 'registered-current-schema'
     | 'registered-inconsistent-schema'
 
@@ -105,12 +110,19 @@ export const REQUIRED_PRESENTATION_OBJECTS = {
     ],
 } as const
 
+export const REQUIRED_IMAGE_POSITION_OBJECTS = {
+    columns: ['background_image_position'],
+    constraints: ['events_background_image_position_check'],
+} as const
+
 export interface MigrationPreflightResult {
     classification: MigrationPreflightClassification
     canBaseline0000Through0004: boolean
     canApply0005: boolean
+    canApply0006: boolean
     missingHistoricalObjects: string[]
     missingPresentationObjects: string[]
+    missingImagePositionObjects: string[]
     invalidHistoricalSemantics: string[]
     reasons: string[]
 }
@@ -140,6 +152,10 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         ...missing(REQUIRED_PRESENTATION_OBJECTS.columns, input.objects.presentationColumns),
         ...missing(REQUIRED_PRESENTATION_OBJECTS.constraints, input.objects.presentationConstraints),
     ]
+    const missingImagePositionObjects = [
+        ...missing(REQUIRED_IMAGE_POSITION_OBJECTS.columns, input.objects.imagePositionColumns),
+        ...missing(REQUIRED_IMAGE_POSITION_OBJECTS.constraints, input.objects.imagePositionConstraints),
+    ]
     const invalidSemanticObjects = invalidHistoricalSemantics(input.objects.historicalSemantics)
     const historicalComplete = missingHistoricalObjects.length === 0
         && invalidSemanticObjects.length === 0
@@ -148,6 +164,9 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
     const presentationAbsent = input.objects.presentationColumns.length === 0
         && input.objects.presentationConstraints.length === 0
     const presentationComplete = missingPresentationObjects.length === 0
+    const imagePositionAbsent = input.objects.imagePositionColumns.length === 0
+        && input.objects.imagePositionConstraints.length === 0
+    const imagePositionComplete = missingImagePositionObjects.length === 0
     const noRegistry = input.drizzleRegistry === null && input.publicRegistry === null
     const onlyDrizzleRegistry = input.drizzleRegistry !== null && input.publicRegistry === null
     const schemaIsEmpty = input.objects.tables.length === 0
@@ -155,9 +174,11 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
     let classification: MigrationPreflightClassification
     if (noRegistry && schemaIsEmpty) {
         classification = 'fresh-empty-database'
-    } else if (noRegistry && historicalComplete && presentationAbsent) {
+    } else if (noRegistry && historicalComplete && presentationAbsent && imagePositionAbsent) {
         classification = 'unregistered-historical-schema'
-    } else if (noRegistry && historicalComplete && presentationComplete) {
+    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionAbsent) {
+        classification = 'unregistered-presentation-schema'
+    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete) {
         classification = 'unregistered-current-schema'
     } else if (noRegistry) {
         classification = 'unregistered-inconsistent-schema'
@@ -165,6 +186,7 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         onlyDrizzleRegistry
         && historicalComplete
         && presentationAbsent
+        && imagePositionAbsent
         && registryMatches(input.drizzleRegistry!, input.expectedFoundationRegistry)
     ) {
         classification = 'registered-foundation-ready'
@@ -172,6 +194,15 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         onlyDrizzleRegistry
         && historicalComplete
         && presentationComplete
+        && imagePositionAbsent
+        && registryMatches(input.drizzleRegistry!, input.expectedPresentationRegistry)
+    ) {
+        classification = 'registered-presentation-ready'
+    } else if (
+        onlyDrizzleRegistry
+        && historicalComplete
+        && presentationComplete
+        && imagePositionComplete
         && registryMatches(input.drizzleRegistry!, input.expectedCurrentRegistry)
     ) {
         classification = 'registered-current-schema'
@@ -197,8 +228,10 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         classification,
         canBaseline0000Through0004: classification === 'unregistered-historical-schema',
         canApply0005: classification === 'registered-foundation-ready',
+        canApply0006: classification === 'registered-presentation-ready',
         missingHistoricalObjects,
         missingPresentationObjects,
+        missingImagePositionObjects,
         invalidHistoricalSemantics: invalidSemanticObjects,
         reasons,
     }

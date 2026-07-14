@@ -28,6 +28,7 @@ const existingEvent: DatabaseEvent = {
     rsvpButtonLabel: 'CONFIRMAR ASISTENCIA',
     backgroundOverlayStrength: 20,
     backgroundImageFit: 'cover',
+    backgroundImagePosition: 'top',
     ogImageUrl: null,
     theme: {
         primaryColor: '#FF1493',
@@ -71,6 +72,30 @@ describe('event API request contracts', () => {
             rsvpButtonLabel: 'Confirmar asistencia',
             backgroundOverlayStrength: 35,
             backgroundImageFit: 'cover',
+            backgroundImagePosition: 'center',
+        })
+    })
+
+    it('accepts top image position on create and update', () => {
+        expect(parseCreateEventRequest({
+            slug: 'nueva-fiesta',
+            title: 'Nueva fiesta',
+            backgroundImagePosition: 'top',
+        })).toMatchObject({
+            success: true,
+            value: { backgroundImagePosition: 'top' },
+        })
+
+        expect(parseEventUpdateRequest(
+            { backgroundImagePosition: 'top' },
+            existingEvent.slug,
+            existingEvent,
+        )).toEqual({
+            success: true,
+            value: {
+                newSlug: undefined,
+                updates: { backgroundImagePosition: 'top' },
+            },
         })
     })
 
@@ -79,6 +104,7 @@ describe('event API request contracts', () => {
         { rsvpButtonLabel: '   ' },
         { backgroundOverlayStrength: 81 },
         { backgroundImageFit: 'stretch' },
+        { backgroundImagePosition: 'bottom' },
     ])('rejects invalid presentation create payload %#', presentation => {
         expect(parseCreateEventRequest({
             slug: 'nueva-fiesta',
@@ -137,6 +163,18 @@ describe('event API request contracts', () => {
                 updates: { rsvpTitle: '', backgroundOverlayStrength: 0 },
             },
         })
+
+        const omittedPosition = parseEventUpdateRequest(
+            { rsvpTitle: 'Nuevo RSVP' },
+            existingEvent.slug,
+            existingEvent,
+        )
+        expect(omittedPosition).toMatchObject({
+            success: true,
+            value: { updates: { rsvpTitle: 'Nuevo RSVP' } },
+        })
+        expect(omittedPosition.success && omittedPosition.value.updates)
+            .not.toHaveProperty('backgroundImagePosition')
     })
 
     it.each([
@@ -144,6 +182,7 @@ describe('event API request contracts', () => {
         { rsvpButtonLabel: '' },
         { backgroundOverlayStrength: -1 },
         { backgroundImageFit: 'fill' },
+        { backgroundImagePosition: 'bottom' },
     ])('rejects invalid presentation update payload %#', presentation => {
         expect(parseEventUpdateRequest(presentation, existingEvent.slug, existingEvent).success).toBe(false)
     })

@@ -39,6 +39,7 @@ export const events = pgTable('events', {
     rsvpButtonLabel: varchar('rsvp_button_label', { length: 80 }).notNull().default('CONFIRMAR ASISTENCIA'),
     backgroundOverlayStrength: integer('background_overlay_strength').notNull().default(20),
     backgroundImageFit: varchar('background_image_fit', { length: 12 }).notNull().default('cover'),
+    backgroundImagePosition: varchar('background_image_position', { length: 12 }).notNull().default('center'),
 
     // OG image (for social previews - WhatsApp, Facebook, Twitter)
     // Recommended: 1200x630 (1.9:1 aspect ratio)
@@ -89,6 +90,10 @@ export const events = pgTable('events', {
     backgroundImageFitCheck: check(
         'events_background_image_fit_check',
         sql`${table.backgroundImageFit} in ('cover', 'contain')`,
+    ),
+    backgroundImagePositionCheck: check(
+        'events_background_image_position_check',
+        sql`${table.backgroundImagePosition} in ('center', 'top')`,
     ),
     backgroundOverlayStrengthCheck: check(
         'events_background_overlay_strength_check',

@@ -123,7 +123,8 @@ async function main() {
               'rsvp_title',
               'rsvp_button_label',
               'background_overlay_strength',
-              'background_image_fit'
+              'background_image_fit',
+              'background_image_position'
           )`)
     const columnByName = new Map(presentationColumns.map(column => [column.column_name, column]))
     const expectedDefaults = new Map<string, string>([
@@ -132,6 +133,7 @@ async function main() {
         ['rsvp_button_label', 'CONFIRMAR ASISTENCIA'],
         ['background_overlay_strength', '20'],
         ['background_image_fit', 'cover'],
+        ['background_image_position', 'center'],
     ])
 
     for (const [columnName, expectedDefault] of expectedDefaults) {
@@ -154,6 +156,7 @@ async function main() {
           AND conname IN (
               'events_presentation_mode_check',
               'events_background_image_fit_check',
+              'events_background_image_position_check',
               'events_background_overlay_strength_check',
               'events_rsvp_button_label_check'
           )`)
@@ -161,6 +164,7 @@ async function main() {
     const expectedConstraintFragments = new Map<string, string[]>([
         ['events_presentation_mode_check', ['classic', 'modern_details', 'artwork_only']],
         ['events_background_image_fit_check', ['cover', 'contain']],
+        ['events_background_image_position_check', ['center', 'top']],
         ['events_background_overlay_strength_check', ['>= 0', '<= 80']],
         ['events_rsvp_button_label_check', ['btrim', 'char_length', '>= 1', '<= 80']],
     ])
