@@ -4,7 +4,6 @@ import { normalizeOptionalString } from '@/lib/event-presentation'
 import {
   createOgFallbackRaster,
   normalizeOgImage,
-  selectOgImageUrl,
   type OgFallbackContent,
 } from '@/lib/og-image'
 
@@ -24,39 +23,49 @@ function rasterResponse(imageBuffer: Buffer): NextResponse {
   })
 }
 
+async function fetchRasterImage(
+  imageUrl: string,
+  headers: Record<string, string>,
+): Promise<Buffer | null> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
+
+  try {
+    const response = await fetch(imageUrl, {
+      method: 'GET',
+      redirect: 'follow',
+      signal: controller.signal,
+      headers,
+    })
+
+    if (!response.ok) {
+      console.log(`[OG-Image] Fetch failed for ${imageUrl} with status: ${response.status}`)
+      return null
+    }
+
+    const contentType = response.headers.get('content-type') || ''
+    if (!contentType.startsWith('image/')) {
+      console.log(`[OG-Image] Invalid content type for ${imageUrl}: ${contentType}`)
+      return null
+    }
+
+    const source = Buffer.from(await response.arrayBuffer())
+    const raster = await normalizeOgImage(source)
+    console.log(`[OG-Image] Normalized ${imageUrl} from ${(source.length / 1024).toFixed(0)}KB to ${(raster.length / 1024).toFixed(0)}KB`)
+    return raster
+  } catch (err) {
+    console.log(`[OG-Image] Image unavailable or invalid at ${imageUrl}:`, err)
+    return null
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   console.log(`[OG-Image] Processing request for slug: ${slug}`)
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://party.timekast.mx'
-
-  // Preserve support for repository-provided per-event OG files, but normalize
-  // them as well so every successful response is safe for social scrapers.
-  for (const ext of ['png', 'jpg']) {
-    const customOgUrl = `${baseUrl}/og-${slug}.${ext}`
-    try {
-      console.log(`[OG-Image] Checking for custom OG image: ${customOgUrl}`)
-      const customRes = await fetch(customOgUrl, {
-        method: 'GET',
-        headers: { 'User-Agent': 'OG-Image-Generator/1.0' },
-      })
-
-      if (!customRes.ok) continue
-
-      const contentType = customRes.headers.get('content-type') || ''
-      if (!contentType.startsWith('image/')) {
-        console.log(`[OG-Image] Custom file is not an image (Content-Type: ${contentType}), skipping...`)
-        continue
-      }
-
-      const imageBuffer = Buffer.from(await customRes.arrayBuffer())
-      const raster = await normalizeOgImage(imageBuffer)
-      console.log(`[OG-Image] Normalized custom image from ${(imageBuffer.length / 1024).toFixed(0)}KB to ${(raster.length / 1024).toFixed(0)}KB`)
-      return rasterResponse(raster)
-    } catch (err) {
-      console.log(`[OG-Image] Custom image unavailable or invalid at ${customOgUrl}:`, err)
-    }
-  }
 
   const fallbackContent: OgFallbackContent = {
     title: 'Evento',
@@ -65,7 +74,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     time: '',
     location: '',
   }
-  let imageUrl: string | null = null
+  let dedicatedImageUrl: string | null = null
+  let backgroundImageUrl: string | null = null
 
   try {
     const event = await getEventBySlugWithSettings(slug)
@@ -77,8 +87,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       fallbackContent.date = normalizeOptionalString(event.date)
       fallbackContent.time = normalizeOptionalString(event.time)
       fallbackContent.location = normalizeOptionalString(event.location)
-      imageUrl = selectOgImageUrl(event)
-      console.log(`[OG-Image] Event found: ${fallbackContent.title}, using image: ${imageUrl}`)
+      dedicatedImageUrl = event.ogImageUrl
+      backgroundImageUrl = event.backgroundImageUrl
+      console.log(`[OG-Image] Event found: ${fallbackContent.title}`)
     } else {
       console.log(`[OG-Image] Event not found for slug: ${slug}`)
     }
@@ -91,48 +102,38 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return rasterResponse(await createOgFallbackRaster(fallbackContent))
   }
 
-  if (!imageUrl || imageUrl === '/background.png') {
-    console.log(`[OG-Image] No event image configured (${imageUrl || 'null'}), using generated fallback`)
-    return returnFallback()
+  const eventImageHeaders = {
+    'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+    'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Referer': baseUrl,
   }
 
-  if (imageUrl.startsWith('/')) imageUrl = `${baseUrl}${imageUrl}`
+  if (dedicatedImageUrl && dedicatedImageUrl !== '/background.png') {
+    const imageUrl = dedicatedImageUrl.startsWith('/')
+      ? `${baseUrl}${dedicatedImageUrl}`
+      : dedicatedImageUrl
+    const raster = await fetchRasterImage(imageUrl, eventImageHeaders)
+    if (raster) return rasterResponse(raster)
+  }
 
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
-
-  try {
-    console.log(`[OG-Image] Fetching image from: ${imageUrl}`)
-    const res = await fetch(imageUrl, {
-      redirect: 'follow',
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-        'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': baseUrl,
-      },
+  for (const ext of ['png', 'jpg']) {
+    const customOgUrl = `${baseUrl}/og-${slug}.${ext}`
+    console.log(`[OG-Image] Checking for custom OG image: ${customOgUrl}`)
+    const raster = await fetchRasterImage(customOgUrl, {
+      'User-Agent': 'OG-Image-Generator/1.0',
     })
-
-    if (!res.ok) {
-      console.log(`[OG-Image] Fetch failed with status: ${res.status}`)
-      return returnFallback()
-    }
-
-    const contentType = res.headers.get('content-type') || ''
-    if (!contentType.startsWith('image/')) {
-      console.log(`[OG-Image] Invalid content type: ${contentType}`)
-      return returnFallback()
-    }
-
-    const source = Buffer.from(await res.arrayBuffer())
-    const raster = await normalizeOgImage(source)
-    console.log(`[OG-Image] Normalized event image from ${(source.length / 1024).toFixed(0)}KB to ${(raster.length / 1024).toFixed(0)}KB`)
-    return rasterResponse(raster)
-  } catch (err) {
-    console.error('[OG-Image] Error fetching or transforming image:', err)
-    return returnFallback()
-  } finally {
-    clearTimeout(timeoutId)
+    if (raster) return rasterResponse(raster)
   }
+
+  if (backgroundImageUrl && backgroundImageUrl !== '/background.png') {
+    const imageUrl = backgroundImageUrl.startsWith('/')
+      ? `${baseUrl}${backgroundImageUrl}`
+      : backgroundImageUrl
+    const raster = await fetchRasterImage(imageUrl, eventImageHeaders)
+    if (raster) return rasterResponse(raster)
+  }
+
+  console.log('[OG-Image] No usable event image configured, using generated fallback')
+  return returnFallback()
 }
