@@ -69,9 +69,12 @@
 
 @media (max-width: 1023px) {
   .nav {
+    position: fixed;
     top: var(--ad-mobile-top-offset);
-    margin-inline: calc(var(--ad-5) * -1);
-    width: calc(100% + var(--ad-10));
+    right: 0;
+    left: 0;
+    width: 100%;
+    margin: 0;
     border-right: 0;
     border-left: 0;
     border-bottom: 1px solid var(--ad-border-strong);

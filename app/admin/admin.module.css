@@ -298,6 +298,8 @@
 @media (max-width: 1023px) {
   .configPage {
     --ad-config-nav-frame-height: 62px;
+
+    padding-top: var(--ad-config-nav-frame-height);
   }
 
   .configAnchor,
@@ -652,6 +654,7 @@
 
   .configPage {
     padding: 0;
+    padding-top: var(--ad-config-nav-frame-height);
   }
 
   .configHeader,

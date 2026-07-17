@@ -60,13 +60,15 @@ describe('admin refinement UI contracts', () => {
     expect(adminCss).toContain('scroll-margin-top: calc(var(--ad-topbar-h) + var(--ad-config-nav-frame-height) + var(--ad-2))')
   })
 
-  it('separates the sticky Config frame from its mobile horizontal scroller', () => {
+  it('keeps the desktop Config frame sticky and fixes the mobile frame below the topbar', () => {
     const configNav = read('app/admin/components/config/ConfigNav.tsx')
     const navCss = read('app/admin/components/config/ConfigNav.module.css')
     const adminCss = read('app/admin/admin.module.css')
     const navRule = navCss.match(/\.nav\s*\{([\s\S]*?)\}/)?.[1] ?? ''
     const trackRule = navCss.match(/\.track\s*\{([\s\S]*?)\}/)?.[1] ?? ''
     const mobileNavRule = navCss.match(/@media \(max-width: 1023px\)[\s\S]*?\.nav\s*\{([\s\S]*?)\}/)?.[1] ?? ''
+    const mobileConfigPageRule = adminCss.match(/@media \(max-width: 1023px\)[\s\S]*?\.configPage\s*\{([\s\S]*?)\}/)?.[1] ?? ''
+    const compactConfigPageRule = adminCss.match(/@media \(max-width: 768px\)[\s\S]*?\.configPage\s*\{([\s\S]*?)\}/)?.[1] ?? ''
 
     expect(configNav).toContain('<nav ref={navRef} className={styles.nav}')
     expect(configNav).toContain('<div ref={trackRef} className={styles.track}>')
@@ -75,12 +77,18 @@ describe('admin refinement UI contracts', () => {
     expect(trackRule).toContain('overflow-x: auto;')
     expect(trackRule).toContain('-webkit-overflow-scrolling: touch;')
     expect(navRule).toContain('z-index: 20;')
+    expect(mobileNavRule).toContain('position: fixed;')
     expect(mobileNavRule).toContain('top: var(--ad-mobile-top-offset);')
-    expect(mobileNavRule).toContain('margin-inline: calc(var(--ad-5) * -1);')
-    expect(mobileNavRule).toContain('width: calc(100% + var(--ad-10));')
+    expect(mobileNavRule).toContain('left: 0;')
+    expect(mobileNavRule).toContain('right: 0;')
+    expect(mobileNavRule).toContain('width: 100%;')
+    expect(mobileNavRule).toContain('margin: 0;')
+    expect(mobileNavRule).not.toMatch(/margin[^;]*-1|width:\s*calc\(/)
     expect(mobileNavRule).toContain('background: var(--ad-surface);')
     expect(mobileNavRule).toContain('border-bottom: 1px solid var(--ad-border-strong);')
     expect(mobileNavRule).toContain('box-shadow: var(--ad-shadow-md);')
+    expect(mobileConfigPageRule).toContain('padding-top: var(--ad-config-nav-frame-height);')
+    expect(compactConfigPageRule).toContain('padding-top: var(--ad-config-nav-frame-height);')
 
     expect(configNav).toContain("track?.querySelector<HTMLAnchorElement>('[aria-current=\"location\"]')")
     expect(configNav).toContain('const trackRect = track.getBoundingClientRect()')
@@ -90,6 +98,7 @@ describe('admin refinement UI contracts', () => {
 
     expect(configNav).toContain("style.setProperty('--ad-config-nav-frame-height', `${nav.offsetHeight}px`)")
     expect(configNav).toContain('stickyTop + nav.offsetHeight + 8')
+    expect(adminCss).toContain('scroll-margin-top: calc(var(--ad-topbar-h) + var(--ad-config-nav-frame-height) + var(--ad-2))')
     expect(adminCss).toContain('scroll-margin-top: calc(var(--ad-mobile-top-offset) + var(--ad-config-nav-frame-height) + var(--ad-2))')
   })
 
