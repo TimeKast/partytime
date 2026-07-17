@@ -95,7 +95,7 @@ describe('POST /api/auth/change-password', () => {
 
     it('refuses the synthetic env-based super admin (403, SI8)', async () => {
         mocks.validateSession.mockResolvedValue({ ...regularUser, id: 'super_admin_env' })
-        const res = await callRoute({ currentPassword: 'a', newPassword: 'Correct-Horse9', confirmPassword: 'Correct-Horse9' })
+        const res = await callRoute({ currentPassword: 'a', newPassword: 'Valid123', confirmPassword: 'Valid123' })
         expect(res.status).toBe(403)
         const data = await res.json()
         expect(data.error).toMatch(/entorno/)
@@ -107,7 +107,7 @@ describe('POST /api/auth/change-password', () => {
     })
 
     it('returns 400 when new and confirm passwords do not match', async () => {
-        const res = await callRoute({ currentPassword: 'a', newPassword: 'Correct-Horse9', confirmPassword: 'Different-Horse9' })
+        const res = await callRoute({ currentPassword: 'a', newPassword: 'Valid123', confirmPassword: 'Other123' })
         expect(res.status).toBe(400)
     })
 
@@ -120,17 +120,17 @@ describe('POST /api/auth/change-password', () => {
 
     it('returns 400 when the current password is wrong', async () => {
         mocks.verifyPassword.mockResolvedValue(false)
-        const res = await callRoute({ currentPassword: 'wrong', newPassword: 'Correct-Horse9', confirmPassword: 'Correct-Horse9' })
+        const res = await callRoute({ currentPassword: 'wrong', newPassword: 'Valid123', confirmPassword: 'Valid123' })
         expect(res.status).toBe(400)
     })
 
     it('returns 400 when the new password equals the current password', async () => {
-        const res = await callRoute({ currentPassword: 'Correct-Horse9', newPassword: 'Correct-Horse9', confirmPassword: 'Correct-Horse9' })
+        const res = await callRoute({ currentPassword: 'Valid123', newPassword: 'Valid123', confirmPassword: 'Valid123' })
         expect(res.status).toBe(400)
     })
 
     it('on success: hashes, atomically updates keeping the current session, and returns 200', async () => {
-        const res = await callRoute({ currentPassword: 'old-pass', newPassword: 'Correct-Horse9', confirmPassword: 'Correct-Horse9' })
+        const res = await callRoute({ currentPassword: 'old-pass', newPassword: 'Valid123', confirmPassword: 'Valid123' })
         expect(res.status).toBe(200)
         const data = await res.json()
         expect(data.success).toBe(true)
@@ -147,13 +147,13 @@ describe('POST /api/auth/change-password', () => {
 
     it('returns 400 when the atomic compare-and-swap reports stale auth state', async () => {
         mocks.changePasswordKeepingSession.mockResolvedValue(null)
-        const res = await callRoute({ currentPassword: 'old-pass', newPassword: 'Correct-Horse9', confirmPassword: 'Correct-Horse9' })
+        const res = await callRoute({ currentPassword: 'old-pass', newPassword: 'Valid123', confirmPassword: 'Valid123' })
         expect(res.status).toBe(400)
     })
 
     it('fails closed when Origin and Referer are both missing', async () => {
         const request = buildRequest(
-            { currentPassword: 'old-pass', newPassword: 'Correct-Horse9', confirmPassword: 'Correct-Horse9' },
+            { currentPassword: 'old-pass', newPassword: 'Valid123', confirmPassword: 'Valid123' },
         )
         request.headers.delete('origin')
         const { POST } = await import('@/app/api/auth/change-password/route')
@@ -170,8 +170,8 @@ describe('POST /api/auth/change-password', () => {
 
         const res = await callRoute({
             currentPassword: 'old-pass',
-            newPassword: 'Correct-Horse9',
-            confirmPassword: 'Correct-Horse9',
+            newPassword: 'Valid123',
+            confirmPassword: 'Valid123',
         })
 
         expect(res.status).toBe(500)

@@ -6,9 +6,11 @@ import { useSearchParams } from 'next/navigation'
 import styles from '../login/login.module.css'
 
 const POLICY_MESSAGES: Record<string, string> = {
-    too_short: 'Debe tener al menos 12 caracteres.',
+    too_short: 'Debe tener al menos 8 caracteres.',
     too_long: 'No puede superar 72 bytes.',
-    too_few_classes: 'Usa al menos 3 tipos de caracteres.',
+    missing_uppercase: 'Incluye al menos una letra mayúscula.',
+    missing_lowercase: 'Incluye al menos una letra minúscula.',
+    missing_number: 'Incluye al menos un número.',
     contains_identity: 'No puede contener tu nombre o correo.',
     denylisted: 'Elige una contraseña menos común.',
 }
@@ -111,8 +113,9 @@ function ResetPasswordForm() {
                 />
             </div>
             <ul className={styles.policyList} aria-label="Requisitos de contraseña">
-                <li>12 caracteres como mínimo; 72 bytes como máximo.</li>
-                <li>Al menos 3 tipos: mayúsculas, minúsculas, números o símbolos.</li>
+                <li>8 caracteres como mínimo; 72 bytes como máximo.</li>
+                <li>Incluye una mayúscula, una minúscula y un número.</li>
+                <li>Los símbolos son opcionales.</li>
                 <li>No uses tu nombre, correo ni una contraseña común.</li>
             </ul>
             {policyErrors.length > 0 && (

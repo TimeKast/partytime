@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { validateSession } from '@/lib/auth-utils'
+import { validatePasswordPolicy } from '@/lib/password-policy'
 import { getAllUsers, createUser } from '@/lib/user-queries'
 
 export const dynamic = 'force-dynamic'
@@ -87,6 +88,18 @@ export async function POST(request: NextRequest) {
         if (!email || !password || !name) {
             return NextResponse.json(
                 { success: false, error: 'Email, contraseña y nombre son requeridos' },
+                { status: 400 }
+            )
+        }
+
+        const policy = validatePasswordPolicy(password, { email, name })
+        if (!policy.ok) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: 'La contraseña no cumple con la política requerida',
+                    policyErrors: policy.errors,
+                },
                 { status: 400 }
             )
         }

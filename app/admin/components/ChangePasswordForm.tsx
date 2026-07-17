@@ -15,15 +15,18 @@ interface ChangePasswordFormProps {
 }
 
 const POLICY_HINTS = [
-    '12 caracteres como mínimo y 72 bytes como máximo.',
-    'Usa al menos 3 tipos: mayúsculas, minúsculas, números o símbolos.',
+    '8 caracteres como mínimo y 72 bytes como máximo.',
+    'Incluye una mayúscula, una minúscula y un número.',
+    'Los símbolos son opcionales.',
     'No incluyas tu nombre ni la parte anterior a @ de tu correo.',
 ]
 
 const POLICY_MESSAGES: Record<string, string> = {
-    too_short: 'La contraseña debe tener al menos 12 caracteres.',
+    too_short: 'La contraseña debe tener al menos 8 caracteres.',
     too_long: 'La contraseña no puede superar 72 bytes.',
-    too_few_classes: 'Usa al menos 3 tipos de caracteres.',
+    missing_uppercase: 'Incluye al menos una letra mayúscula.',
+    missing_lowercase: 'Incluye al menos una letra minúscula.',
+    missing_number: 'Incluye al menos un número.',
     contains_identity: 'La contraseña no puede contener tu nombre o correo.',
     denylisted: 'Elige una contraseña menos común.',
 }

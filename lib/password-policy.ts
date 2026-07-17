@@ -3,7 +3,7 @@
  * this but never substitute for it — always validate here before hashing.
  */
 
-const MIN_LENGTH = 12
+const MIN_LENGTH = 8
 const MAX_BYTES = 72 // bcrypt truncates/ignores input past 72 bytes.
 
 // Small static denylist of common passwords. Checked case-insensitively
@@ -39,16 +39,6 @@ function characterLength(value: string): number {
     return Array.from(value).length
 }
 
-function countClasses(password: string): number {
-    const classes = [
-        /[a-z]/.test(password),
-        /[A-Z]/.test(password),
-        /[0-9]/.test(password),
-        /[^a-zA-Z0-9]/.test(password),
-    ]
-    return classes.filter(Boolean).length
-}
-
 function identityFragments(context: PasswordPolicyContext): string[] {
     const fragments: string[] = []
     const emailLocalPart = context.email?.split('@')[0]?.trim()
@@ -77,9 +67,9 @@ export function validatePasswordPolicy(
     if (utf8ByteLength(password) > MAX_BYTES) {
         errors.push('too_long')
     }
-    if (countClasses(password) < 3) {
-        errors.push('too_few_classes')
-    }
+    if (!/[A-Z]/.test(password)) errors.push('missing_uppercase')
+    if (!/[a-z]/.test(password)) errors.push('missing_lowercase')
+    if (!/[0-9]/.test(password)) errors.push('missing_number')
     if (identityFragments(context).some(fragment => normalized.includes(fragment))) {
         errors.push('contains_identity')
     }

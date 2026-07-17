@@ -2,21 +2,22 @@ import { describe, it, expect } from 'vitest'
 import { validatePasswordPolicy } from '@/lib/password-policy'
 
 describe('validatePasswordPolicy', () => {
-    it('accepts a password meeting length, class and context requirements', () => {
-        const result = validatePasswordPolicy('Correct-Horse9', { email: 'alex@example.com', name: 'Alex Gmora' })
+    it('accepts an 8-character password with uppercase, lowercase and number but no symbol', () => {
+        const result = validatePasswordPolicy('Valid123', { email: 'alex@example.com', name: 'Alex Gmora' })
         expect(result.ok).toBe(true)
         expect(result.errors).toEqual([])
     })
 
-    it('rejects passwords shorter than 12 characters', () => {
-        const result = validatePasswordPolicy('Short1!', { email: 'a@b.com', name: 'A' })
+    it('rejects a 7-character password', () => {
+        const result = validatePasswordPolicy('Valid12', { email: 'a@b.com', name: 'A' })
         expect(result.ok).toBe(false)
         expect(result.errors).toContain('too_short')
     })
 
-    it('uses character length for the 12-character minimum, not UTF-8 bytes', () => {
-        const result = validatePasswordPolicy('😀😀😀A1!', {})
-        expect(Buffer.byteLength('😀😀😀A1!', 'utf8')).toBeGreaterThanOrEqual(12)
+    it('uses character length for the 8-character minimum, not UTF-8 bytes', () => {
+        const password = '😀😀Abc1d'
+        expect(Buffer.byteLength(password, 'utf8')).toBeGreaterThanOrEqual(8)
+        const result = validatePasswordPolicy(password, {})
         expect(result.errors).toContain('too_short')
     })
 
@@ -37,11 +38,14 @@ describe('validatePasswordPolicy', () => {
         expect(result.errors).not.toContain('too_long')
     })
 
-    it('requires at least 3 of the 4 character classes', () => {
-        // Only lowercase + digits (2 classes), 12+ chars.
-        const result = validatePasswordPolicy('lowercase123', {})
+    it.each([
+        ['uppercase', 'valid123', 'missing_uppercase'],
+        ['lowercase', 'VALID123', 'missing_lowercase'],
+        ['number', 'ValidPass', 'missing_number'],
+    ])('rejects a password missing the required %s class', (_className, password, error) => {
+        const result = validatePasswordPolicy(password, {})
         expect(result.ok).toBe(false)
-        expect(result.errors).toContain('too_few_classes')
+        expect(result.errors).toContain(error)
     })
 
     it('rejects a password equal to or containing the email local-part', () => {

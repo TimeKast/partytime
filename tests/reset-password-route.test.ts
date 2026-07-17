@@ -40,7 +40,7 @@ describe('POST /api/auth/reset-password', () => {
 
     it('returns 400 (generic) on an explicit cross-origin request without consuming anything', async () => {
         const res = await callRoute(
-            { token: 'raw-token', newPassword: 'Correct-Horse9', confirmPassword: 'Correct-Horse9' },
+            { token: 'raw-token', newPassword: 'Valid123', confirmPassword: 'Valid123' },
             { origin: 'https://evil.example.com' },
         )
         expect(res.status).toBe(400)
@@ -53,7 +53,7 @@ describe('POST /api/auth/reset-password', () => {
     })
 
     it('returns 400 when new and confirm passwords do not match', async () => {
-        const res = await callRoute({ token: 'raw-token', newPassword: 'Correct-Horse9', confirmPassword: 'Different-Horse9' })
+        const res = await callRoute({ token: 'raw-token', newPassword: 'Valid123', confirmPassword: 'Other123' })
         expect(res.status).toBe(400)
     })
 
@@ -66,7 +66,7 @@ describe('POST /api/auth/reset-password', () => {
     })
 
     it('hashes the raw token (never sends the raw value to the query layer) and consumes it', async () => {
-        await callRoute({ token: 'raw-token-value', newPassword: 'Correct-Horse9', confirmPassword: 'Correct-Horse9' })
+        await callRoute({ token: 'raw-token-value', newPassword: 'Valid123', confirmPassword: 'Valid123' })
         const [tokenHashArg, newHashArg] = mocks.consumeResetToken.mock.calls[0]
         expect(tokenHashArg).not.toBe('raw-token-value')
         expect(tokenHashArg).toMatch(/^[0-9a-f]{64}$/)
@@ -87,14 +87,14 @@ describe('POST /api/auth/reset-password', () => {
 
     it('returns the same generic error for unknown, expired, and already-consumed tokens', async () => {
         mocks.getResetTokenUserContext.mockResolvedValue(null)
-        const res = await callRoute({ token: 'bad-token', newPassword: 'Correct-Horse9', confirmPassword: 'Correct-Horse9' })
+        const res = await callRoute({ token: 'bad-token', newPassword: 'Valid123', confirmPassword: 'Valid123' })
         expect(res.status).toBe(400)
         const data = await res.json()
         expect(data.error).toBe('El enlace es inválido o expiró.')
     })
 
     it('on success: returns 200 with no auto-login side channel (no user/session in response)', async () => {
-        const res = await callRoute({ token: 'raw-token', newPassword: 'Correct-Horse9', confirmPassword: 'Correct-Horse9' })
+        const res = await callRoute({ token: 'raw-token', newPassword: 'Valid123', confirmPassword: 'Valid123' })
         expect(res.status).toBe(200)
         const data = await res.json()
         expect(data.success).toBe(true)

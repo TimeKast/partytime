@@ -373,15 +373,29 @@ export default function UserManagement({ events }: UserManagementProps) {
                             />
                         </div>
                         <div>
-                            <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Contraseña *</label>
+                            <label
+                                htmlFor="new-user-password"
+                                style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}
+                            >
+                                Contraseña *
+                            </label>
                             <input
+                                id="new-user-password"
                                 type="password"
                                 value={newUserForm.password}
                                 onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
                                 required
-                                minLength={6}
+                                minLength={8}
+                                aria-describedby="new-user-password-hint"
                                 style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db' }}
                             />
+                            <p
+                                id="new-user-password-hint"
+                                style={{ margin: '6px 0 0', color: '#6b7280', fontSize: '0.875rem' }}
+                            >
+                                8 caracteres como mínimo y 72 bytes como máximo. Incluye una mayúscula, una minúscula y un número.
+                                {' '}Los símbolos son opcionales. No uses el nombre, correo ni una contraseña común.
+                            </p>
                         </div>
                         {/* Global role selection removed as it's redundant. Use assignments instead. */}
                         <button

@@ -10,6 +10,7 @@ import { drizzle } from 'drizzle-orm/neon-http'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import * as schema from '../lib/schema'
+import { validatePasswordPolicy } from '../lib/password-policy'
 
 const SALT_ROUNDS = 12
 
@@ -19,9 +20,6 @@ async function createSuperAdmin() {
         console.error('❌ DATABASE_URL not configured')
         process.exit(1)
     }
-
-    const sql = neon(databaseUrl)
-    const db = drizzle(sql, { schema })
 
     // Super admin credentials — read from env (never hardcode; FS-04).
     // Prefers SEED_ADMIN_*; falls back to the documented ADMIN_* vars so the
@@ -35,10 +33,14 @@ async function createSuperAdmin() {
         console.error('❌ Faltan credenciales. Define SEED_ADMIN_EMAIL y SEED_ADMIN_PASSWORD en el entorno.')
         process.exit(1)
     }
-    if (password.length < 12) {
-        console.error('❌ SEED_ADMIN_PASSWORD demasiado corta (mínimo 12 caracteres).')
+    const policy = validatePasswordPolicy(password, { email, name })
+    if (!policy.ok) {
+        console.error('❌ SEED_ADMIN_PASSWORD no cumple con la política de contraseñas.')
         process.exit(1)
     }
+
+    const sql = neon(databaseUrl)
+    const db = drizzle(sql, { schema })
 
     console.log('🔐 Creating super admin user...')
     console.log(`📧 Email: ${email}`)

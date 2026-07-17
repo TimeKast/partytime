@@ -19,8 +19,7 @@ export function hashResetToken(rawToken: string): string {
 const LOWER = 'abcdefghijkmnpqrstuvwxyz'
 const UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
 const DIGITS = '23456789'
-const SYMBOLS = '!@#$%^&*_-'
-const ALL = LOWER + UPPER + DIGITS + SYMBOLS
+const ALL = LOWER + UPPER + DIGITS
 const TEMP_PASSWORD_LENGTH = 20
 
 function pickRandomChar(charset: string): string {
@@ -36,8 +35,8 @@ function shuffle(chars: string[]): string[] {
 }
 
 /**
- * Generate a temp password that always satisfies the server policy (>=12
- * bytes, >=3 of 4 classes, no ambiguous chars) regardless of randomness.
+ * Generate an alphanumeric temp password that always contains an uppercase
+ * letter, a lowercase letter and a number, with no ambiguous characters.
  */
 export function generateTemporaryPassword(context: PasswordPolicyContext = {}): string {
     for (let attempt = 0; attempt < 100; attempt++) {
@@ -45,7 +44,6 @@ export function generateTemporaryPassword(context: PasswordPolicyContext = {}): 
             pickRandomChar(LOWER),
             pickRandomChar(UPPER),
             pickRandomChar(DIGITS),
-            pickRandomChar(SYMBOLS),
         ]
         const rest = Array.from(
             { length: TEMP_PASSWORD_LENGTH - required.length },

@@ -234,7 +234,7 @@ Cada evento puede configurar independientemente:
 ## 🔒 Seguridad
 
 - **Autenticación por sesión** con cookies HTTP-only
-- **Política de contraseñas** de 12 caracteres, máximo 72 bytes y al menos 3 clases
+- **Política de contraseñas**: 8 caracteres, máximo 72 bytes, al menos una mayúscula, una minúscula y un número; los símbolos son opcionales
 - **Recuperación de un solo uso** con tokens aleatorios de 256 bits, hash SHA-256 en DB y expiración de 30 minutos
 - **Revocación de sesiones**: cambio propio conserva solo la actual; resets cierran todas
 - **Protección CSRF por Origin/Referer** en mutaciones autenticadas

@@ -34,11 +34,14 @@ describe('generateTemporaryPassword', () => {
         expect(result.errors).toEqual([])
     })
 
-    it('is at least 16 characters and URL-safe (no ambiguous look-alike chars)', () => {
+    it('is at least 16 characters, contains every required class and needs no symbol', () => {
         const password = generateTemporaryPassword()
         expect(password.length).toBeGreaterThanOrEqual(16)
         expect(password).not.toMatch(/[0OIl1]/)
-        expect(password).toMatch(/^[A-Za-z0-9!@#$%^&*_-]+$/)
+        expect(password).toMatch(/[a-z]/)
+        expect(password).toMatch(/[A-Z]/)
+        expect(password).toMatch(/[0-9]/)
+        expect(password).toMatch(/^[A-Za-z0-9]+$/)
     })
 
     it('generates unique passwords on each call', () => {
