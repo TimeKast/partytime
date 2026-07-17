@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRSVPById, validateCancelToken } from '@/lib/queries'
+import { buildRsvpGetDto } from './dto'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,15 +39,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      rsvp: {
-        id: rsvp.id,
-        name: rsvp.name,
-        email: rsvp.email,
-        phone: rsvp.phone,
-        plusOne: rsvp.plusOne,
-        status: rsvp.status,
-        eventId: rsvp.eventId
-      }
+      rsvp: buildRsvpGetDto(rsvp)
     })
 
   } catch (error: any) {
