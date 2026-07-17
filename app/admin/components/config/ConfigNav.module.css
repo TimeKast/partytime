@@ -1,20 +1,27 @@
 .nav {
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: var(--ad-2);
+  box-sizing: border-box;
   width: 100%;
   margin: 0 0 var(--ad-6);
-  padding: var(--ad-2);
   border-radius: var(--ad-r-md);
   border: 1px solid var(--ad-border);
   background: var(--ad-surface);
   box-shadow: var(--ad-shadow-sm);
   position: sticky;
   top: calc(var(--ad-topbar-h) + var(--ad-2));
-  z-index: 5;
+  z-index: 20;
+}
+
+.track {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--ad-2);
+  width: 100%;
+  padding: var(--ad-2);
   overflow-x: auto;
   overscroll-behavior-inline: contain;
+  scroll-padding-inline: var(--ad-3);
   scrollbar-width: thin;
   scrollbar-color: var(--ad-border-strong) transparent;
   -webkit-overflow-scrolling: touch;
@@ -62,13 +69,19 @@
 
 @media (max-width: 1023px) {
   .nav {
-    top: calc(var(--ad-mobile-top-offset) + var(--ad-2));
-    margin-inline: calc(var(--ad-2) * -1);
-    width: calc(100% + var(--ad-4));
-    padding-inline: var(--ad-3);
+    top: var(--ad-mobile-top-offset);
+    margin-inline: calc(var(--ad-5) * -1);
+    width: calc(100% + var(--ad-10));
     border-right: 0;
     border-left: 0;
+    border-bottom: 1px solid var(--ad-border-strong);
     border-radius: 0;
+    background: var(--ad-surface);
+    box-shadow: var(--ad-shadow-md);
+  }
+
+  .track {
+    padding-inline: var(--ad-3);
   }
 
   .link {

@@ -234,6 +234,8 @@
 }
 
 .configPage {
+  --ad-config-nav-frame-height: 54px;
+
   width: min(100%, 1024px);
   margin: 0 auto;
   padding: 0;
@@ -286,7 +288,7 @@
   border-radius: var(--ad-r-lg);
   background: var(--ad-surface);
   box-shadow: var(--ad-shadow-sm);
-  scroll-margin-top: calc(var(--ad-topbar-h) + 88px);
+  scroll-margin-top: calc(var(--ad-topbar-h) + var(--ad-config-nav-frame-height) + var(--ad-2));
 }
 
 .configSection:last-of-type {
@@ -294,13 +296,18 @@
 }
 
 @media (max-width: 1023px) {
+  .configPage {
+    --ad-config-nav-frame-height: 62px;
+  }
+
+  .configAnchor,
   .configSection {
-    scroll-margin-top: calc(var(--ad-mobile-top-offset) + 88px);
+    scroll-margin-top: calc(var(--ad-mobile-top-offset) + var(--ad-config-nav-frame-height) + var(--ad-2));
   }
 }
 
 .configAnchor {
-  scroll-margin-top: calc(var(--ad-topbar-h) + 88px);
+  scroll-margin-top: calc(var(--ad-topbar-h) + var(--ad-config-nav-frame-height) + var(--ad-2));
 }
 
 .configSectionTitle {

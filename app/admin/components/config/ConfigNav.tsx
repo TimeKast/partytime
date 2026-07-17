@@ -14,8 +14,16 @@ const SECTIONS = [
 
 export function ConfigNav() {
   const navRef = useRef<HTMLElement>(null)
+  const trackRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<number>()
   const [activeSection, setActiveSection] = useState(SECTIONS[0].id)
+
+  const syncStickyFrameHeight = useCallback(() => {
+    const nav = navRef.current
+    if (!nav) return
+
+    nav.parentElement?.style.setProperty('--ad-config-nav-frame-height', `${nav.offsetHeight}px`)
+  }, [])
 
   const getStickyOffset = useCallback(() => {
     const nav = navRef.current
@@ -61,29 +69,78 @@ export function ConfigNav() {
   }, [updateActiveSection])
 
   useEffect(() => {
+    const nav = navRef.current
+    const configPage = nav?.parentElement
     const targets = SECTIONS
       .map(section => document.getElementById(section.id))
       .filter((target): target is HTMLElement => target !== null)
+
+    syncStickyFrameHeight()
 
     const observer = new IntersectionObserver(scheduleActiveSectionUpdate, {
       rootMargin: `-${getStickyOffset()}px 0px -45% 0px`,
       threshold: [0, 0.01, 0.5, 1],
     })
 
+    const resizeObserver = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(() => {
+          syncStickyFrameHeight()
+          scheduleActiveSectionUpdate()
+        })
+
+    if (nav) {
+      resizeObserver?.observe(nav)
+    }
+
+    const handleViewportResize = () => {
+      syncStickyFrameHeight()
+      scheduleActiveSectionUpdate()
+    }
+
     targets.forEach(target => observer.observe(target))
     window.addEventListener('scroll', scheduleActiveSectionUpdate, { passive: true })
-    window.addEventListener('resize', scheduleActiveSectionUpdate)
+    window.addEventListener('resize', handleViewportResize)
     scheduleActiveSectionUpdate()
 
     return () => {
       observer.disconnect()
+      resizeObserver?.disconnect()
       window.removeEventListener('scroll', scheduleActiveSectionUpdate)
-      window.removeEventListener('resize', scheduleActiveSectionUpdate)
+      window.removeEventListener('resize', handleViewportResize)
+      configPage?.style.removeProperty('--ad-config-nav-frame-height')
       if (frameRef.current !== undefined) {
         window.cancelAnimationFrame(frameRef.current)
       }
     }
-  }, [getStickyOffset, scheduleActiveSectionUpdate])
+  }, [getStickyOffset, scheduleActiveSectionUpdate, syncStickyFrameHeight])
+
+  useEffect(() => {
+    const track = trackRef.current
+    const activeLink = track?.querySelector<HTMLAnchorElement>('[aria-current="location"]')
+    if (!track || !activeLink) return
+
+    const trackRect = track.getBoundingClientRect()
+    const linkRect = activeLink.getBoundingClientRect()
+    const trackPadding = 12
+    let nextScrollLeft = track.scrollLeft
+
+    if (linkRect.left < trackRect.left + trackPadding) {
+      nextScrollLeft += linkRect.left - trackRect.left - trackPadding
+    } else if (linkRect.right > trackRect.right - trackPadding) {
+      nextScrollLeft += linkRect.right - trackRect.right + trackPadding
+    } else {
+      return
+    }
+
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const maxScrollLeft = Math.max(0, track.scrollWidth - track.clientWidth)
+
+    track.scrollTo({
+      left: Math.min(maxScrollLeft, Math.max(0, nextScrollLeft)),
+      behavior: reducedMotion ? 'auto' : 'smooth',
+    })
+  }, [activeSection])
 
   const handleShortcutClick = (event: React.MouseEvent<HTMLAnchorElement>, sectionId: string) => {
     const target = document.getElementById(sectionId)
@@ -103,17 +160,19 @@ export function ConfigNav() {
 
   return (
     <nav ref={navRef} className={styles.nav} aria-label="Secciones de configuración">
-      {SECTIONS.map(section => (
-        <a
-          key={section.id}
-          className={`${styles.link} ${activeSection === section.id ? styles.active : ''}`}
-          href={`#${section.id}`}
-          aria-current={activeSection === section.id ? 'location' : undefined}
-          onClick={(event) => handleShortcutClick(event, section.id)}
-        >
-          {section.label}
-        </a>
-      ))}
+      <div ref={trackRef} className={styles.track}>
+        {SECTIONS.map(section => (
+          <a
+            key={section.id}
+            className={`${styles.link} ${activeSection === section.id ? styles.active : ''}`}
+            href={`#${section.id}`}
+            aria-current={activeSection === section.id ? 'location' : undefined}
+            onClick={(event) => handleShortcutClick(event, section.id)}
+          >
+            {section.label}
+          </a>
+        ))}
+      </div>
     </nav>
   )
 }
