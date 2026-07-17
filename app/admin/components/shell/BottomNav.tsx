@@ -1,7 +1,8 @@
 'use client'
 
 import styles from './BottomNav.module.css'
-import { getAdminNavItems, type AdminTab } from './NavList'
+import type { AdminTab } from './NavList'
+import { FolderCog, LayoutDashboard, Lock, Settings } from '../ui/icons'
 
 interface BottomNavProps {
   activeTab: AdminTab
@@ -10,8 +11,18 @@ interface BottomNavProps {
   isSuperAdmin: boolean
 }
 
+const BOTTOM_NAV_ITEMS = [
+  { tab: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { tab: 'config', label: 'Config', icon: Settings, requiresEventManagement: true },
+  { tab: 'eventos', label: 'Eventos', icon: FolderCog, requiresSuperAdmin: true },
+  { tab: 'cuenta', label: 'Cuenta', icon: Lock },
+] as const
+
 export function BottomNav({ activeTab, onTabChange, canManageSelectedEvent, isSuperAdmin }: BottomNavProps) {
-  const items = getAdminNavItems(canManageSelectedEvent, isSuperAdmin)
+  const items = BOTTOM_NAV_ITEMS.filter(item =>
+    (!('requiresEventManagement' in item) || canManageSelectedEvent)
+    && (!('requiresSuperAdmin' in item) || isSuperAdmin)
+  )
 
   return (
     <nav className={styles.nav} aria-label="Navegación principal">

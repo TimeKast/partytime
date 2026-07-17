@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 const read = (path: string) => readFileSync(path, 'utf8')
 
 describe('admin mobile shell source contracts', () => {
-  it('integrates a bottom nav with the shared role-aware item source', () => {
+  it('integrates a bottom nav with its role-aware item source', () => {
     const shell = read('app/admin/components/shell/AdminShell.tsx')
     const navList = read('app/admin/components/shell/NavList.tsx')
     const bottomNav = read('app/admin/components/shell/BottomNav.tsx')
@@ -17,18 +17,24 @@ describe('admin mobile shell source contracts', () => {
     expect(navList).toContain("{ tab: 'config', label: 'Config', icon: Settings, requiresEventManagement: true }")
     expect(navList).toContain("{ tab: 'usuarios', label: 'Usuarios', icon: Users, requiresSuperAdmin: true }")
     expect(navList).toContain('getAdminNavItems(canManageSelectedEvent, isSuperAdmin)')
-    expect(bottomNav).toContain('getAdminNavItems(canManageSelectedEvent, isSuperAdmin)')
+    expect(bottomNav).toContain("{ tab: 'config', label: 'Config', icon: Settings, requiresEventManagement: true }")
+    expect(bottomNav).toContain("!('requiresEventManagement' in item) || canManageSelectedEvent")
+    expect(bottomNav).toContain("!('requiresSuperAdmin' in item) || isSuperAdmin")
   })
 
-  it('never exposes Eventos as a bottom-nav destination', () => {
+  it('keeps Usuarios in shared navigation and replaces it with role-gated Eventos in BottomNav', () => {
     const navList = read('app/admin/components/shell/NavList.tsx')
     const bottomNav = read('app/admin/components/shell/BottomNav.tsx')
-    const itemSource = navList.slice(navList.indexOf('export const ADMIN_NAV_ITEMS'), navList.indexOf('export function getAdminNavItems'))
+    const sharedItemSource = navList.slice(navList.indexOf('export const ADMIN_NAV_ITEMS'), navList.indexOf('export function getAdminNavItems'))
+    const bottomItemSource = bottomNav.slice(bottomNav.indexOf('const BOTTOM_NAV_ITEMS'), bottomNav.indexOf('export function BottomNav'))
 
-    expect(itemSource).not.toContain("tab: 'eventos'")
-    expect(itemSource).not.toContain("label: 'Eventos'")
-    expect(bottomNav).not.toContain('eventos')
-    expect(bottomNav).not.toContain('Eventos')
+    expect(sharedItemSource).toContain("{ tab: 'usuarios', label: 'Usuarios', icon: Users, requiresSuperAdmin: true }")
+    expect(sharedItemSource).not.toContain("tab: 'eventos'")
+    expect(sharedItemSource).not.toContain("label: 'Eventos'")
+    expect(bottomItemSource).not.toContain("tab: 'usuarios'")
+    expect(bottomItemSource).not.toContain("label: 'Usuarios'")
+    expect(bottomItemSource).toContain("{ tab: 'eventos', label: 'Eventos', icon: FolderCog, requiresSuperAdmin: true }")
+    expect(bottomNav).toContain('onClick={() => onTabChange(item.tab)}')
   })
 
   it('fixes the mobile topbar and compensates for its iPhone safe area', () => {
