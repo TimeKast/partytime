@@ -62,6 +62,7 @@
 
 @media (max-width: 1023px) {
   .nav {
+    top: calc(var(--ad-mobile-top-offset) + var(--ad-2));
     margin-inline: calc(var(--ad-2) * -1);
     width: calc(100% + var(--ad-4));
     padding-inline: var(--ad-3);

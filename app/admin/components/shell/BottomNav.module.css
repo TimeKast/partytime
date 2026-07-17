@@ -1,0 +1,78 @@
+.nav {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .nav {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--ad-z-bottom-nav);
+    display: flex;
+    align-items: stretch;
+    height: var(--ad-mobile-bottom-offset);
+    padding: 0 var(--ad-1) env(safe-area-inset-bottom);
+    box-sizing: border-box;
+    border-top: 1px solid var(--ad-border);
+    background: var(--ad-surface);
+    box-shadow: 0 -2px 10px rgba(16, 24, 40, .08);
+  }
+}
+
+.item {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--ad-1);
+  border: none;
+  border-radius: var(--ad-r-sm);
+  background: transparent;
+  color: var(--ad-text-muted);
+  font-family: inherit;
+  font-size: var(--ad-fs-xs);
+  font-weight: var(--ad-weight-med);
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background var(--ad-dur) var(--ad-ease), color var(--ad-dur) var(--ad-ease);
+}
+
+.item:hover {
+  background: var(--ad-surface-2);
+  color: var(--ad-text);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--ad-focus);
+  outline-offset: -4px;
+}
+
+.active {
+  background: var(--ad-primary-soft);
+  color: var(--ad-primary);
+}
+
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item {
+    transition: none;
+  }
+}

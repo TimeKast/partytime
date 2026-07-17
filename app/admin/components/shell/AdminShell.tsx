@@ -6,6 +6,7 @@ import styles from './AdminShell.module.css'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { MobileDrawer } from './MobileDrawer'
+import { BottomNav } from './BottomNav'
 import { ToastHost } from '../ui/Surfaces'
 import type { AdminTab } from './NavList'
 
@@ -105,6 +106,13 @@ export function AdminShell({
             {children}
           </main>
         </div>
+
+        <BottomNav
+          activeTab={activeTab}
+          onTabChange={onTabChange}
+          canManageSelectedEvent={canManageSelectedEvent}
+          isSuperAdmin={isSuperAdmin}
+        />
       </div>
       <ToastHost message={message} />
     </div>

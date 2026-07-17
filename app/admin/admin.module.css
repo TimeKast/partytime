@@ -293,6 +293,12 @@
   border-bottom: 1px solid var(--ad-border);
 }
 
+@media (max-width: 1023px) {
+  .configSection {
+    scroll-margin-top: calc(var(--ad-mobile-top-offset) + 88px);
+  }
+}
+
 .configAnchor {
   scroll-margin-top: calc(var(--ad-topbar-h) + 88px);
 }

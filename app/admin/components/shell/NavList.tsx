@@ -13,42 +13,37 @@ interface NavListProps {
   collapsed?: boolean
 }
 
+export const ADMIN_NAV_ITEMS = [
+  { tab: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { tab: 'config', label: 'Config', icon: Settings, requiresEventManagement: true },
+  { tab: 'usuarios', label: 'Usuarios', icon: Users, requiresSuperAdmin: true },
+  { tab: 'cuenta', label: 'Cuenta', icon: Lock },
+] as const
+
+export function getAdminNavItems(canManageSelectedEvent: boolean, isSuperAdmin: boolean) {
+  return ADMIN_NAV_ITEMS.filter(item =>
+    (!('requiresEventManagement' in item) || canManageSelectedEvent)
+    && (!('requiresSuperAdmin' in item) || isSuperAdmin)
+  )
+}
+
 /** Shared nav item list used by both the desktop Sidebar and the mobile drawer. */
 export function NavList({ activeTab, onTabChange, canManageSelectedEvent, isSuperAdmin, collapsed = false }: NavListProps) {
   return (
     <>
-      <NavItem
-        icon={<LayoutDashboard size={18} />}
-        label="Dashboard"
-        active={activeTab === 'dashboard'}
-        collapsed={collapsed}
-        onClick={() => onTabChange('dashboard')}
-      />
-      {canManageSelectedEvent && (
-        <NavItem
-          icon={<Settings size={18} />}
-          label="Config"
-          active={activeTab === 'config'}
-          collapsed={collapsed}
-          onClick={() => onTabChange('config')}
-        />
-      )}
-      {isSuperAdmin && (
-        <NavItem
-          icon={<Users size={18} />}
-          label="Usuarios"
-          active={activeTab === 'usuarios'}
-          collapsed={collapsed}
-          onClick={() => onTabChange('usuarios')}
-        />
-      )}
-      <NavItem
-        icon={<Lock size={18} />}
-        label="Cuenta"
-        active={activeTab === 'cuenta'}
-        collapsed={collapsed}
-        onClick={() => onTabChange('cuenta')}
-      />
+      {getAdminNavItems(canManageSelectedEvent, isSuperAdmin).map(item => {
+        const Icon = item.icon
+        return (
+          <NavItem
+            key={item.tab}
+            icon={<Icon size={18} />}
+            label={item.label}
+            active={activeTab === item.tab}
+            collapsed={collapsed}
+            onClick={() => onTabChange(item.tab)}
+          />
+        )
+      })}
     </>
   )
 }

@@ -19,6 +19,12 @@
   animation: ad-toast-in var(--ad-dur) var(--ad-ease);
 }
 
+@media (max-width: 1023px) {
+  .toastHost {
+    bottom: calc(var(--ad-mobile-bottom-offset) + var(--ad-4));
+  }
+}
+
 .toast[data-tone='success'] {
   border-left: 4px solid var(--ad-success);
 }

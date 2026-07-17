@@ -48,6 +48,19 @@
   }
 }
 
+@media (max-width: 1023px) {
+  .topbar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: var(--ad-z-topbar);
+    height: var(--ad-mobile-top-offset);
+    padding-top: env(safe-area-inset-top);
+    box-sizing: border-box;
+  }
+}
+
 .title {
   margin: 0;
   font-size: var(--ad-fs-lg);

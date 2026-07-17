@@ -50,6 +50,11 @@
   --ad-sidebar-w: 248px;
   --ad-sidebar-w-collapsed: 64px;
   --ad-topbar-h: 56px;
+  --ad-bottom-nav-h: 64px;
+  --ad-mobile-top-offset: var(--ad-topbar-h);
+  --ad-mobile-bottom-offset: var(--ad-bottom-nav-h);
+  --ad-z-topbar: 30;
+  --ad-z-bottom-nav: 40;
   --ad-z-drawer: 60;
   --ad-z-modal: 80;
   --ad-ease: cubic-bezier(.2, .6, .2, 1);
@@ -89,6 +94,21 @@
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
+}
+
+@media (max-width: 1023px) {
+  .shell {
+    --ad-mobile-top-offset: calc(var(--ad-topbar-h) + env(safe-area-inset-top));
+    --ad-mobile-bottom-offset: calc(var(--ad-bottom-nav-h) + env(safe-area-inset-bottom));
+  }
+
+  .main {
+    padding-top: var(--ad-mobile-top-offset);
+  }
+
+  .content {
+    padding-bottom: calc(var(--ad-5) + var(--ad-mobile-bottom-offset));
+  }
 }
 
 @media (min-width: 1024px) {
