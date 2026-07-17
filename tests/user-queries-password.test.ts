@@ -1,15 +1,91 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { executeMock } = vi.hoisted(() => ({ executeMock: vi.fn() }))
+const { executeMock, insertMock, selectMock, hashPasswordMock } = vi.hoisted(() => ({
+    executeMock: vi.fn(),
+    insertMock: vi.fn(),
+    selectMock: vi.fn(),
+    hashPasswordMock: vi.fn(),
+}))
 
 vi.mock('@/lib/db', () => ({
-    db: { execute: executeMock },
-    users: {},
+    db: { execute: executeMock, insert: insertMock, select: selectMock },
+    users: { id: 'id', email: 'email' },
     userEventAssignments: {},
     events: {},
 }))
 
-import { changePasswordKeepingSession, adminResetPassword } from '@/lib/user-queries'
+vi.mock('@/lib/auth-utils', () => ({
+    generatePasswordBoundSessionToken: vi.fn(() => 'replacement-token'),
+    hashPassword: hashPasswordMock,
+}))
+
+import * as userQueries from '@/lib/user-queries'
+import {
+    UserPasswordPolicyError,
+    createUser,
+    changePasswordKeepingSession,
+    adminResetPassword,
+} from '@/lib/user-queries'
+
+describe('createUser password policy boundary', () => {
+    beforeEach(() => {
+        insertMock.mockReset()
+        selectMock.mockReset()
+        hashPasswordMock.mockReset()
+    })
+
+    it('rejects an invalid password with a structured error before hashing or inserting', async () => {
+        await expect(createUser({
+            email: 'alex@example.com',
+            name: 'Alex Gmora',
+            password: 'alex1234',
+        })).rejects.toEqual(expect.objectContaining({
+            name: 'UserPasswordPolicyError',
+            code: 'PASSWORD_POLICY_VIOLATION',
+            policyErrors: expect.arrayContaining(['missing_uppercase', 'contains_identity']),
+        }))
+
+        expect(hashPasswordMock).not.toHaveBeenCalled()
+        expect(insertMock).not.toHaveBeenCalled()
+    })
+
+    it('accepts a compliant 8-character password without a symbol', async () => {
+        const createdUser = {
+            id: 'user-1',
+            email: 'new.user@example.com',
+            name: 'New User',
+            role: 'viewer',
+        }
+        const limitMock = vi.fn(async () => [])
+        selectMock.mockReturnValue({
+            from: vi.fn(() => ({
+                where: vi.fn(() => ({ limit: limitMock })),
+            })),
+        })
+        const returningMock = vi.fn(async () => [createdUser])
+        const valuesMock = vi.fn(() => ({ returning: returningMock }))
+        insertMock.mockReturnValue({ values: valuesMock })
+        hashPasswordMock.mockResolvedValue('hashed-valid-password')
+
+        await expect(createUser({
+            email: 'new.user@example.com',
+            name: 'New User',
+            password: 'Valid123',
+        })).resolves.toBe(createdUser)
+
+        expect(hashPasswordMock).toHaveBeenCalledWith('Valid123')
+        expect(valuesMock).toHaveBeenCalledWith(expect.objectContaining({
+            email: 'new.user@example.com',
+            name: 'New User',
+            passwordHash: 'hashed-valid-password',
+        }))
+    })
+
+    it('does not export the unused raw-password update bypass', () => {
+        expect(userQueries).not.toHaveProperty('updateUserPassword')
+        expect(UserPasswordPolicyError).toBeTypeOf('function')
+    })
+})
 
 describe('changePasswordKeepingSession (self-change, A1)', () => {
     beforeEach(() => executeMock.mockReset())

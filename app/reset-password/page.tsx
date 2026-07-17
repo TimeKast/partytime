@@ -95,6 +95,7 @@ function ResetPasswordForm() {
                     value={newPassword}
                     onChange={event => setNewPassword(event.target.value)}
                     autoComplete="new-password"
+                    minLength={8}
                     required
                     disabled={submitting}
                 />
@@ -108,6 +109,7 @@ function ResetPasswordForm() {
                     value={confirmPassword}
                     onChange={event => setConfirmPassword(event.target.value)}
                     autoComplete="new-password"
+                    minLength={8}
                     required
                     disabled={submitting}
                 />

@@ -5,6 +5,12 @@ function source(path: string): string {
     return readFileSync(path, 'utf8')
 }
 
+function newPasswordInputs(...files: string[]): string[] {
+    return files.flatMap(file => source(file).match(/<input\b[\s\S]*?\/>/g) ?? [])
+        .filter(input => /type="password"/.test(input))
+        .filter(input => /id=.*(?:new|confirm)-password/.test(input))
+}
+
 describe('password policy copies', () => {
     it('keeps self-change and forced-change hints/errors aligned with the server policy', () => {
         const form = source('app/admin/components/ChangePasswordForm.tsx')
@@ -32,6 +38,20 @@ describe('password policy copies', () => {
         expect(reset).toContain('missing_number')
         expect(reset).not.toContain('12 caracteres')
         expect(reset).not.toContain('3 tipos')
+    })
+
+    it('sets the browser minimum on every new and confirm password input', () => {
+        const applicableInputs = newPasswordInputs(
+            'app/admin/components/ChangePasswordForm.tsx',
+            'app/reset-password/page.tsx',
+        )
+
+        expect(applicableInputs).toHaveLength(4)
+        for (const input of applicableInputs) {
+            expect(input).toContain('minLength={8}')
+            expect(input).not.toContain('minLength={6}')
+            expect(input).not.toContain('minLength={12}')
+        }
     })
 
     it('aligns admin creation, bootstrap, generator and documentation contracts', () => {

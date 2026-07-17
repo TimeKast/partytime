@@ -7,11 +7,21 @@ import { db, users, userEventAssignments, events } from './db'
 import { randomUUID } from 'crypto'
 import { eq, and, desc, sql } from 'drizzle-orm'
 import { generatePasswordBoundSessionToken, hashPassword } from './auth-utils'
+import { validatePasswordPolicy } from './password-policy'
 import type { User, NewUser, UserEventAssignment } from './schema'
 
 // ============================================
 // User CRUD Functions
 // ============================================
+
+export class UserPasswordPolicyError extends Error {
+    readonly code = 'PASSWORD_POLICY_VIOLATION' as const
+
+    constructor(readonly policyErrors: string[]) {
+        super('La contraseña no cumple con la política requerida')
+        this.name = 'UserPasswordPolicyError'
+    }
+}
 
 /**
  * Create a new user
@@ -24,6 +34,14 @@ export async function createUser(data: {
     invitedBy?: string
 }): Promise<User> {
     if (!db) throw new Error('Database not configured')
+
+    const policy = validatePasswordPolicy(data.password, {
+        email: data.email,
+        name: data.name,
+    })
+    if (!policy.ok) {
+        throw new UserPasswordPolicyError(policy.errors)
+    }
 
     // Check if email already exists
     const existing = await getUserByEmail(data.email)
@@ -100,25 +118,6 @@ export async function updateUser(
 
     if (!updated) throw new Error('Usuario no encontrado')
     return updated
-}
-
-/**
- * Update user password (plain, no flag/session side-effects). Used only for
- * the non-security-critical case where no session revocation is required;
- * the self-change/admin-reset/forgot-reset flows use the atomic variants
- * below instead.
- */
-export async function updateUserPassword(id: string, newPassword: string): Promise<boolean> {
-    if (!db) throw new Error('Database not configured')
-
-    const passwordHash = await hashPassword(newPassword)
-
-    const [updated] = await db.update(users)
-        .set({ passwordHash })
-        .where(eq(users.id, id))
-        .returning({ id: users.id })
-
-    return !!updated
 }
 
 /**

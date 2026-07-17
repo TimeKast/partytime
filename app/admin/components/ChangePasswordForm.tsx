@@ -117,6 +117,7 @@ export default function ChangePasswordForm({
                     value={newPassword}
                     onChange={event => setNewPassword(event.target.value)}
                     autoComplete="new-password"
+                    minLength={8}
                     required
                     disabled={submitting}
                 />
@@ -132,6 +133,7 @@ export default function ChangePasswordForm({
                     value={confirmPassword}
                     onChange={event => setConfirmPassword(event.target.value)}
                     autoComplete="new-password"
+                    minLength={8}
                     required
                     disabled={submitting}
                 />
