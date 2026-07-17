@@ -18,6 +18,7 @@ Plataforma web profesional para gestión de invitaciones y RSVPs, diseñada con 
 - **Gestión de RSVPs** - Ver, editar, filtrar, buscar
 - **Configuración de eventos** - Todo editable desde el panel
 - **Gestión de usuarios** - Roles y permisos por evento
+- **Ciclo de vida de contraseñas** - Cambio propio, reset administrativo temporal y recuperación por email
 - **Envío de emails** - Individual o masivo
 - **Exportación a PDF** - Lista de invitados
 
@@ -31,6 +32,10 @@ Plataforma web profesional para gestión de invitaciones y RSVPs, diseñada con 
 - **Super Admin** - Acceso total a todos los eventos
 - **Manager** - Gestiona eventos asignados
 - **Viewer** - Solo lectura de eventos asignados
+- **Cambio forzado** - Las contraseñas temporales deben reemplazarse al siguiente acceso
+  mediante un diálogo bloqueante en el panel. Esta es hoy una barrera de cliente:
+  las APIs autenticadas todavía no aplican globalmente `must_change_password`.
+  Una compuerta de servidor/middleware sigue siendo el refuerzo pendiente.
 
 ### 🔄 Multi-Evento
 - Cada evento tiene su propio **slug** URL
@@ -83,9 +88,9 @@ CRON_SECRET=tu-cron-secret
 
 No sincronices producción directamente desde el schema TypeScript. Las migraciones
 se revisan y aplican como SQL versionado. Para una base local nueva, aplica
-`drizzle/0000` a `drizzle/0006` en orden. Para producción, sigue obligatoriamente
+`drizzle/0000` a `drizzle/0007` en orden. Para producción, sigue obligatoriamente
 [el runbook de migración](docs/PRODUCTION_MIGRATION_RUNBOOK.md); el registro histórico
-requiere una línea base controlada antes de aplicar `0005` y luego `0006`.
+requiere una línea base controlada antes de aplicar `0005`, `0006` y `0007`.
 
 ### 4. Crear Super Admin
 
@@ -147,6 +152,8 @@ El archivo `vercel.json` ya está configurado para ejecutar el cron cada 12 hora
 |--------|----------|-------------|
 | POST | `/api/rsvp` | Crear nuevo RSVP |
 | GET | `/api/events/[slug]` | Info de evento público |
+| POST | `/api/auth/forgot-password` | Solicitar recuperación (respuesta genérica) |
+| POST | `/api/auth/reset-password` | Consumir enlace de un solo uso y elegir contraseña |
 
 ### Autenticados (Admin)
 
@@ -159,6 +166,8 @@ El archivo `vercel.json` ya está configurado para ejecutar el cron cada 12 hora
 | POST | `/api/admin/send-bulk-email` | Enviar emails masivos |
 | GET | `/api/admin/users` | Listar usuarios |
 | POST | `/api/events` | Crear nuevo evento |
+| POST | `/api/auth/change-password` | Cambiar contraseña y cerrar las demás sesiones |
+| POST | `/api/admin/users/[id]/reset-password` | Generar contraseña temporal (solo super_admin) |
 
 ### Cron
 
@@ -225,6 +234,10 @@ Cada evento puede configurar independientemente:
 ## 🔒 Seguridad
 
 - **Autenticación por sesión** con cookies HTTP-only
+- **Política de contraseñas** de 12 caracteres, máximo 72 bytes y al menos 3 clases
+- **Recuperación de un solo uso** con tokens aleatorios de 256 bits, hash SHA-256 en DB y expiración de 30 minutos
+- **Revocación de sesiones**: cambio propio conserva solo la actual; resets cierran todas
+- **Protección CSRF por Origin/Referer** en mutaciones autenticadas
 - **Permisos por evento** para usuarios no super_admin
 - **Tokens de cancelación** firmados con secret
 - **Validación de cron** con `CRON_SECRET`

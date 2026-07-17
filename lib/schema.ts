@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, integer, jsonb, varchar, uniqueIndex, check } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, timestamp, integer, jsonb, varchar, uniqueIndex, index, check } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
 // Helper to generate IDs safely across environments
@@ -170,9 +170,35 @@ export const users = pgTable('users', {
     role: varchar('role', { length: 20 }).notNull().default('viewer'),
     isActive: boolean('is_active').default(true),
     invitedBy: text('invited_by'), // ID of user who invited this user
+    // Forced-change flag: set after an admin/forgot-password reset issues a
+    // temporary/new password, cleared once the user changes it themselves.
+    mustChangePassword: boolean('must_change_password').notNull().default(false),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     lastLoginAt: timestamp('last_login_at'),
 })
+
+// Single-use password reset tokens (forgot-password flow). Only the SHA-256
+// hash of the raw token is ever stored (A4/A5); the raw value is emailed once
+// and never persisted or logged.
+export const passwordResetTokens = pgTable('password_reset_tokens', {
+    id: text('id').primaryKey().$defaultFn(generateId),
+    userId: text('user_id').notNull()
+        .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull().unique(),
+    expiresAt: timestamp('expires_at').notNull(),
+    consumedAt: timestamp('consumed_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    requestIp: varchar('request_ip', { length: 45 }),
+    // Internal 1..3 slot used by a partial unique index to make the
+    // serverless issuance cap race-safe across concurrent instances.
+    issuanceSlot: integer('issuance_slot'),
+}, table => ({
+    userIdIndex: index('password_reset_tokens_user_id_idx').on(table.userId),
+    expiresAtIndex: index('password_reset_tokens_expires_at_idx').on(table.expiresAt),
+    activeSlotUnique: uniqueIndex('password_reset_tokens_active_slot_unique')
+        .on(table.userId, table.issuanceSlot)
+        .where(sql`${table.consumedAt} IS NULL AND ${table.issuanceSlot} IS NOT NULL`),
+}))
 
 // User sessions for persistent login (up to 30 days)
 export const userSessions = pgTable('user_sessions', {
@@ -207,3 +233,5 @@ export type UserSession = typeof userSessions.$inferSelect
 export type NewUserSession = typeof userSessions.$inferInsert
 export type UserEventAssignment = typeof userEventAssignments.$inferSelect
 export type NewUserEventAssignment = typeof userEventAssignments.$inferInsert
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect
+export type NewPasswordResetToken = typeof passwordResetTokens.$inferInsert

@@ -21,16 +21,17 @@
 
 ### 1.2 Modelo de Datos (Drizzle ORM)
 
-**6 tablas identificadas en `lib/schema.ts`:**
+**7 tablas identificadas en `lib/schema.ts`:**
 
 | Tabla | Propósito | Campos clave |
 |-------|-----------|-------------|
 | `events` | Eventos principales | slug, title, theme (JSONB), pricing, capacity, RSVP closed, email config, OG image |
 | `rsvps` | Confirmaciones de asistentes | name, email, phone, plusOne, status, cancelToken, emailHistory (JSONB) |
 | `app_settings` | Configuración global (key-value) | id (key), value |
-| `users` | Usuarios del sistema admin | email, passwordHash, role, isActive, invitedBy |
+| `users` | Usuarios del sistema admin | email, passwordHash, role, isActive, invitedBy, mustChangePassword |
 | `user_sessions` | Sesiones de auth persistentes | token, expiresAt, userAgent, ipAddress |
 | `user_event_assignments` | Asignación de eventos a usuarios | userId, eventId, role (manager/viewer) |
+| `password_reset_tokens` | Enlaces de recuperación de un solo uso | tokenHash, userId, expiresAt, consumedAt |
 
 ### 1.3 RBAC - Sistema de Roles
 
@@ -47,6 +48,13 @@
 - **Session duration:** 24h default, 30 días con "Remember me"
 - **Super admin fallback:** Login via env vars `ADMIN_USERNAME`/`ADMIN_PASSWORD`
 - **No hay middleware de Next.js:** La validación se hace por endpoint en cada API route
+- **Ciclo de contraseña:** cambio propio conserva la sesión actual; reset admin/forgot revoca todas
+- **Cambio forzado limitado al cliente:** el panel bloquea con un diálogo cuando
+  `must_change_password=true`, pero las APIs autenticadas no tienen todavía una
+  compuerta global. El enforcement de servidor/middleware es seguimiento explícito;
+  la bandera aún no es por sí sola un límite de autorización.
+- **Reset por email:** token de 256 bits, hash SHA-256 persistido, expiración de 30 minutos y consumo atómico
+- **Admin de entorno:** es sintético, no tiene fila/password en DB y no participa en cambio/reset DB
 
 ### 1.5 API Surface
 
@@ -54,7 +62,7 @@
 
 | Categoría | Endpoints | Auth |
 |-----------|-----------|------|
-| **Auth** | `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` | Público / Sesión |
+| **Auth** | `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `POST /api/auth/change-password`, `POST /api/auth/forgot-password`, `POST /api/auth/reset-password` | Público / Sesión |
 | **RSVP (público)** | `POST /api/rsvp` | Público |
 | **RSVP (admin)** | `GET /api/rsvp?eventId=X`, `POST /api/rsvp/update`, `POST /api/rsvp/cancel` | Sesión |
 | **Events** | `GET /api/events`, `POST /api/events`, `GET /api/events/[slug]` | Sesión / Público |
@@ -115,7 +123,7 @@
 ### 3.2 Discrepancia en conteo de tablas
 
 - `PROJECT_SUMMARY.md` dice **"Tablas en DB: 3"** pero en realidad hay **6** (`events`, `rsvps`, `app_settings`, `users`, `user_sessions`, `user_event_assignments`).
-- **Decisión tomada:** Documentar las 6 tablas reales.
+- **Decisión tomada:** Documentar las 7 tablas reales tras agregar `password_reset_tokens`.
 
 ### 3.3 Nombre del producto
 
@@ -244,7 +252,7 @@
 | # | Decisión | Justificación |
 |---|----------|---------------|
 | D1 | Documentar Drizzle/Neon como la única capa de datos activa | Firestore es legacy no utilizado |
-| D2 | Documentar 6 tablas reales (no 3 como dice PROJECT_SUMMARY) | Verificado en `lib/schema.ts` |
+| D2 | Documentar 7 tablas reales (no 3 como dice PROJECT_SUMMARY) | Verificado en `lib/schema.ts` |
 | D3 | Usar "Party Time!" como nombre de producto | Es el nombre en UI, layout, y config |
 | D4 | Marcar la falta de FK constraints como riesgo, no como bug | Es una decisión de diseño de Drizzle, pero con riesgos |
 | D5 | Documentar la matriz de permisos inferida del código | No existe documentación explícita de RBAC |

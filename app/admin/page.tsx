@@ -18,13 +18,27 @@ import {
 } from '@/lib/event-presentation'
 import { buildEventExportMetadataRows, createEventExportFilename } from '@/lib/event-export'
 // H-008 FIX: Import extracted components to reduce monolithic file size
-import { EventPresentationSettings, StatsCards, UserManagement, ReminderStatusSection, type RSVP } from './components'
+import {
+  ChangePasswordForm,
+  EventPresentationSettings,
+  ForcedPasswordChangeDialog,
+  StatsCards,
+  UserManagement,
+  ReminderStatusSection,
+  type RSVP,
+} from './components'
 
 export default function AdminDashboard() {
   const router = useRouter()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
-  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; role: string } | null>(null)
+  const [currentUser, setCurrentUser] = useState<{
+    id: string
+    email: string
+    name: string
+    role: string
+    mustChangePassword: boolean
+  } | null>(null)
   const [rsvps, setRsvps] = useState<RSVP[]>([])
   const [filteredRsvps, setFilteredRsvps] = useState<RSVP[]>([])
   const [emailTargetRsvps, setEmailTargetRsvps] = useState<RSVP[]>([])
@@ -32,7 +46,7 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('')
 
   // Estado para tabs
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'config' | 'eventos' | 'usuarios'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'config' | 'eventos' | 'usuarios' | 'cuenta'>('dashboard')
 
   // Estado para multi-party
   const [events, setEvents] = useState<Event[]>([])
@@ -1337,6 +1351,12 @@ export default function AdminDashboard() {
             ⚙️ Config
           </button>
         )}
+        <button
+          className={`${styles.tab} ${activeTab === 'cuenta' ? styles.tabActive : ''}`}
+          onClick={() => setActiveTab('cuenta')}
+        >
+          🔐 Cuenta
+        </button>
       </div>
 
       {/* Contenido del Dashboard */}
@@ -2549,6 +2569,22 @@ export default function AdminDashboard() {
       {/* Contenido de Usuarios (solo super_admin) */}
       {activeTab === 'usuarios' && currentUser?.role === 'super_admin' && (
         <UserManagement events={events} />
+      )}
+
+      {activeTab === 'cuenta' && currentUser && (
+        <section className={styles.accountContainer} aria-labelledby="account-password-title">
+          <h2 id="account-password-title">🔐 Seguridad de la cuenta</h2>
+          <p>
+            Actualiza tu contraseña. Al guardarla, las demás sesiones de tu cuenta se cerrarán automáticamente.
+          </p>
+          <ChangePasswordForm isEnvironmentAdmin={currentUser.id === 'super_admin_env'} />
+        </section>
+      )}
+
+      {currentUser?.mustChangePassword && (
+        <ForcedPasswordChangeDialog
+          onSuccess={() => setCurrentUser(user => user ? { ...user, mustChangePassword: false } : user)}
+        />
       )}
 
       {/* Modal de edición de slug */}

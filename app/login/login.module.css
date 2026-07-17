@@ -1,12 +1,14 @@
 .container {
     min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;
     background: linear-gradient(135deg, #1a0033 0%, #0d001a 50%, #1a0033 100%);
     padding: 1rem;
     position: relative;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 /* Animated background effect */
@@ -152,6 +154,9 @@
 .rememberRow {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
 }
 
 .checkboxLabel {
@@ -235,6 +240,73 @@
     margin: 0;
 }
 
+.forgotLink,
+.secondaryLink {
+    color: #f9a8d4;
+    font-size: 0.875rem;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.forgotLink:hover,
+.secondaryLink:hover {
+    color: #ffffff;
+}
+
+.forgotLink:focus-visible,
+.secondaryLink:focus-visible,
+.submitLink:focus-visible,
+.input:focus-visible,
+.submitButton:focus-visible {
+    outline: 3px solid rgba(255, 20, 147, 0.45);
+    outline-offset: 3px;
+}
+
+.status {
+    display: grid;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid rgba(52, 211, 153, 0.35);
+    border-radius: 12px;
+    background: rgba(16, 185, 129, 0.12);
+    color: #d1fae5;
+    text-align: center;
+}
+
+.status p {
+    margin: 0;
+    line-height: 1.6;
+}
+
+.submitLink {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #FF1493, #FF69B4);
+    color: white;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.policyList,
+.policyErrors {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 0.8rem;
+    line-height: 1.6;
+}
+
+.policyList {
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.policyErrors {
+    color: #fca5a5;
+}
+
 .loadingSpinner {
     width: 40px;
     height: 40px;
@@ -257,5 +329,18 @@
 
     .logo {
         font-size: 3rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .container::before,
+    .logo,
+    .buttonSpinner,
+    .loadingSpinner {
+        animation: none;
+    }
+
+    .submitButton {
+        transition: none;
     }
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import styles from '../admin.module.css'
 
 interface User {
@@ -37,6 +37,11 @@ export default function UserManagement({ events }: UserManagementProps) {
     const [showCreateForm, setShowCreateForm] = useState(false)
     const [selectedUser, setSelectedUser] = useState<User | null>(null)
     const [userAssignments, setUserAssignments] = useState<EventAssignment[]>([])
+    const [resetReveal, setResetReveal] = useState<{ userName: string; temporaryPassword: string } | null>(null)
+    const [copyMessage, setCopyMessage] = useState('')
+    const resetDialogRef = useRef<HTMLDivElement>(null)
+    const copyButtonRef = useRef<HTMLButtonElement>(null)
+    const previousFocusRef = useRef<HTMLElement | null>(null)
 
     const [newUserForm, setNewUserForm] = useState({
         email: '',
@@ -48,6 +53,42 @@ export default function UserManagement({ events }: UserManagementProps) {
     useEffect(() => {
         loadUsers()
     }, [])
+
+    useEffect(() => {
+        if (!resetReveal) return
+
+        const focusFrame = requestAnimationFrame(() => copyButtonRef.current?.focus())
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault()
+                setResetReveal(null)
+                setCopyMessage('')
+                return
+            }
+            if (event.key !== 'Tab' || !resetDialogRef.current) return
+
+            const focusable = Array.from(resetDialogRef.current.querySelectorAll<HTMLElement>(
+                'button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+            )).filter(element => element.getClientRects().length > 0)
+            if (focusable.length === 0) return
+            const first = focusable[0]
+            const last = focusable[focusable.length - 1]
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault()
+                last.focus()
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault()
+                first.focus()
+            }
+        }
+
+        document.addEventListener('keydown', handleKeyDown)
+        return () => {
+            cancelAnimationFrame(focusFrame)
+            document.removeEventListener('keydown', handleKeyDown)
+            previousFocusRef.current?.focus()
+        }
+    }, [resetReveal])
 
     const loadUsers = async () => {
         setLoading(true)
@@ -216,6 +257,50 @@ export default function UserManagement({ events }: UserManagementProps) {
     const selectUser = async (user: User) => {
         setSelectedUser(user)
         await loadUserAssignments(user.id)
+    }
+
+    const handleResetPassword = async (user: User) => {
+        if (!window.confirm(`¿Restablecer la contraseña de ${user.name}? Se cerrarán todas sus sesiones.`)) {
+            return
+        }
+
+        previousFocusRef.current = document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null
+        setLoading(true)
+        setMessage('')
+        try {
+            const response = await fetch(`/api/admin/users/${user.id}/reset-password`, {
+                method: 'POST',
+            })
+            const data = await response.json()
+            if (!response.ok || !data.success || typeof data.temporaryPassword !== 'string') {
+                setMessage(`❌ ${data.error || 'No se pudo restablecer la contraseña'}`)
+                return
+            }
+
+            setCopyMessage('')
+            setResetReveal({ userName: user.name, temporaryPassword: data.temporaryPassword })
+        } catch {
+            setMessage('❌ Error al restablecer la contraseña')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const copyTemporaryPassword = async () => {
+        if (!resetReveal) return
+        try {
+            await navigator.clipboard.writeText(resetReveal.temporaryPassword)
+            setCopyMessage('✅ Contraseña copiada')
+        } catch {
+            setCopyMessage('❌ No se pudo copiar. Selecciona el valor manualmente.')
+        }
+    }
+
+    const closeResetReveal = () => {
+        setResetReveal(null)
+        setCopyMessage('')
     }
 
     const getRoleBadge = (role: string) => {
@@ -392,8 +477,8 @@ export default function UserManagement({ events }: UserManagementProps) {
                                     </div>
 
                                     {/* Actions */}
-                                    {user.role !== 'super_admin' && (
-                                        <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                    <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                        {user.role !== 'super_admin' && (
                                             <button
                                                 onClick={() => handleToggleActive(user)}
                                                 style={{
@@ -407,8 +492,17 @@ export default function UserManagement({ events }: UserManagementProps) {
                                             >
                                                 {user.isActive ? '🚫 Desactivar Cuenta' : '✅ Activar Cuenta'}
                                             </button>
-                                        </div>
-                                    )}
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleResetPassword(user)}
+                                            disabled={loading || !user.isActive}
+                                            title={user.isActive ? undefined : 'Activa la cuenta antes de restablecer su contraseña'}
+                                            className={styles.resetPasswordButton}
+                                        >
+                                            🔑 Restablecer contraseña
+                                        </button>
+                                    </div>
 
                                     {/* Event Assignments */}
                                     <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '20px' }}>
@@ -509,6 +603,40 @@ export default function UserManagement({ events }: UserManagementProps) {
                     </div>
                 )}
             </div>
+
+            {resetReveal && (
+                <div className={styles.securityOverlay} onClick={closeResetReveal}>
+                    <div
+                        ref={resetDialogRef}
+                        className={styles.securityDialog}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="temporary-password-title"
+                        aria-describedby="temporary-password-warning"
+                        onClick={event => event.stopPropagation()}
+                    >
+                        <h2 id="temporary-password-title">Contraseña temporal de {resetReveal.userName}</h2>
+                        <p id="temporary-password-warning" className={styles.passwordWarning}>
+                            ⚠️ Se muestra una sola vez. Compártela por un canal seguro; no se volverá a mostrar.
+                        </p>
+                        <code className={styles.temporaryPassword}>{resetReveal.temporaryPassword}</code>
+                        <div className={styles.securityDialogActions}>
+                            <button
+                                ref={copyButtonRef}
+                                type="button"
+                                className={styles.passwordSubmit}
+                                onClick={copyTemporaryPassword}
+                            >
+                                📋 Copiar
+                            </button>
+                            <button type="button" className={styles.secondaryButton} onClick={closeResetReveal}>
+                                Ya la guardé, cerrar
+                            </button>
+                        </div>
+                        {copyMessage && <p role="status" aria-live="polite">{copyMessage}</p>}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

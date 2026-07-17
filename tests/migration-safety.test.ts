@@ -5,6 +5,7 @@ import {
     classifyMigrationPreflight,
     REQUIRED_HISTORICAL_OBJECTS,
     REQUIRED_IMAGE_POSITION_OBJECTS,
+    REQUIRED_PASSWORD_LIFECYCLE_OBJECTS,
     REQUIRED_PRESENTATION_OBJECTS,
     type MigrationObjectState,
 } from '@/lib/migration-preflight'
@@ -13,7 +14,10 @@ import {
     EXPECTED_CAPACITY_FUNCTION_BODY_HASH,
     HISTORICAL_SEMANTIC_CHECK_NAMES,
     HISTORICAL_SEMANTICS_QUERY,
+    PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES,
+    PASSWORD_LIFECYCLE_SEMANTICS_QUERY,
     type HistoricalSemanticState,
+    type PasswordLifecycleSemanticState,
 } from '@/lib/migration-semantic-contract'
 
 function capacityFunctionBodyFromMigration(): string {
@@ -31,6 +35,12 @@ function capacityFunctionBodyFingerprint(body: string): string {
 const validHistoricalSemantics = Object.fromEntries(
     HISTORICAL_SEMANTIC_CHECK_NAMES.map(name => [name, true]),
 ) as HistoricalSemanticState
+const validPasswordLifecycleSemantics = Object.fromEntries(
+    PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES.map(name => [name, true]),
+) as PasswordLifecycleSemanticState
+const absentPasswordLifecycleSemantics = Object.fromEntries(
+    PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+) as PasswordLifecycleSemanticState
 
 const observedHistoricalObjects: MigrationObjectState = {
     tables: [...REQUIRED_HISTORICAL_OBJECTS.tables],
@@ -46,6 +56,11 @@ const observedHistoricalObjects: MigrationObjectState = {
     presentationConstraints: [],
     imagePositionColumns: [],
     imagePositionConstraints: [],
+    passwordLifecycleTables: [],
+    passwordLifecycleColumns: [],
+    passwordLifecycleConstraints: [],
+    passwordLifecycleIndexes: [],
+    passwordLifecycleSemantics: absentPasswordLifecycleSemantics,
 }
 
 const foundationRegistry = Array.from({ length: 5 }, (_, index) => ({
@@ -56,9 +71,13 @@ const presentationRegistry = [
     ...foundationRegistry,
     { hash: 'hash-5', createdAt: 5 },
 ]
-const currentRegistry = [
+const imagePositionRegistry = [
     ...presentationRegistry,
     { hash: 'hash-6', createdAt: 6 },
+]
+const currentRegistry = [
+    ...imagePositionRegistry,
+    { hash: 'hash-7', createdAt: 7 },
 ]
 
 describe('production migration safety', () => {
@@ -99,6 +118,7 @@ describe('production migration safety', () => {
             publicRegistry: null,
             expectedFoundationRegistry: [],
             expectedPresentationRegistry: [],
+            expectedImagePositionRegistry: [],
             expectedCurrentRegistry: [],
             objects: observedHistoricalObjects,
         })
@@ -118,6 +138,7 @@ describe('production migration safety', () => {
             publicRegistry: null,
             expectedFoundationRegistry: [],
             expectedPresentationRegistry: [],
+            expectedImagePositionRegistry: [],
             expectedCurrentRegistry: [],
             objects: { ...observedHistoricalObjects, triggers: [] },
         })
@@ -138,6 +159,7 @@ describe('production migration safety', () => {
             publicRegistry: null,
             expectedFoundationRegistry: [],
             expectedPresentationRegistry: [],
+            expectedImagePositionRegistry: [],
             expectedCurrentRegistry: [],
             objects: {
                 ...observedHistoricalObjects,
@@ -157,6 +179,7 @@ describe('production migration safety', () => {
             publicRegistry: null,
             expectedFoundationRegistry: foundationRegistry,
             expectedPresentationRegistry: presentationRegistry,
+            expectedImagePositionRegistry: imagePositionRegistry,
             expectedCurrentRegistry: currentRegistry,
             objects: {
                 ...observedHistoricalObjects,
@@ -191,12 +214,13 @@ describe('production migration safety', () => {
         expect(imagePositionQuery).toContain("conrelid = 'public.events'::regclass")
     })
 
-    it('accepts registered current schema only with complete 0005 and 0006 objects', () => {
+    it('allows 0007 only from the exact registered 0006 image-position state', () => {
         const result = classifyMigrationPreflight({
-            drizzleRegistry: currentRegistry,
+            drizzleRegistry: imagePositionRegistry,
             publicRegistry: null,
             expectedFoundationRegistry: foundationRegistry,
             expectedPresentationRegistry: presentationRegistry,
+            expectedImagePositionRegistry: imagePositionRegistry,
             expectedCurrentRegistry: currentRegistry,
             objects: {
                 ...observedHistoricalObjects,
@@ -208,10 +232,72 @@ describe('production migration safety', () => {
         })
 
         expect(result).toMatchObject({
-            classification: 'registered-current-schema',
+            classification: 'registered-image-position-ready',
             canApply0006: false,
+            canApply0007: true,
             missingImagePositionObjects: [],
         })
+    })
+
+    it('accepts registered current schema only with complete password lifecycle objects and semantics', () => {
+        const result = classifyMigrationPreflight({
+            drizzleRegistry: currentRegistry,
+            publicRegistry: null,
+            expectedFoundationRegistry: foundationRegistry,
+            expectedPresentationRegistry: presentationRegistry,
+            expectedImagePositionRegistry: imagePositionRegistry,
+            expectedCurrentRegistry: currentRegistry,
+            objects: {
+                ...observedHistoricalObjects,
+                presentationColumns: [...REQUIRED_PRESENTATION_OBJECTS.columns],
+                presentationConstraints: [...REQUIRED_PRESENTATION_OBJECTS.constraints],
+                imagePositionColumns: [...REQUIRED_IMAGE_POSITION_OBJECTS.columns],
+                imagePositionConstraints: [...REQUIRED_IMAGE_POSITION_OBJECTS.constraints],
+                passwordLifecycleTables: [...REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.tables],
+                passwordLifecycleColumns: [...REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.columns],
+                passwordLifecycleConstraints: [...REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.constraints],
+                passwordLifecycleIndexes: [...REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.indexes],
+                passwordLifecycleSemantics: validPasswordLifecycleSemantics,
+            },
+        })
+
+        expect(result).toMatchObject({
+            classification: 'registered-current-schema',
+            canApply0007: false,
+            missingPasswordLifecycleObjects: [],
+            invalidPasswordLifecycleSemantics: [],
+        })
+    })
+
+    it('rejects a same-named reset-token primary key with invalid semantics', () => {
+        const result = classifyMigrationPreflight({
+            drizzleRegistry: currentRegistry,
+            publicRegistry: null,
+            expectedFoundationRegistry: foundationRegistry,
+            expectedPresentationRegistry: presentationRegistry,
+            expectedImagePositionRegistry: imagePositionRegistry,
+            expectedCurrentRegistry: currentRegistry,
+            objects: {
+                ...observedHistoricalObjects,
+                presentationColumns: [...REQUIRED_PRESENTATION_OBJECTS.columns],
+                presentationConstraints: [...REQUIRED_PRESENTATION_OBJECTS.constraints],
+                imagePositionColumns: [...REQUIRED_IMAGE_POSITION_OBJECTS.columns],
+                imagePositionConstraints: [...REQUIRED_IMAGE_POSITION_OBJECTS.constraints],
+                passwordLifecycleTables: [...REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.tables],
+                passwordLifecycleColumns: [...REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.columns],
+                passwordLifecycleConstraints: [...REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.constraints],
+                passwordLifecycleIndexes: [...REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.indexes],
+                passwordLifecycleSemantics: {
+                    ...validPasswordLifecycleSemantics,
+                    'constraint.password_reset_tokens_pkey': false,
+                },
+            },
+        })
+
+        expect(result.classification).toBe('registered-inconsistent-schema')
+        expect(result.invalidPasswordLifecycleSemantics)
+            .toContain('constraint.password_reset_tokens_pkey')
+        expect(result.reasons.join('\n')).toContain('invalid password lifecycle semantics')
     })
 
     it('fails closed for a partial 0006 object state', () => {
@@ -220,6 +306,7 @@ describe('production migration safety', () => {
             publicRegistry: null,
             expectedFoundationRegistry: foundationRegistry,
             expectedPresentationRegistry: presentationRegistry,
+            expectedImagePositionRegistry: imagePositionRegistry,
             expectedCurrentRegistry: currentRegistry,
             objects: {
                 ...observedHistoricalObjects,
@@ -231,6 +318,45 @@ describe('production migration safety', () => {
 
         expect(result.classification).toBe('registered-inconsistent-schema')
         expect(result.canApply0006).toBe(false)
+    })
+
+    it('fails closed for a partial 0007 password lifecycle state', () => {
+        const result = classifyMigrationPreflight({
+            drizzleRegistry: imagePositionRegistry,
+            publicRegistry: null,
+            expectedFoundationRegistry: foundationRegistry,
+            expectedPresentationRegistry: presentationRegistry,
+            expectedImagePositionRegistry: imagePositionRegistry,
+            expectedCurrentRegistry: currentRegistry,
+            objects: {
+                ...observedHistoricalObjects,
+                presentationColumns: [...REQUIRED_PRESENTATION_OBJECTS.columns],
+                presentationConstraints: [...REQUIRED_PRESENTATION_OBJECTS.constraints],
+                imagePositionColumns: [...REQUIRED_IMAGE_POSITION_OBJECTS.columns],
+                imagePositionConstraints: [...REQUIRED_IMAGE_POSITION_OBJECTS.constraints],
+                passwordLifecycleColumns: ['users.must_change_password'],
+            },
+        })
+
+        expect(result.classification).toBe('registered-inconsistent-schema')
+        expect(result.canApply0007).toBe(false)
+        expect(result.missingPasswordLifecycleObjects).toContain('password_reset_tokens')
+    })
+
+    it('keeps 0007 additive, idempotent and indexed', () => {
+        const migration = readFileSync('drizzle/0007_password_lifecycle.sql', 'utf8')
+
+        expect(migration).toContain('ADD COLUMN IF NOT EXISTS "must_change_password"')
+        expect(migration).toContain('CREATE TABLE IF NOT EXISTS "password_reset_tokens"')
+        expect(migration).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "password_reset_tokens_token_hash_unique"')
+        expect(migration).toContain('CREATE INDEX IF NOT EXISTS "password_reset_tokens_user_id_idx"')
+        expect(migration).toContain('CREATE INDEX IF NOT EXISTS "password_reset_tokens_expires_at_idx"')
+        expect(migration).toContain('ADD COLUMN IF NOT EXISTS "issuance_slot"')
+        expect(migration).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "password_reset_tokens_active_slot_unique"')
+        expect(migration).toContain('WHERE "consumed_at" IS NULL AND "issuance_slot" IS NOT NULL')
+        expect(migration).toContain('WHEN duplicate_object THEN NULL')
+        expect(migration).toContain('ON DELETE cascade')
+        expect(migration).not.toMatch(/\bDROP\b/i)
     })
 
     it('binds semantic SQL to schema, relations, columns, actions, body and enabled state', () => {
@@ -248,6 +374,13 @@ describe('production migration safety', () => {
         expect(contract).toContain("tgfoid = to_regprocedure('public.enforce_event_capacity()')")
         expect(contract).toContain('pg_get_function_identity_arguments')
         expect(contract).toContain(EXPECTED_CAPACITY_FUNCTION_BODY_HASH)
+        expect(PASSWORD_LIFECYCLE_SEMANTICS_QUERY).toContain("to_regclass('public.password_reset_tokens')")
+        expect(PASSWORD_LIFECYCLE_SEMANTICS_QUERY).toContain("'constraint.password_reset_tokens_pkey'::text")
+        expect(PASSWORD_LIFECYCLE_SEMANTICS_QUERY).toContain("pk.contype = 'p'")
+        expect(PASSWORD_LIFECYCLE_SEMANTICS_QUERY).toContain("ARRAY['id']::text[]")
+        expect(PASSWORD_LIFECYCLE_SEMANTICS_QUERY).toContain('convalidated')
+        expect(PASSWORD_LIFECYCLE_SEMANTICS_QUERY).toContain("confdeltype = 'c'")
+        expect(PASSWORD_LIFECYCLE_SEMANTICS_QUERY).toContain('index_state.indisunique = expected.unique_required')
     })
 
     it('keeps the baseline transaction bounded, locked and fail-closed on the full contract', () => {
@@ -271,8 +404,11 @@ describe('production migration safety', () => {
             'duplicate event/email groups detected',
             '0005 objects already exist',
             '0006 objects already exist',
+            '0007 objects already exist',
             'registered-presentation-ready',
             'canApply0006: true',
+            'registered-image-position-ready',
+            'canApply0007: true',
             CAPACITY_FUNCTION_BODY_FINGERPRINT_SQL,
             EXPECTED_CAPACITY_FUNCTION_BODY_HASH,
         ]) {
@@ -302,29 +438,34 @@ describe('production migration safety', () => {
         }
     })
 
-    it('keeps the reviewed baseline hashes synchronized with migrations 0000-0006', () => {
+    it('keeps the reviewed hashes synchronized with migrations 0000-0007', () => {
         const runbook = readFileSync('docs/PRODUCTION_MIGRATION_RUNBOOK.md', 'utf8')
         const journal = JSON.parse(readFileSync('drizzle/meta/_journal.json', 'utf8')) as {
             entries: Array<{ tag: string }>
         }
 
-        for (const entry of journal.entries.slice(0, 7)) {
+        for (const entry of journal.entries.slice(0, 8)) {
             const sql = readFileSync(`drizzle/${entry.tag}.sql`, 'utf8')
             const hash = createHash('sha256').update(sql).digest('hex')
             expect(runbook, entry.tag).toContain(hash)
         }
     })
 
-    it('runs the full DB verifier only after 0006 is applied', () => {
+    it('runs the full DB verifier only after 0007 is applied on each target', () => {
         const runbook = readFileSync('docs/PRODUCTION_MIGRATION_RUNBOOK.md', 'utf8')
         const after0005 = runbook.split('## Aplicación transaccional de 0005')[1]
             .split('## Aplicación transaccional de 0006')[0]
         const after0006 = runbook.split('## Aplicación transaccional de 0006')[1]
+            .split('## Ensayo obligatorio de 0007')[0]
+        const after0007 = runbook.split('## Aplicación transaccional de 0007')[1]
 
         expect(after0005).toContain('registered-presentation-ready')
         expect(after0005).toContain('canApply0006: true')
         expect(after0005).not.toContain('npm run verify:db')
-        expect(after0006).toContain('npm run verify:db')
-        expect(after0006).toContain('registered-current-schema')
+        expect(after0006).toContain('registered-image-position-ready')
+        expect(after0006).toContain('canApply0007: true')
+        expect(after0006).not.toContain('npm run verify:db')
+        expect(after0007).toContain('npm run verify:db')
+        expect(after0007).toContain('registered-current-schema')
     })
 })

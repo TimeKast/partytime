@@ -14,7 +14,10 @@ import { neon } from '@neondatabase/serverless'
 import {
     HISTORICAL_SEMANTIC_CHECK_NAMES,
     HISTORICAL_SEMANTICS_QUERY,
+    PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES,
+    PASSWORD_LIFECYCLE_SEMANTICS_QUERY,
     historicalSemanticStateFromRows,
+    passwordLifecycleSemanticStateFromRows,
 } from '@/lib/migration-semantic-contract'
 
 type QueryRow = Record<string, unknown>
@@ -74,6 +77,13 @@ async function main() {
     )
     for (const checkName of HISTORICAL_SEMANTIC_CHECK_NAMES) {
         checks.push([`historical semantic contract: ${checkName}`, historicalSemantics[checkName]])
+    }
+
+    const passwordLifecycleSemantics = passwordLifecycleSemanticStateFromRows(
+        await query(PASSWORD_LIFECYCLE_SEMANTICS_QUERY),
+    )
+    for (const checkName of PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES) {
+        checks.push([`password lifecycle semantic contract: ${checkName}`, passwordLifecycleSemantics[checkName]])
     }
 
     const foundationColumns = await query(`

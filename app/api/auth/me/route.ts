@@ -46,6 +46,7 @@ export async function GET() {
                 name: user.name,
                 role: user.role,
                 isActive: user.isActive,
+                mustChangePassword: user.mustChangePassword,
                 createdAt: user.createdAt,
                 lastLoginAt: user.lastLoginAt,
             },

@@ -1,6 +1,8 @@
 import {
     invalidHistoricalSemantics,
+    invalidPasswordLifecycleSemantics,
     type HistoricalSemanticState,
+    type PasswordLifecycleSemanticState,
 } from '@/lib/migration-semantic-contract'
 
 export interface MigrationRegistryRow {
@@ -22,6 +24,11 @@ export interface MigrationObjectState {
     presentationConstraints: string[]
     imagePositionColumns: string[]
     imagePositionConstraints: string[]
+    passwordLifecycleTables: string[]
+    passwordLifecycleColumns: string[]
+    passwordLifecycleConstraints: string[]
+    passwordLifecycleIndexes: string[]
+    passwordLifecycleSemantics: PasswordLifecycleSemanticState
 }
 
 export interface MigrationPreflightInput {
@@ -29,6 +36,7 @@ export interface MigrationPreflightInput {
     publicRegistry: MigrationRegistryRow[] | null
     expectedFoundationRegistry: MigrationRegistryRow[]
     expectedPresentationRegistry: MigrationRegistryRow[]
+    expectedImagePositionRegistry: MigrationRegistryRow[]
     expectedCurrentRegistry: MigrationRegistryRow[]
     objects: MigrationObjectState
 }
@@ -37,10 +45,12 @@ export type MigrationPreflightClassification =
     | 'fresh-empty-database'
     | 'unregistered-historical-schema'
     | 'unregistered-presentation-schema'
+    | 'unregistered-image-position-schema'
     | 'unregistered-current-schema'
     | 'unregistered-inconsistent-schema'
     | 'registered-foundation-ready'
     | 'registered-presentation-ready'
+    | 'registered-image-position-ready'
     | 'registered-current-schema'
     | 'registered-inconsistent-schema'
 
@@ -115,15 +125,43 @@ export const REQUIRED_IMAGE_POSITION_OBJECTS = {
     constraints: ['events_background_image_position_check'],
 } as const
 
+export const REQUIRED_PASSWORD_LIFECYCLE_OBJECTS = {
+    tables: ['password_reset_tokens'],
+    columns: [
+        'users.must_change_password',
+        'password_reset_tokens.id',
+        'password_reset_tokens.user_id',
+        'password_reset_tokens.token_hash',
+        'password_reset_tokens.expires_at',
+        'password_reset_tokens.consumed_at',
+        'password_reset_tokens.created_at',
+        'password_reset_tokens.request_ip',
+        'password_reset_tokens.issuance_slot',
+    ],
+    constraints: [
+        'password_reset_tokens_pkey',
+        'password_reset_tokens_user_id_users_id_fk',
+    ],
+    indexes: [
+        'password_reset_tokens_token_hash_unique',
+        'password_reset_tokens_user_id_idx',
+        'password_reset_tokens_expires_at_idx',
+        'password_reset_tokens_active_slot_unique',
+    ],
+} as const
+
 export interface MigrationPreflightResult {
     classification: MigrationPreflightClassification
     canBaseline0000Through0004: boolean
     canApply0005: boolean
     canApply0006: boolean
+    canApply0007: boolean
     missingHistoricalObjects: string[]
     missingPresentationObjects: string[]
     missingImagePositionObjects: string[]
+    missingPasswordLifecycleObjects: string[]
     invalidHistoricalSemantics: string[]
+    invalidPasswordLifecycleSemantics: string[]
     reasons: string[]
 }
 
@@ -156,7 +194,16 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         ...missing(REQUIRED_IMAGE_POSITION_OBJECTS.columns, input.objects.imagePositionColumns),
         ...missing(REQUIRED_IMAGE_POSITION_OBJECTS.constraints, input.objects.imagePositionConstraints),
     ]
+    const missingPasswordLifecycleObjects = [
+        ...missing(REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.tables, input.objects.passwordLifecycleTables),
+        ...missing(REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.columns, input.objects.passwordLifecycleColumns),
+        ...missing(REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.constraints, input.objects.passwordLifecycleConstraints),
+        ...missing(REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.indexes, input.objects.passwordLifecycleIndexes),
+    ]
     const invalidSemanticObjects = invalidHistoricalSemantics(input.objects.historicalSemantics)
+    const observedInvalidPasswordLifecycleObjects = invalidPasswordLifecycleSemantics(
+        input.objects.passwordLifecycleSemantics,
+    )
     const historicalComplete = missingHistoricalObjects.length === 0
         && invalidSemanticObjects.length === 0
         && input.objects.duplicateEventEmailGroups === 0
@@ -167,6 +214,15 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
     const imagePositionAbsent = input.objects.imagePositionColumns.length === 0
         && input.objects.imagePositionConstraints.length === 0
     const imagePositionComplete = missingImagePositionObjects.length === 0
+    const passwordLifecycleAbsent = input.objects.passwordLifecycleTables.length === 0
+        && input.objects.passwordLifecycleColumns.length === 0
+        && input.objects.passwordLifecycleConstraints.length === 0
+        && input.objects.passwordLifecycleIndexes.length === 0
+    const invalidPasswordLifecycleObjects = passwordLifecycleAbsent
+        ? []
+        : observedInvalidPasswordLifecycleObjects
+    const passwordLifecycleComplete = missingPasswordLifecycleObjects.length === 0
+        && invalidPasswordLifecycleObjects.length === 0
     const noRegistry = input.drizzleRegistry === null && input.publicRegistry === null
     const onlyDrizzleRegistry = input.drizzleRegistry !== null && input.publicRegistry === null
     const schemaIsEmpty = input.objects.tables.length === 0
@@ -174,11 +230,13 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
     let classification: MigrationPreflightClassification
     if (noRegistry && schemaIsEmpty) {
         classification = 'fresh-empty-database'
-    } else if (noRegistry && historicalComplete && presentationAbsent && imagePositionAbsent) {
+    } else if (noRegistry && historicalComplete && presentationAbsent && imagePositionAbsent && passwordLifecycleAbsent) {
         classification = 'unregistered-historical-schema'
-    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionAbsent) {
+    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionAbsent && passwordLifecycleAbsent) {
         classification = 'unregistered-presentation-schema'
-    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete) {
+    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleAbsent) {
+        classification = 'unregistered-image-position-schema'
+    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleComplete) {
         classification = 'unregistered-current-schema'
     } else if (noRegistry) {
         classification = 'unregistered-inconsistent-schema'
@@ -187,6 +245,7 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         && historicalComplete
         && presentationAbsent
         && imagePositionAbsent
+        && passwordLifecycleAbsent
         && registryMatches(input.drizzleRegistry!, input.expectedFoundationRegistry)
     ) {
         classification = 'registered-foundation-ready'
@@ -195,6 +254,7 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         && historicalComplete
         && presentationComplete
         && imagePositionAbsent
+        && passwordLifecycleAbsent
         && registryMatches(input.drizzleRegistry!, input.expectedPresentationRegistry)
     ) {
         classification = 'registered-presentation-ready'
@@ -203,6 +263,16 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         && historicalComplete
         && presentationComplete
         && imagePositionComplete
+        && passwordLifecycleAbsent
+        && registryMatches(input.drizzleRegistry!, input.expectedImagePositionRegistry)
+    ) {
+        classification = 'registered-image-position-ready'
+    } else if (
+        onlyDrizzleRegistry
+        && historicalComplete
+        && presentationComplete
+        && imagePositionComplete
+        && passwordLifecycleComplete
         && registryMatches(input.drizzleRegistry!, input.expectedCurrentRegistry)
     ) {
         classification = 'registered-current-schema'
@@ -221,6 +291,14 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
             reasons.push(`invalid historical semantics: ${invalidSemanticObjects.join(', ')}`)
         }
     }
+    if (!passwordLifecycleAbsent && !passwordLifecycleComplete) {
+        if (missingPasswordLifecycleObjects.length > 0) {
+            reasons.push(`missing password lifecycle objects: ${missingPasswordLifecycleObjects.join(', ')}`)
+        }
+        if (invalidPasswordLifecycleObjects.length > 0) {
+            reasons.push(`invalid password lifecycle semantics: ${invalidPasswordLifecycleObjects.join(', ')}`)
+        }
+    }
     if (input.publicRegistry !== null) reasons.push('unexpected public.__drizzle_migrations registry')
     if (classification.startsWith('unregistered-')) reasons.push('migration registry is absent')
 
@@ -229,10 +307,13 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         canBaseline0000Through0004: classification === 'unregistered-historical-schema',
         canApply0005: classification === 'registered-foundation-ready',
         canApply0006: classification === 'registered-presentation-ready',
+        canApply0007: classification === 'registered-image-position-ready',
         missingHistoricalObjects,
         missingPresentationObjects,
         missingImagePositionObjects,
+        missingPasswordLifecycleObjects,
         invalidHistoricalSemantics: invalidSemanticObjects,
+        invalidPasswordLifecycleSemantics: invalidPasswordLifecycleObjects,
         reasons,
     }
 }

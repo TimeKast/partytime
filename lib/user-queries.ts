@@ -4,8 +4,9 @@
  */
 
 import { db, users, userEventAssignments, events } from './db'
-import { eq, and, desc } from 'drizzle-orm'
-import { hashPassword } from './auth-utils'
+import { randomUUID } from 'crypto'
+import { eq, and, desc, sql } from 'drizzle-orm'
+import { generatePasswordBoundSessionToken, hashPassword } from './auth-utils'
 import type { User, NewUser, UserEventAssignment } from './schema'
 
 // ============================================
@@ -102,16 +103,140 @@ export async function updateUser(
 }
 
 /**
- * Update user password
+ * Update user password (plain, no flag/session side-effects). Used only for
+ * the non-security-critical case where no session revocation is required;
+ * the self-change/admin-reset/forgot-reset flows use the atomic variants
+ * below instead.
  */
-export async function updateUserPassword(id: string, newPassword: string): Promise<void> {
+export async function updateUserPassword(id: string, newPassword: string): Promise<boolean> {
     if (!db) throw new Error('Database not configured')
 
     const passwordHash = await hashPassword(newPassword)
 
-    await db.update(users)
+    const [updated] = await db.update(users)
         .set({ passwordHash })
         .where(eq(users.id, id))
+        .returning({ id: users.id })
+
+    return !!updated
+}
+
+/**
+ * Set (or clear) the forced-change flag independent of a password write.
+ */
+export async function setMustChangePassword(id: string, value: boolean): Promise<void> {
+    if (!db) throw new Error('Database not configured')
+
+    await db.update(users)
+        .set({ mustChangePassword: value })
+        .where(eq(users.id, id))
+}
+
+/**
+ * Self-service password change (A1, SI3). Atomically: updates the password
+ * hash, clears the forced-change flag, and revokes every OTHER session for
+ * this user — all in a single statement. A single statement is atomic on
+ * Postgres by itself; this project's neon-http driver does not support
+ * interactive `db.transaction()`, so multi-effect security writes MUST be
+ * expressed this way (one round trip, one implicit transaction) rather than
+ * as several separate statements.
+ */
+export async function changePasswordKeepingSession(
+    id: string,
+    expectedPasswordHash: string,
+    newPasswordHash: string,
+    exceptToken: string,
+): Promise<{ token: string; expiresAt: Date } | null> {
+    if (!db) throw new Error('Database not configured')
+
+    const replacementToken = generatePasswordBoundSessionToken(newPasswordHash)
+
+    const result = await db.execute(sql`
+        WITH updated_user AS (
+            UPDATE users AS target
+            SET password_hash = ${newPasswordHash}, must_change_password = false
+            WHERE target.id = ${id}
+              AND target.password_hash = ${expectedPasswordHash}
+              AND target.is_active = true
+              AND EXISTS (
+                  SELECT 1 FROM user_sessions current_session
+                  WHERE current_session.user_id = target.id
+                    AND current_session.token = ${exceptToken}
+                    AND current_session.expires_at > now()
+              )
+            RETURNING target.id
+        ),
+        deleted_sessions AS (
+            DELETE FROM user_sessions
+            WHERE user_id IN (SELECT id FROM updated_user)
+            RETURNING user_id, token, expires_at, user_agent, ip_address
+        ),
+        replacement_session AS (
+            INSERT INTO user_sessions (
+                id, user_id, token, expires_at, user_agent, ip_address
+            )
+            SELECT ${randomUUID()}, user_id, ${replacementToken}, expires_at, user_agent, ip_address
+            FROM deleted_sessions
+            WHERE token = ${exceptToken}
+            RETURNING token, expires_at
+        ),
+        invalidated_reset_tokens AS (
+            UPDATE password_reset_tokens
+            SET consumed_at = now(), issuance_slot = NULL
+            WHERE user_id IN (SELECT id FROM updated_user)
+              AND consumed_at IS NULL
+            RETURNING id
+        )
+        SELECT token, expires_at FROM replacement_session
+    `)
+
+    const row = result.rows[0] as { token: string; expires_at: Date | string } | undefined
+    return row
+        ? {
+            token: row.token,
+            expiresAt: row.expires_at instanceof Date ? row.expires_at : new Date(row.expires_at),
+        }
+        : null
+}
+
+/**
+ * Admin-initiated password reset (A2, SI3). Atomically: sets a new
+ * (temporary) password hash, forces a change on next login, and revokes ALL
+ * sessions for the target user — all in a single statement (see rationale
+ * on changePasswordKeepingSession above).
+ */
+export async function adminResetPassword(
+    id: string,
+    expectedPasswordHash: string,
+    newPasswordHash: string,
+): Promise<boolean> {
+    if (!db) throw new Error('Database not configured')
+
+    const result = await db.execute(sql`
+        WITH updated_user AS (
+            UPDATE users AS target
+            SET password_hash = ${newPasswordHash}, must_change_password = true
+            WHERE target.id = ${id}
+              AND target.password_hash = ${expectedPasswordHash}
+              AND target.is_active = true
+            RETURNING target.id
+        ),
+        revoked_sessions AS (
+            DELETE FROM user_sessions
+            WHERE user_id IN (SELECT id FROM updated_user)
+            RETURNING id
+        ),
+        invalidated_reset_tokens AS (
+            UPDATE password_reset_tokens
+            SET consumed_at = now(), issuance_slot = NULL
+            WHERE user_id IN (SELECT id FROM updated_user)
+              AND consumed_at IS NULL
+            RETURNING id
+        )
+        SELECT id FROM updated_user
+    `)
+
+    return result.rows.length > 0
 }
 
 /**

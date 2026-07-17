@@ -303,3 +303,153 @@ UNION ALL SELECT check_name, valid FROM index_check
 UNION ALL SELECT check_name, valid FROM trigger_check
 UNION ALL SELECT check_name, valid FROM function_check
 ORDER BY check_name`
+
+export const PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES = [
+    'column.users.must_change_password',
+    'table.password_reset_tokens.columns',
+    'constraint.password_reset_tokens_pkey',
+    'constraint.password_reset_tokens_user_fk',
+    'index.password_reset_tokens_token_hash_unique',
+    'index.password_reset_tokens_user_id_idx',
+    'index.password_reset_tokens_expires_at_idx',
+    'index.password_reset_tokens_active_slot_unique',
+] as const
+
+export type PasswordLifecycleSemanticCheckName = typeof PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES[number]
+export type PasswordLifecycleSemanticState = Record<PasswordLifecycleSemanticCheckName, boolean>
+
+export function passwordLifecycleSemanticStateFromRows(
+    rows: ReadonlyArray<Record<string, unknown>>,
+): PasswordLifecycleSemanticState {
+    const state = Object.fromEntries(
+        PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+    ) as PasswordLifecycleSemanticState
+    const seen = new Set<PasswordLifecycleSemanticCheckName>()
+
+    for (const row of rows) {
+        if (
+            typeof row.check_name !== 'string'
+            || !PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES.includes(
+                row.check_name as PasswordLifecycleSemanticCheckName,
+            )
+            || seen.has(row.check_name as PasswordLifecycleSemanticCheckName)
+        ) continue
+
+        const name = row.check_name as PasswordLifecycleSemanticCheckName
+        seen.add(name)
+        state[name] = row.valid === true
+    }
+
+    return state
+}
+
+export function invalidPasswordLifecycleSemantics(state: PasswordLifecycleSemanticState): string[] {
+    return PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES.filter(name => state[name] !== true)
+}
+
+export const PASSWORD_LIFECYCLE_SEMANTICS_QUERY = String.raw`
+WITH must_change_password_check AS (
+    SELECT
+        'column.users.must_change_password'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            data_type = 'boolean'
+            AND is_nullable = 'NO'
+            AND column_default IN ('false', 'false::boolean')
+        ), false) AS valid
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'users'
+      AND column_name = 'must_change_password'
+), reset_token_columns_check AS (
+    SELECT
+        'table.password_reset_tokens.columns'::text AS check_name,
+        count(*) = 8
+        AND count(*) FILTER (WHERE column_name = 'id' AND data_type = 'text' AND is_nullable = 'NO') = 1
+        AND count(*) FILTER (WHERE column_name = 'user_id' AND data_type = 'text' AND is_nullable = 'NO') = 1
+        AND count(*) FILTER (WHERE column_name = 'token_hash' AND data_type = 'text' AND is_nullable = 'NO') = 1
+        AND count(*) FILTER (WHERE column_name = 'expires_at' AND data_type = 'timestamp without time zone' AND is_nullable = 'NO') = 1
+        AND count(*) FILTER (WHERE column_name = 'consumed_at' AND data_type = 'timestamp without time zone' AND is_nullable = 'YES') = 1
+        AND count(*) FILTER (WHERE column_name = 'created_at' AND data_type = 'timestamp without time zone' AND is_nullable = 'NO' AND column_default = 'now()') = 1
+        AND count(*) FILTER (WHERE column_name = 'request_ip' AND data_type = 'character varying' AND character_maximum_length = 45 AND is_nullable = 'YES') = 1
+        AND count(*) FILTER (WHERE column_name = 'issuance_slot' AND data_type = 'integer' AND is_nullable = 'YES') = 1
+        AS valid
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'password_reset_tokens'
+), reset_token_pk_check AS (
+    SELECT
+        'constraint.password_reset_tokens_pkey'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            pk.contype = 'p'
+            AND pk.conrelid = to_regclass('public.password_reset_tokens')
+            AND pk.convalidated
+            AND ARRAY(
+                SELECT attribute.attname::text
+                FROM unnest(pk.conkey) WITH ORDINALITY AS key_column(attnum, position)
+                JOIN pg_attribute attribute
+                  ON attribute.attrelid = pk.conrelid
+                 AND attribute.attnum = key_column.attnum
+                ORDER BY key_column.position
+            ) = ARRAY['id']::text[]
+        ), false) AS valid
+    FROM pg_constraint pk
+    WHERE pk.connamespace = to_regnamespace('public')
+      AND pk.conname = 'password_reset_tokens_pkey'
+), reset_token_fk_check AS (
+    SELECT
+        'constraint.password_reset_tokens_user_fk'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            contype = 'f'
+            AND conrelid = to_regclass('public.password_reset_tokens')
+            AND confrelid = to_regclass('public.users')
+            AND confdeltype = 'c'
+            AND confupdtype = 'a'
+            AND convalidated
+            AND regexp_replace(
+                lower(replace(replace(pg_get_constraintdef(oid, false), '"', ''), 'public.', '')),
+                '[[:space:]]+', ' ', 'g'
+            ) = 'foreign key (user_id) references users(id) on delete cascade'
+        ), false) AS valid
+    FROM pg_constraint
+    WHERE connamespace = to_regnamespace('public')
+      AND conname = 'password_reset_tokens_user_id_users_id_fk'
+), expected_indexes(check_name, index_name, unique_required, predicate_required, definition) AS (
+    VALUES
+        ('index.password_reset_tokens_token_hash_unique', 'password_reset_tokens_token_hash_unique', true, false,
+         'create unique index password_reset_tokens_token_hash_unique on password_reset_tokens using btree (token_hash)'),
+        ('index.password_reset_tokens_user_id_idx', 'password_reset_tokens_user_id_idx', false, false,
+         'create index password_reset_tokens_user_id_idx on password_reset_tokens using btree (user_id)'),
+        ('index.password_reset_tokens_expires_at_idx', 'password_reset_tokens_expires_at_idx', false, false,
+         'create index password_reset_tokens_expires_at_idx on password_reset_tokens using btree (expires_at)'),
+        ('index.password_reset_tokens_active_slot_unique', 'password_reset_tokens_active_slot_unique', true, true,
+         'create unique index password_reset_tokens_active_slot_unique on password_reset_tokens using btree (user_id, issuance_slot) where ((consumed_at is null) and (issuance_slot is not null))')
+), index_checks AS (
+    SELECT
+        expected.check_name,
+        count(index_class.oid) = 1
+        AND coalesce(bool_and(
+            index_state.indrelid = to_regclass('public.password_reset_tokens')
+            AND index_state.indisunique = expected.unique_required
+            AND index_state.indisvalid
+            AND index_state.indisready
+            AND index_state.indislive
+            AND (index_state.indpred IS NOT NULL) = expected.predicate_required
+            AND regexp_replace(
+                lower(replace(replace(pg_get_indexdef(index_class.oid), '"', ''), 'public.', '')),
+                '[[:space:]]+', ' ', 'g'
+            ) = expected.definition
+        ), false) AS valid
+    FROM expected_indexes expected
+    LEFT JOIN pg_class index_class ON index_class.relname = expected.index_name
+        AND index_class.relnamespace = to_regnamespace('public')
+    LEFT JOIN pg_index index_state ON index_state.indexrelid = index_class.oid
+    GROUP BY expected.check_name
+)
+SELECT check_name, valid FROM must_change_password_check
+UNION ALL SELECT check_name, valid FROM reset_token_columns_check
+UNION ALL SELECT check_name, valid FROM reset_token_pk_check
+UNION ALL SELECT check_name, valid FROM reset_token_fk_check
+UNION ALL SELECT check_name, valid FROM index_checks
+ORDER BY check_name`

@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import bcrypt from 'bcryptjs'
-import { verifyPassword, createSession, SESSION_COOKIE_NAME, getSessionCookieOptions } from '@/lib/auth-utils'
+import {
+    verifyPassword,
+    createSession,
+    createSessionIfPasswordUnchanged,
+    SESSION_COOKIE_NAME,
+    getSessionCookieOptions,
+} from '@/lib/auth-utils'
 import { getUserByEmail } from '@/lib/user-queries'
 import { timingSafeEqualStr } from '@/lib/timing-safe'
 
@@ -112,14 +118,12 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Success — reset the failure counter for this key.
-        attempts.delete(key)
-
         const userAgent = request.headers.get('user-agent') || undefined
         const ip = ipAddress === 'unknown' ? undefined : ipAddress
 
         if (isSuperAdmin) {
             const { token, expiresAt } = await createSession('super_admin_env', rememberMe, userAgent, ip)
+            attempts.delete(key)
             const cookieStore = await cookies()
             cookieStore.set(SESSION_COOKIE_NAME, token, getSessionCookieOptions(expiresAt))
             return NextResponse.json({
@@ -128,7 +132,25 @@ export async function POST(request: NextRequest) {
             })
         }
 
-        const { token, expiresAt } = await createSession(authedUser!.id, rememberMe, userAgent, ip)
+        const session = await createSessionIfPasswordUnchanged(
+            authedUser!.id,
+            authedUser!.passwordHash,
+            rememberMe,
+            userAgent,
+            ip,
+        )
+        if (!session) {
+            // A concurrent password change won the user-row lock after bcrypt
+            // verification. Never set a cookie for the stale credential.
+            recordFailure(key, Date.now())
+            return NextResponse.json(
+                { success: false, error: 'Credenciales inválidas' },
+                { status: 401 },
+            )
+        }
+
+        attempts.delete(key)
+        const { token, expiresAt } = session
         const cookieStore = await cookies()
         cookieStore.set(SESSION_COOKIE_NAME, token, getSessionCookieOptions(expiresAt))
 

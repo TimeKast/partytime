@@ -13,7 +13,9 @@ import {
 } from '@/lib/migration-preflight'
 import {
     HISTORICAL_SEMANTICS_QUERY,
+    PASSWORD_LIFECYCLE_SEMANTICS_QUERY,
     historicalSemanticStateFromRows,
+    passwordLifecycleSemanticStateFromRows,
 } from '@/lib/migration-semantic-contract'
 
 interface JournalEntry {
@@ -132,14 +134,14 @@ async function main() {
         SELECT table_name
         FROM information_schema.tables
         WHERE table_schema = 'public'
-          AND table_name IN ('app_settings', 'events', 'rsvps', 'user_event_assignments', 'user_sessions', 'users')`
+          AND table_name IN ('app_settings', 'events', 'password_reset_tokens', 'rsvps', 'user_event_assignments', 'user_sessions', 'users')`
     ).map(row => String(row.table_name))
     const columns = (await sql`
         SELECT table_name || '.' || column_name AS name
         FROM information_schema.columns
         WHERE table_schema = 'public'
           AND table_name IN (
-              'app_settings', 'events', 'rsvps', 'user_event_assignments', 'user_sessions', 'users'
+              'app_settings', 'events', 'password_reset_tokens', 'rsvps', 'user_event_assignments', 'user_sessions', 'users'
           )`
     ).map(row => String(row.name))
     const constraints = (await sql`
@@ -234,6 +236,33 @@ async function main() {
         WHERE conrelid = 'public.events'::regclass
           AND conname = 'events_background_image_position_check'`
     ).map(row => String(row.conname))
+    const passwordLifecycleTables = tables.filter(table => table === 'password_reset_tokens')
+    const passwordLifecycleColumns = columns.filter(column => (
+        column === 'users.must_change_password' || column.startsWith('password_reset_tokens.')
+    ))
+    const passwordLifecycleConstraints = (await sql`
+        SELECT conname
+        FROM pg_constraint
+        WHERE connamespace = to_regnamespace('public')
+          AND conname IN (
+              'password_reset_tokens_pkey',
+              'password_reset_tokens_user_id_users_id_fk'
+          )`
+    ).map(row => String(row.conname))
+    const passwordLifecycleIndexes = (await sql`
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND indexname IN (
+              'password_reset_tokens_token_hash_unique',
+              'password_reset_tokens_user_id_idx',
+              'password_reset_tokens_expires_at_idx',
+              'password_reset_tokens_active_slot_unique'
+          )`
+    ).map(row => String(row.indexname))
+    const passwordLifecycleSemantics = passwordLifecycleSemanticStateFromRows(
+        await sql.query(PASSWORD_LIFECYCLE_SEMANTICS_QUERY),
+    )
 
     const objects: MigrationObjectState = {
         tables,
@@ -249,6 +278,11 @@ async function main() {
         presentationConstraints,
         imagePositionColumns,
         imagePositionConstraints,
+        passwordLifecycleTables,
+        passwordLifecycleColumns,
+        passwordLifecycleConstraints,
+        passwordLifecycleIndexes,
+        passwordLifecycleSemantics,
     }
     const expected = expectedRegistry()
     const result = classifyMigrationPreflight({
@@ -256,7 +290,8 @@ async function main() {
         publicRegistry,
         expectedFoundationRegistry: expected.slice(0, 5),
         expectedPresentationRegistry: expected.slice(0, 6),
-        expectedCurrentRegistry: expected.slice(0, 7),
+        expectedImagePositionRegistry: expected.slice(0, 7),
+        expectedCurrentRegistry: expected.slice(0, 8),
         objects,
     })
 
@@ -270,7 +305,12 @@ async function main() {
         objects,
     }
     console.log(process.argv.includes('--json') ? JSON.stringify(output, null, 2) : output)
-    if (!result.canApply0005 && !result.canApply0006 && result.classification !== 'registered-current-schema') {
+    if (
+        !result.canApply0005
+        && !result.canApply0006
+        && !result.canApply0007
+        && result.classification !== 'registered-current-schema'
+    ) {
         process.exitCode = 1
     }
 }

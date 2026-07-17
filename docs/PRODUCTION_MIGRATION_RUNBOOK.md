@@ -1,7 +1,7 @@
-# Runbook de migraciones 0005–0006
+# Runbook de migraciones 0005–0007
 
-Este runbook es el único procedimiento autorizado para preparar la migración de
-presentación y posición de imagen. No autoriza una escritura por sí mismo: requiere ventana aprobada,
+Este runbook es el único procedimiento autorizado para preparar las migraciones de
+presentación, posición de imagen y ciclo de vida de contraseñas. No autoriza una escritura por sí mismo: requiere ventana aprobada,
 snapshot/restauración disponible y revisión humana de la salida de cada paso.
 No despliegues la aplicación antes de completar la verificación de base de datos.
 
@@ -34,10 +34,10 @@ canApply0005: false
 
 El exit code es distinto de cero porque la ausencia del registro bloquea una
 migración. Detente si falta un objeto histórico, aparece cualquier objeto de
-presentación o posición, hay huérfanos/duplicados, existe un registro alterno en `public`, o
+presentación, posición o contraseña, hay huérfanos/duplicados, existe un registro alterno en `public`, o
 la clasificación difiere. La utilidad comprueba las seis tablas base, constraints
 únicos, columnas de 0001/0004, índice de deduplicación, FK, función/trigger de
-capacidad, huérfanos, duplicados y ausencia/presencia completa de 0005 y 0006.
+capacidad, huérfanos, duplicados y ausencia/presencia completa de 0005, 0006 y 0007.
 
 ## Línea base única 0000–0004
 
@@ -45,7 +45,7 @@ Solo después del preflight anterior, revisado contra el mismo destino y dentro 
 la ventana aprobada:
 
 1. congela despliegues y toda actividad de schema/migración hasta terminar la
-   verificación posterior a `0006`;
+   verificación posterior a `0007`;
 2. registra en el ticket de operación el `target.fingerprint` no secreto emitido
    por el preflight y el SHA del checkout revisado;
 3. confirma con otra persona que el fingerprint y el checkout son los aprobados;
@@ -351,6 +351,14 @@ BEGIN
     RAISE EXCEPTION '0006 objects already exist';
   END IF;
 
+  IF to_regclass('public.password_reset_tokens') IS NOT NULL OR EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users'
+      AND column_name = 'must_change_password'
+  ) THEN
+    RAISE EXCEPTION '0007 objects already exist';
+  END IF;
+
   IF to_regclass('drizzle.__drizzle_migrations') IS NOT NULL
      OR to_regclass('public.__drizzle_migrations') IS NOT NULL THEN
     RAISE EXCEPTION 'migration registry appeared during baseline guard';
@@ -378,7 +386,7 @@ COMMIT;
 Vuelve a ejecutar el preflight. Debe salir
 `registered-foundation-ready`, con `canApply0005: true`. Cualquier otro resultado
 es un stop obligatorio. El `target.fingerprint` debe seguir siendo idéntico al
-registrado. Mantén congelada la actividad de schema/deploy hasta terminar `0006`
+registrado. Mantén congelada la actividad de schema/deploy hasta terminar `0007`
 y su verificación.
 
 ## Aplicación transaccional de 0005
@@ -417,21 +425,60 @@ Después:
 
 ```bash
 DATABASE_URL='<misma conexión inyectada>' npm run db:preflight -- --json
+```
+
+La clasificación debe ser `registered-image-position-ready`, con
+`canApply0007: true`. Cualquier otro resultado es un stop obligatorio. No
+despliegues todavía la aplicación.
+
+## Ensayo obligatorio de 0007 en una rama Neon desechable
+
+Antes de tocar producción, crea por el procedimiento autorizado una rama Neon
+aislada del mismo estado, registra su `target.fingerprint` no secreto y ejecuta
+el preflight. Solo continúa si devuelve `registered-image-position-ready` y
+`canApply0007: true`. Aplica `0007`, registra su fila y ejecuta `verify:db` como
+se indica abajo. Después, vuelve a ejecutar **solo** el archivo SQL `0007` dentro
+de otra transacción (sin insertar una segunda fila en el journal) y repite
+preflight + `verify:db`. Ambos verificadores deben seguir verdes. Elimina la rama
+de ensayo mediante el procedimiento autorizado al terminar. Nunca uses una URL
+de producción para este ensayo ni copies credenciales al ticket.
+
+## Aplicación transaccional de 0007
+
+`0007` es aditiva: agrega `users.must_change_password`, la tabla de tokens con
+hash SHA-256, FK `ON DELETE CASCADE`, índice único por hash, índices de consulta
+por usuario/expiración y el índice único parcial de `issuance_slot` que hace
+atómico el límite de emisión concurrente. Con el mismo checkout y destino
+revisados, y aprobación explícita de escritura, aplica y registra el
+hash/timestamp exactos:
+
+```bash
+psql "$DATABASE_URL" -X --set ON_ERROR_STOP=1 --single-transaction \
+  --file drizzle/0007_password_lifecycle.sql \
+  --command "INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('7dcd3b7cbc3f5e3d397132d1e3249b41bfffd7b1bd66164fa151629f637d4bff', 1784260812922)"
+```
+
+Después:
+
+```bash
+DATABASE_URL='<misma conexión inyectada>' npm run db:preflight -- --json
 DATABASE_URL='<misma conexión inyectada>' npm run verify:db
 ```
 
-La clasificación debe ser `registered-current-schema`, `canApply0006: false` y
+La clasificación debe ser `registered-current-schema`, `canApply0007: false` y
 `verify:db` debe terminar en exit 0. Solo entonces se puede desplegar la
 aplicación. El deploy sigue siendo una autorización separada.
 
 ## Rollback
 
-Ante una regresión, revierte primero el código de aplicación y conserva las seis
-columnas y constraints aditivos. No elimines columnas durante el incidente: pueden
-contener configuración ya capturada. Una eliminación posterior requiere otra
+Ante una regresión, revierte primero el código de aplicación y conserva los objetos
+aditivos, incluida la columna `must_change_password`, la tabla
+`password_reset_tokens`, sus índices y su FK. El código anterior no los usa. No
+elimines columnas o tablas durante el incidente: pueden contener estado ya
+capturado. Una eliminación posterior requiere otra
 migración revisada, aceptación explícita de pérdida de datos y su propia ventana.
 
-## Revisión Tier 3
+## Revisión Tier 4
 
 Un único review owner focalizado debe revisar la migración, el contrato público,
 la matriz de compatibilidad y la evidencia de gates. No se permiten auditorías
