@@ -1,0 +1,113 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ad-2);
+  border-radius: var(--ad-r-md);
+  font-family: inherit;
+  font-weight: var(--ad-weight-med);
+  font-size: var(--ad-fs-md);
+  line-height: 1;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--ad-dur) var(--ad-ease), border-color var(--ad-dur) var(--ad-ease), color var(--ad-dur) var(--ad-ease), transform var(--ad-dur) var(--ad-ease);
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ad-focus-ring);
+}
+
+.btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.md {
+  height: var(--ad-control-h);
+  padding: 0 var(--ad-4);
+}
+
+.sm {
+  height: var(--ad-control-h-sm);
+  padding: 0 var(--ad-3);
+  font-size: var(--ad-fs-sm);
+}
+
+.primary {
+  background: var(--ad-primary);
+  color: var(--ad-primary-contrast);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--ad-primary-hover);
+}
+
+.secondary {
+  background: var(--ad-surface);
+  color: var(--ad-text);
+  border-color: var(--ad-border-strong);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--ad-surface-2);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--ad-text-muted);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--ad-surface-2);
+  color: var(--ad-text);
+}
+
+.danger {
+  background: var(--ad-danger);
+  color: #fff;
+}
+
+.danger:hover:not(:disabled) {
+  background: #b93540;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ad-control-h-sm);
+  height: var(--ad-control-h-sm);
+  border-radius: var(--ad-r-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ad-text-muted);
+  cursor: pointer;
+  transition: background var(--ad-dur) var(--ad-ease), color var(--ad-dur) var(--ad-ease);
+}
+
+.iconBtn:hover:not(:disabled) {
+  background: var(--ad-surface-2);
+  color: var(--ad-text);
+}
+
+.iconBtn:focus-visible {
+  outline: none;
+  box-shadow: var(--ad-focus-ring);
+}
+
+.iconBtn:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.iconBtnDanger:hover:not(:disabled) {
+  background: var(--ad-danger-soft);
+  color: var(--ad-danger);
+}
+
+.iconBtnSuccess:hover:not(:disabled) {
+  background: var(--ad-success-soft);
+  color: var(--ad-success);
+}

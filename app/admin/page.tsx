@@ -27,6 +27,12 @@ import {
   ReminderStatusSection,
   type RSVP,
 } from './components'
+import { AdminShell } from './components/shell'
+import { RsvpTable, RsvpFilters } from './components/table'
+import { Button, ImagePreview } from './components/ui'
+import { Settings } from './components/ui/icons'
+import { ConfigNav } from './components/config/ConfigNav'
+import { SaveBar } from './components/config/SaveBar'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -1219,7 +1225,7 @@ export default function AdminDashboard() {
 
   // Prevent navigating to tabs the user shouldn't access
   useEffect(() => {
-    if (activeTab === 'eventos' && currentUser?.role !== 'super_admin') {
+    if ((activeTab === 'eventos' || activeTab === 'usuarios') && currentUser?.role !== 'super_admin') {
       setActiveTab('dashboard')
     }
     if (activeTab === 'config' && !canManageSelectedEvent) {
@@ -1238,378 +1244,83 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className={styles.dashboard}>
-      <header className={styles.header}>
-        <div className={styles.headerLeft}>
-          <h1 className={styles.headerTitle}>Admin Dashboard</h1>
-          <span className={styles.headerSubtitle}>Party Time!</span>
-        </div>
-        <div className={styles.headerActions}>
-          {currentUser?.role === 'super_admin' && (
-            <button
-              onClick={() => setActiveTab('usuarios')}
-              className={`${styles.userManagementBtn} ${activeTab === 'usuarios' ? styles.tabActive : ''}`}
-              title="Gestión de Usuarios"
-            >
-              👥 Usuarios
-            </button>
-          )}
-          <button onClick={handleLogout} className={styles.logoutBtn}>
-            Cerrar Sesión
-          </button>
-        </div>
-      </header>
-
-      {/* Event Selector - Always visible */}
-      <div style={{ padding: '8px 15px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', marginBottom: '0', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap', overflowX: 'auto' }}>
-        <label htmlFor="globalEventSelect" style={{ fontWeight: 'bold', color: 'white', fontSize: '13px', whiteSpace: 'nowrap' }}>
-          🎪 Evento:
-        </label>
-        <select
-          id="globalEventSelect"
-          value={selectedEventId}
-          onChange={(e) => setSelectedEventId(e.target.value)}
-          style={{
-            padding: '6px 10px',
-            borderRadius: '8px',
-            border: 'none',
-            fontSize: '13px',
-            minWidth: '120px',
-            flex: '1',
-            fontWeight: '500'
-          }}
-        >
-          {events.length === 0 && (
-            <option value="">Cargando eventos...</option>
-          )}
-          {events.map((evt) => (
-            <option key={evt.id} value={evt.slug}>
-              {evt.title} {evt.id === homeEventId && '🏠'} {!evt.isActive && '(Inactivo)'}
-            </option>
-          ))}
-        </select>
-
-        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-          {/* Solo super_admin puede gestionar eventos */}
-          {currentUser?.role === 'super_admin' && (
-            <button
-              onClick={() => setActiveTab('eventos')}
-              style={{
-                padding: '6px 12px',
-                background: activeTab === 'eventos' ? 'white' : 'rgba(255,255,255,0.2)',
-                color: activeTab === 'eventos' ? '#667eea' : 'white',
-                border: '2px solid white',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: '600',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-              title="Gestionar Eventos"
-            >
-              📂 <span style={{ display: 'none' }}>Eventos</span>
-            </button>
-          )}
-
-          <a
-            href={`/${selectedEventId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              padding: '6px 12px',
-              background: 'white',
-              color: '#667eea',
-              borderRadius: '8px',
-              textDecoration: 'none',
-              fontSize: '13px',
-              fontWeight: '600',
-              display: 'flex',
-              alignItems: 'center'
-            }}
-            title="Ver Página"
-          >
-            🔗
-          </a>
-        </div>
-      </div>
-
-      <div className={styles.tabs}>
-        <button
-          className={`${styles.tab} ${activeTab === 'dashboard' ? styles.tabActive : ''}`}
-          onClick={() => setActiveTab('dashboard')}
-        >
-          📊 Dashboard
-        </button>
-        {/* Config solo para super_admin o manager del evento seleccionado */}
-        {canManageSelectedEvent && (
-          <button
-            className={`${styles.tab} ${activeTab === 'config' ? styles.tabActive : ''}`}
-            onClick={() => setActiveTab('config')}
-          >
-            ⚙️ Config
-          </button>
-        )}
-        <button
-          className={`${styles.tab} ${activeTab === 'cuenta' ? styles.tabActive : ''}`}
-          onClick={() => setActiveTab('cuenta')}
-        >
-          🔐 Cuenta
-        </button>
-      </div>
-
+    <AdminShell
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      canManageSelectedEvent={canManageSelectedEvent}
+      isSuperAdmin={currentUser?.role === 'super_admin'}
+      events={events}
+      selectedEventId={selectedEventId}
+      onSelectEvent={setSelectedEventId}
+      homeEventId={homeEventId}
+      onLogout={handleLogout}
+      message={message}
+    >
       {/* Contenido del Dashboard */}
       {activeTab === 'dashboard' && (
         <>
+          <div className={styles.dashboardHeader}>
+            <div>
+              <p className={styles.dashboardEyebrow}>Evento seleccionado</p>
+              <h2 className={styles.dashboardTitle}>{selectedEvent?.title || 'Resumen de invitados'}</h2>
+              <p className={styles.dashboardDescription}>Consulta la asistencia y gestiona la lista de invitados.</p>
+            </div>
+            {canManageSelectedEvent && (
+              <Button type="button" variant="primary" onClick={() => setActiveTab('config')}>
+                <Settings size={17} />
+                Configurar evento
+              </Button>
+            )}
+          </div>
+
           {/* H-008 FIX: Use extracted StatsCards component */}
           <StatsCards stats={stats} />
 
           {/* Controles */}
-          <div className={styles.controls}>
-            <div className={styles.filterSection}>
-              <h3>🔍 Filtros de Visualización</h3>
-              <div className={styles.filterRow}>
-                <input
-                  type="text"
-                  placeholder="Buscar por nombre, email o teléfono..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className={styles.searchInput}
-                />
+          <RsvpFilters
+            searchTerm={searchTerm}
+            onSearchTermChange={setSearchTerm}
+            displayFilterStatus={displayFilterStatus}
+            onDisplayFilterStatusChange={setDisplayFilterStatus}
+            displayFilterPlusOne={displayFilterPlusOne}
+            onDisplayFilterPlusOneChange={setDisplayFilterPlusOne}
+            displayFilterEmail={displayFilterEmail}
+            onDisplayFilterEmailChange={setDisplayFilterEmail}
+            onExportPdf={exportInformativeList}
+            onExportExcel={exportExcelList}
+            exportDisabled={stats.confirmed === 0}
+            isReadOnly={isReadOnly}
+            emailFilterStatus={emailFilterStatus}
+            onEmailFilterStatusChange={setEmailFilterStatus}
+            emailFilterEmail={emailFilterEmail}
+            onEmailFilterEmailChange={setEmailFilterEmail}
+            onSendBulkEmails={sendBulkEmails}
+            bulkCount={emailTargetRsvps.length}
+            bulkDisabled={loading || emailTargetRsvps.length === 0 || isEventPast()}
+            eventPast={isEventPast()}
+          />
 
-                <select value={displayFilterStatus} onChange={(e) => setDisplayFilterStatus(e.target.value as any)}>
-                  <option value="all">Todos los estados</option>
-                  <option value="confirmed">✅ Confirmados</option>
-                  <option value="cancelled">❌ Cancelados</option>
-                </select>
+          <RsvpTable
+            variant="confirmed"
+            rsvps={filteredRsvps.filter(r => r.status === 'confirmed')}
+            isReadOnly={isReadOnly}
+            loading={loading}
+            isEventPast={isEventPast()}
+            onSendEmail={sendEmail}
+            onEdit={openEditModal}
+            onToggleStatus={toggleStatus}
+          />
 
-                <select value={displayFilterPlusOne} onChange={(e) => setDisplayFilterPlusOne(e.target.value as any)}>
-                  <option value="all">Todos</option>
-                  <option value="yes">👥 Con +1</option>
-                  <option value="no">👤 Sin +1</option>
-                </select>
-
-                <select value={displayFilterEmail} onChange={(e) => setDisplayFilterEmail(e.target.value as any)}>
-                  <option value="all">Todos los emails</option>
-                  <option value="sent">✉️ Email enviado</option>
-                  <option value="not-sent">📭 Sin email</option>
-                </select>
-
-                <button
-                  onClick={exportInformativeList}
-                  disabled={stats.confirmed === 0}
-                  className={styles.exportBtn}
-                  title="Exportar lista de invitados en PDF"
-                >
-                  📄 PDF
-                </button>
-                <button
-                  onClick={exportExcelList}
-                  disabled={stats.confirmed === 0}
-                  className={styles.exportBtn}
-                  title="Exportar lista de invitados en Excel"
-                  style={{ background: 'linear-gradient(135deg, #217346 0%, #185c36 100%)' }}
-                >
-                  📊 Excel
-                </button>
-              </div>
-            </div>
-
-            {/* Viewer (solo lectura) NO debe ver sección de envío de emails */}
-            {!isReadOnly && (
-              <div className={styles.filterSection}>
-                <h3>📧 Envío de Emails</h3>
-                <div className={styles.filterRow}>
-                  <select value={emailFilterStatus} onChange={(e) => setEmailFilterStatus(e.target.value as any)}>
-                    <option value="all">Todos los estados</option>
-                    <option value="confirmed">✅ Confirmados</option>
-                    <option value="cancelled">❌ Cancelados</option>
-                  </select>
-
-                  <select value={emailFilterEmail} onChange={(e) => setEmailFilterEmail(e.target.value as any)} className={styles.emailFilter}>
-                    <option value="all">Todos</option>
-                    <option value="sent">✉️ Ya enviados</option>
-                    <option value="not-sent">📭 Sin enviar</option>
-                  </select>
-
-                  <button
-                    onClick={sendBulkEmails}
-                    disabled={loading || emailTargetRsvps.length === 0 || isEventPast()}
-                    className={styles.bulkBtn}
-                    title={isEventPast() ? "No se pueden enviar emails - evento pasado" : undefined}
-                    style={isEventPast() ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                  >
-                    📧 Enviar Emails ({isEventPast() ? 'Evento pasado' : emailTargetRsvps.length})
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {message && <div className={styles.message}>{message}</div>}
-
-          {/* Tabla de RSVPs Confirmados */}
-          {filteredRsvps.filter(r => r.status === 'confirmed').length > 0 && (
-            <div className={styles.tableContainer}>
-              <h2 className={styles.sectionTitle}>✅ Confirmados ({filteredRsvps.filter(r => r.status === 'confirmed').length})</h2>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    {!isReadOnly && <th>Acciones</th>}
-                    <th>Email Enviado</th>
-                    <th>Nombre</th>
-                    <th>Email</th>
-                    <th>Teléfono</th>
-                    <th>Fecha Registro</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRsvps.filter(r => r.status === 'confirmed').map((rsvp) => (
-                    <tr key={rsvp.id} className={styles.rsvpRow}>
-                      {!isReadOnly && (
-                        <td className={styles.actionCell}>
-                          <button
-                            onClick={() => sendEmail(rsvp)}
-                            disabled={loading || isEventPast()}
-                            className={styles.sendBtn}
-                            title={isEventPast() ? "No se pueden enviar emails - evento pasado" : "Enviar email"}
-                            style={isEventPast() ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                          >
-                            📧
-                          </button>
-                          <button
-                            onClick={() => openEditModal(rsvp)}
-                            disabled={loading}
-                            className={styles.editBtn}
-                            title="Editar datos"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => toggleStatus(rsvp)}
-                            disabled={loading}
-                            className={styles.toggleBtn}
-                            title="Cancelar asistencia"
-                          >
-                            ❌
-                          </button>
-                        </td>
-                      )}
-                      <td className={styles.emailSentCell}>
-                        {rsvp.emailSent ? (
-                          <>Mail: {new Date(rsvp.emailSent).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}</>
-                        ) : (
-                          <>Mail: No enviado</>
-                        )}
-                      </td>
-                      <td className={styles.nameCell}>
-                        {rsvp.name}
-                        {rsvp.plusOne && (
-                          <>
-                            <span className={styles.plusOneBadge}>+1</span>
-                            {rsvp.plusOneName && <span style={{ color: '#a78bfa', fontSize: '0.85em', marginLeft: '4px' }}>({rsvp.plusOneName})</span>}
-                          </>
-                        )}
-                      </td>
-                      <td className={styles.emailCell}>
-                        <a href={`mailto:${rsvp.email}`}>{rsvp.email}</a>
-                      </td>
-                      <td className={styles.phoneCell}>
-                        <span className={styles.phoneNumber}>{rsvp.phone}</span>
-                        <a href={`tel:${rsvp.phone}`} className={styles.phoneBtn} title="Llamar">📞</a>
-                        <a href={`https://wa.me/${rsvp.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className={styles.phoneBtn} title="WhatsApp">💬</a>
-                      </td>
-                      <td className={styles.dateCell}>
-                        Registro: {new Date(rsvp.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Tabla de RSVPs Cancelados */}
-          {filteredRsvps.filter(r => r.status === 'cancelled').length > 0 && (
-            <div className={styles.tableContainer}>
-              <h2 className={styles.sectionTitle}>❌ Cancelados ({filteredRsvps.filter(r => r.status === 'cancelled').length})</h2>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    {!isReadOnly && <th>Acciones</th>}
-                    <th>Email Enviado</th>
-                    <th>Nombre</th>
-                    <th>Email</th>
-                    <th>Teléfono</th>
-                    <th>Fecha Registro</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRsvps.filter(r => r.status === 'cancelled').map((rsvp) => (
-                    <tr key={rsvp.id} className={styles.rsvpRow}>
-                      {!isReadOnly && (
-                        <td className={styles.actionCell}>
-                          <button
-                            onClick={() => sendEmail(rsvp)}
-                            disabled={loading || isEventPast()}
-                            className={styles.sendBtn}
-                            title={isEventPast() ? "No se pueden enviar emails - evento pasado" : "Enviar email de re-invitación"}
-                            style={isEventPast() ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                          >
-                            📧
-                          </button>
-                          <button
-                            onClick={() => openEditModal(rsvp)}
-                            disabled={loading}
-                            className={styles.editBtn}
-                            title="Editar datos"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => toggleStatus(rsvp)}
-                            disabled={loading}
-                            className={styles.toggleBtn}
-                            title="Reconfirmar asistencia"
-                          >
-                            ✅
-                          </button>
-                        </td>
-                      )}
-                      <td className={styles.emailSentCell}>
-                        {rsvp.emailSent ? (
-                          <>Mail: {new Date(rsvp.emailSent).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}</>
-                        ) : (
-                          <>Mail: No enviado</>
-                        )}
-                      </td>
-                      <td className={styles.nameCell}>
-                        {rsvp.name}
-                        {rsvp.plusOne && (
-                          <>
-                            <span className={styles.plusOneBadge}>+1</span>
-                            {rsvp.plusOneName && <span style={{ color: '#a78bfa', fontSize: '0.85em', marginLeft: '4px' }}>({rsvp.plusOneName})</span>}
-                          </>
-                        )}
-                      </td>
-                      <td className={styles.emailCell}>
-                        <a href={`mailto:${rsvp.email}`}>{rsvp.email}</a>
-                      </td>
-                      <td className={styles.phoneCell}>
-                        <span className={styles.phoneNumber}>{rsvp.phone}</span>
-                        <a href={`tel:${rsvp.phone}`} className={styles.phoneBtn} title="Llamar">📞</a>
-                        <a href={`https://wa.me/${rsvp.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className={styles.phoneBtn} title="WhatsApp">💬</a>
-                      </td>
-                      <td className={styles.dateCell}>
-                        Registro: {new Date(rsvp.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <RsvpTable
+            variant="cancelled"
+            rsvps={filteredRsvps.filter(r => r.status === 'cancelled')}
+            isReadOnly={isReadOnly}
+            loading={loading}
+            isEventPast={isEventPast()}
+            onSendEmail={sendEmail}
+            onEdit={openEditModal}
+            onToggleStatus={toggleStatus}
+          />
 
           {filteredRsvps.length === 0 && (
             <div className={styles.tableContainer}>
@@ -1621,14 +1332,19 @@ export default function AdminDashboard() {
 
       {/* Contenido de Configuración */}
       {activeTab === 'config' && canManageSelectedEvent && (
-        <div className={styles.configContainer}>
-          <h2>⚙️ Configuración del Evento</h2>
-          <p className={styles.configDescription}>
-            Edita los detalles del evento. Los cambios se guardarán en la base de datos.
-          </p>
+        <div className={`${styles.configContainer} ${styles.configPage}`}>
+          <div className={styles.configHeader}>
+            <p className={styles.configEyebrow}>Evento seleccionado</p>
+            <h2>⚙️ Configuración del Evento</h2>
+            <p className={styles.configDescription}>
+              Edita los detalles del evento. Los cambios se guardarán en la base de datos.
+            </p>
+          </div>
+
+          <ConfigNav />
 
           <form className={styles.configForm} onSubmit={saveEventConfig}>
-            <div className={styles.configSection}>
+            <div id="config-basic" className={styles.configSection}>
               <h3 className={styles.configSectionTitle}>📝 Información Básica</h3>
 
               <div className={styles.configFormGroup}>
@@ -1716,7 +1432,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className={styles.configSection}>
+            <div id="config-capacity" className={styles.configSection}>
               <h3 className={styles.configSectionTitle}>💵 Precio</h3>
 
               <div className={styles.configToggleGroup}>
@@ -1826,24 +1542,26 @@ export default function AdminDashboard() {
               )}
             </div>
 
-            <EventPresentationSettings
-              value={{
-                presentationMode: configForm.presentationMode,
-                rsvpTitle: configForm.rsvpTitle,
-                rsvpButtonLabel: configForm.rsvpButtonLabel,
-                backgroundOverlayStrength: configForm.backgroundOverlayStrength,
-                backgroundImageFit: configForm.backgroundImageFit,
-                backgroundImagePosition: configForm.backgroundImagePosition,
-              }}
-              onChange={(presentation) => setConfigForm(current => ({ ...current, ...presentation }))}
-              backgroundColor={configForm.backgroundColor}
-              backgroundImageUrl={configForm.backgroundImage}
-              onBackgroundColorChange={(backgroundColor) => (
-                setConfigForm(current => ({ ...current, backgroundColor }))
-              )}
-            />
+            <div id="config-presentation" className={styles.configAnchor}>
+              <EventPresentationSettings
+                value={{
+                  presentationMode: configForm.presentationMode,
+                  rsvpTitle: configForm.rsvpTitle,
+                  rsvpButtonLabel: configForm.rsvpButtonLabel,
+                  backgroundOverlayStrength: configForm.backgroundOverlayStrength,
+                  backgroundImageFit: configForm.backgroundImageFit,
+                  backgroundImagePosition: configForm.backgroundImagePosition,
+                }}
+                onChange={(presentation) => setConfigForm(current => ({ ...current, ...presentation }))}
+                backgroundColor={configForm.backgroundColor}
+                backgroundImageUrl={configForm.backgroundImage}
+                onBackgroundColorChange={(backgroundColor) => (
+                  setConfigForm(current => ({ ...current, backgroundColor }))
+                )}
+              />
+            </div>
 
-            <div className={styles.configSection}>
+            <div id="config-images" className={styles.configSection}>
               <h3 className={styles.configSectionTitle}>🖼️ Imagen de Fondo</h3>
 
               {/* Tabs para seleccionar método */}
@@ -2005,20 +1723,12 @@ export default function AdminDashboard() {
 
               {/* Vista previa (para ambos métodos) */}
               {configForm.ogImage && (
-                <div className={styles.configImagePreview} style={{ aspectRatio: '1200/630' }}>
-                  <img src={configForm.ogImage} alt="OG Preview" style={{ objectFit: 'cover' }} />
-                  <span style={{ 
-                    position: 'absolute', 
-                    bottom: '10px', 
-                    right: '10px', 
-                    background: 'rgba(0,0,0,0.7)', 
-                    padding: '4px 8px', 
-                    borderRadius: '4px',
-                    fontSize: '12px'
-                  }}>
-                    1200 x 630
-                  </span>
-                </div>
+                <ImagePreview
+                  src={configForm.ogImage}
+                  alt="OG Preview"
+                  aspectRatio="1200/630"
+                  dimensionsLabel="1200 x 630"
+                />
               )}
 
               <p className={styles.configHelper} style={{ marginTop: '10px', fontStyle: 'italic' }}>
@@ -2026,16 +1736,16 @@ export default function AdminDashboard() {
               </p>
             </div>
 
-            <div className={styles.configSection}>
+            <div id="config-colors" className={styles.configSection}>
               <h3 className={styles.configSectionTitle}>🎨 Colores del Tema</h3>
               <p className={styles.configHelper} style={{ marginBottom: '15px' }}>
                 Personaliza los colores de la página de tu evento
               </p>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+              <div className={styles.configColorGrid}>
                 <div className={styles.configFormGroup}>
                   <label className={styles.configLabel}>Color Primario (Título)</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div className={styles.configColorControl}>
                     <input
                       type="color"
                       value={configForm.primaryColor}
@@ -2054,7 +1764,7 @@ export default function AdminDashboard() {
 
                 <div className={styles.configFormGroup}>
                   <label className={styles.configLabel}>Color Secundario (Subtítulo)</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div className={styles.configColorControl}>
                     <input
                       type="color"
                       value={configForm.secondaryColor}
@@ -2073,7 +1783,7 @@ export default function AdminDashboard() {
 
                 <div className={styles.configFormGroup}>
                   <label className={styles.configLabel}>Color Acento (RSVP)</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div className={styles.configColorControl}>
                     <input
                       type="color"
                       value={configForm.accentColor}
@@ -2123,7 +1833,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Configuración de Emails */}
-            <div className={styles.configSection}>
+            <div id="config-email" className={styles.configSection}>
               <h3 className={styles.configSectionTitle}>📧 Configuración de Emails</h3>
               <p className={styles.configHelper} style={{ marginBottom: '20px' }}>
                 Configura el envío automático de emails para este evento
@@ -2254,15 +1964,7 @@ export default function AdminDashboard() {
               <ReminderStatusSection eventSlug={selectedEventId} />
             </div>
 
-            <div className={styles.configFormButtons}>
-              <button
-                type="submit"
-                className={styles.configSaveBtn}
-                disabled={loading}
-              >
-                {loading ? 'Guardando...' : '💾 Guardar Configuración'}
-              </button>
-            </div>
+            <SaveBar saving={loading} statusLabel={message || undefined} />
           </form>
         </div>
       )}
@@ -2663,6 +2365,6 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
-    </div>
+    </AdminShell>
   )
 }

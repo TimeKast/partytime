@@ -1,0 +1,114 @@
+/* Token layer — scoped under .shell, never leaks to globals.css :root */
+.shell {
+  --ad-bg: #f6f7f9;
+  --ad-surface: #fff;
+  --ad-surface-2: #f1f3f5;
+  --ad-border: #e5e7eb;
+  --ad-border-strong: #d1d5db;
+  --ad-text: #1f2430;
+  --ad-text-muted: #5b6472;
+  --ad-text-subtle: #8b93a1;
+  --ad-primary: #4f5bd5;
+  --ad-primary-hover: #4048b8;
+  --ad-primary-contrast: #fff;
+  --ad-primary-soft: #eef0fb;
+  --ad-success: #0f9d63;
+  --ad-success-soft: #e7f6ef;
+  --ad-warning: #b7791f;
+  --ad-warning-soft: #fbf3e2;
+  --ad-danger: #d64550;
+  --ad-danger-soft: #fdecee;
+  --ad-focus: #4f5bd5;
+  --ad-focus-ring: 0 0 0 3px rgba(79, 91, 213, .35);
+  --ad-r-sm: 6px;
+  --ad-r-md: 10px;
+  --ad-r-lg: 14px;
+  --ad-r-pill: 999px;
+  --ad-1: 4px;
+  --ad-2: 8px;
+  --ad-3: 12px;
+  --ad-4: 16px;
+  --ad-5: 20px;
+  --ad-6: 24px;
+  --ad-8: 32px;
+  --ad-10: 40px;
+  --ad-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --ad-fs-xs: 12px;
+  --ad-fs-sm: 13px;
+  --ad-fs-md: 14px;
+  --ad-fs-lg: 16px;
+  --ad-fs-xl: 20px;
+  --ad-fs-2xl: 24px;
+  --ad-lh: 1.5;
+  --ad-weight-med: 550;
+  --ad-weight-bold: 680;
+  --ad-shadow-sm: 0 1px 2px rgba(16, 24, 40, .06);
+  --ad-shadow-md: 0 4px 12px rgba(16, 24, 40, .10);
+  --ad-shadow-pop: 0 12px 32px rgba(16, 24, 40, .16);
+  --ad-control-h: 40px;
+  --ad-control-h-sm: 32px;
+  --ad-sidebar-w: 248px;
+  --ad-sidebar-w-collapsed: 64px;
+  --ad-topbar-h: 56px;
+  --ad-z-drawer: 60;
+  --ad-z-modal: 80;
+  --ad-ease: cubic-bezier(.2, .6, .2, 1);
+  --ad-dur: 160ms;
+
+  display: flex;
+  min-height: 100vh;
+  background: var(--ad-bg);
+  color: var(--ad-text);
+  font-family: var(--ad-font);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell * {
+    animation-duration: .001ms !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  flex: 1;
+  padding: var(--ad-5);
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+@media (min-width: 1024px) {
+  .content {
+    padding: var(--ad-6);
+  }
+}
+
+.skipLink {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: var(--ad-3) var(--ad-4);
+  background: var(--ad-primary);
+  color: var(--ad-primary-contrast);
+  border-radius: var(--ad-r-md);
+}
+
+.skipLink:focus {
+  left: var(--ad-3);
+  top: var(--ad-3);
+}

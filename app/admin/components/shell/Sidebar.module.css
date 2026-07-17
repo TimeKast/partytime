@@ -1,0 +1,78 @@
+.sidebar {
+  display: none;
+  flex-direction: column;
+  gap: var(--ad-4);
+  width: var(--ad-sidebar-w);
+  flex-shrink: 0;
+  padding: var(--ad-4);
+  border-right: 1px solid var(--ad-border);
+  background: var(--ad-surface);
+  transition: width var(--ad-dur) var(--ad-ease);
+}
+
+@media (min-width: 1024px) {
+  .sidebar {
+    display: flex;
+  }
+}
+
+.collapsed {
+  width: var(--ad-sidebar-w-collapsed);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ad-2);
+  padding: 0 var(--ad-1);
+}
+
+.brandTitle {
+  margin: 0;
+  font-size: var(--ad-fs-lg);
+  font-weight: var(--ad-weight-bold);
+  color: var(--ad-text);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.collapsed .brandTitle {
+  display: none;
+}
+
+.collapseToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--ad-r-sm);
+  background: transparent;
+  color: var(--ad-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.collapseToggle:hover {
+  background: var(--ad-surface-2);
+  color: var(--ad-text);
+}
+
+.collapseToggle:focus-visible {
+  outline: none;
+  box-shadow: var(--ad-focus-ring);
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ad-1);
+  flex: 1;
+}
+
+.footer {
+  border-top: 1px solid var(--ad-border);
+  padding-top: var(--ad-3);
+}
