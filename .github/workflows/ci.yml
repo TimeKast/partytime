@@ -6,9 +6,18 @@ on:
   push:
     branches: [main]
 
+# Supersede in-flight runs of the same ref — an outdated run is wasted billing.
+# Exception: never cancel on `main`, where every commit must stay verified.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # Cost guard: GitHub's default job timeout is 6 HOURS, all of it billable.
+    # A hung job would burn 360 minutes of the monthly allowance.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Setup pnpm
