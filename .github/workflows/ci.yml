@@ -5,6 +5,9 @@ on:
     branches: [main]
   push:
     branches: [main]
+    # Cost guard: a push touching ONLY docs has nothing for this workflow to verify.
+    # A mixed docs+code push still runs (the filter skips only when EVERY path matches).
+    paths-ignore: ["project/**", "docs/**", "*.md"]
 
 # Supersede in-flight runs of the same ref — an outdated run is wasted billing.
 # Exception: never cancel on `main`, where every commit must stay verified.
