@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { randomUUID } from 'node:crypto'
 import { validateSession } from '@/lib/auth-utils'
 import { isDatabaseConfigured } from '@/lib/db'
 import { assertSameOrigin } from '@/lib/origin-check'
 import { userHasEventAccess } from '@/lib/user-queries'
 import {
-    generateRsvpInvitationToken,
     getRsvpInvitationStatus,
     hashRsvpInvitationToken,
+    issueRecoverableRsvpInvitationToken,
     parseRsvpInvitationExpiry,
+    recoverRsvpInvitationToken,
+    type RsvpInvitationUrlAvailability,
 } from '@/lib/rsvp-invitation'
 
 export const dynamic = 'force-dynamic'
@@ -58,6 +61,7 @@ async function authorizeEvent(
 function linkDto(link: {
     id: string
     eventId: string
+    tokenHash: string
     expiresAt: Date
     usedAt: Date | null
     usedRsvpId: string | null
@@ -66,10 +70,31 @@ function linkDto(link: {
     revokedBy: string | null
     createdBy: string
     createdAt: Date
-}) {
+}, eventBindingId: string, urlAvailability?: RsvpInvitationUrlAvailability) {
+    const status = getRsvpInvitationStatus(link)
+    const recovery = status !== 'active'
+        ? { status: 'not_recoverable' as const }
+        : urlAvailability
+        ? { status: urlAvailability }
+        : recoverRsvpInvitationToken({
+            id: link.id,
+            eventBindingId,
+            tokenHash: link.tokenHash,
+        })
+
     return {
-        ...link,
-        status: getRsvpInvitationStatus(link),
+        id: link.id,
+        eventId: link.eventId,
+        expiresAt: link.expiresAt,
+        usedAt: link.usedAt,
+        usedRsvpId: link.usedRsvpId,
+        usedRsvpName: link.usedRsvpName,
+        revokedAt: link.revokedAt,
+        revokedBy: link.revokedBy,
+        createdBy: link.createdBy,
+        createdAt: link.createdAt,
+        status,
+        urlAvailability: recovery.status,
     }
 }
 
@@ -110,7 +135,10 @@ export async function GET(request: NextRequest) {
 
         const { listRsvpInvitationLinks } = await import('@/lib/queries')
         const links = await listRsvpInvitationLinks(authorization.event.slug)
-        return NextResponse.json({ success: true, links: links.map(linkDto) })
+        return NextResponse.json(
+            { success: true, links: links.map(link => linkDto(link, authorization.event.id)) },
+            { headers: { 'Cache-Control': 'no-store' } },
+        )
     } catch {
         console.error('Error listing RSVP invitation links')
         return NextResponse.json({ success: false, error: 'Error al obtener links de invitación' }, { status: 500 })
@@ -146,9 +174,19 @@ export async function POST(request: NextRequest) {
         const authorization = await authorizeEvent(currentUser, body.eventSlug.trim())
         if ('response' in authorization) return authorization.response
 
-        const rawToken = generateRsvpInvitationToken()
+        const linkId = randomUUID()
+        const rawToken = issueRecoverableRsvpInvitationToken(linkId, authorization.event.id)
+        if (!rawToken) {
+            console.error('RSVP invitation token keyring is unavailable')
+            return NextResponse.json({
+                success: false,
+                error: 'La recuperación segura de links no está configurada',
+                urlAvailability: 'configuration_unavailable',
+            }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
+        }
         const { createRsvpInvitationLink } = await import('@/lib/queries')
         const link = await createRsvpInvitationLink({
+            id: linkId,
             eventId: authorization.event.slug,
             tokenHash: hashRsvpInvitationToken(rawToken),
             expiresAt,
@@ -163,14 +201,99 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            link: linkDto(link),
+            link: linkDto(link, authorization.event.id, 'available'),
             url: invitationUrl(request, authorization.event.slug, rawToken),
-        }, { status: 201 })
+        }, { status: 201, headers: { 'Cache-Control': 'no-store' } })
     } catch {
         // Driver errors may include bound parameters. Do not log the digest of
         // the bearer token (or any raw request metadata).
         console.error('Error creating RSVP invitation link')
         return NextResponse.json({ success: false, error: 'Error al crear el link de invitación' }, { status: 500 })
+    }
+}
+
+/** Reveal one previously issued bearer only after a fresh auth/RBAC check. */
+export async function PATCH(request: NextRequest) {
+    if (!assertSameOrigin(request)) {
+        return NextResponse.json({ success: false, error: 'Origen no permitido' }, { status: 403 })
+    }
+
+    const currentUser = await authenticate()
+    if (!currentUser) {
+        return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+    }
+    if (!isDatabaseConfigured()) {
+        return NextResponse.json({ success: false, error: 'Base de datos no configurada' }, { status: 503 })
+    }
+
+    try {
+        const body: unknown = await request.json()
+        if (!isRecord(body) || !hasOnlyKeys(body, ['eventSlug', 'id'])) {
+            return NextResponse.json({ success: false, error: 'Solicitud inválida' }, { status: 400 })
+        }
+        if (!validIdentifier(body.eventSlug) || !validIdentifier(body.id)) {
+            return NextResponse.json({ success: false, error: 'eventSlug e id son requeridos' }, { status: 400 })
+        }
+
+        const authorization = await authorizeEvent(currentUser, body.eventSlug.trim())
+        if ('response' in authorization) return authorization.response
+
+        const { getRsvpInvitationLinkForAdmin } = await import('@/lib/queries')
+        const link = await getRsvpInvitationLinkForAdmin(body.id.trim(), authorization.event.slug)
+        if (!link) {
+            return NextResponse.json({ success: false, error: 'Link no encontrado' }, { status: 404 })
+        }
+
+        // A terminal capability must never be reconstructed, even for an
+        // authorized manager. Check state before consulting the keyring.
+        if (getRsvpInvitationStatus(link) !== 'active') {
+            return NextResponse.json({
+                success: false,
+                error: 'Este link ya no está activo',
+                urlAvailability: 'not_recoverable',
+            }, { status: 409, headers: { 'Cache-Control': 'no-store' } })
+        }
+
+        const recovery = recoverRsvpInvitationToken({
+            id: link.id,
+            eventBindingId: authorization.event.id,
+            tokenHash: link.tokenHash,
+        })
+        if (recovery.status === 'configuration_unavailable') {
+            console.error('RSVP invitation token keyring is unavailable')
+            return NextResponse.json({
+                success: false,
+                error: 'La recuperación segura de links no está configurada',
+                urlAvailability: recovery.status,
+            }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
+        }
+        if (recovery.status === 'not_recoverable') {
+            return NextResponse.json({
+                success: false,
+                error: 'Este link no está disponible para copiarse desde el historial',
+                urlAvailability: recovery.status,
+            }, { status: 409, headers: { 'Cache-Control': 'no-store' } })
+        }
+
+        const url = invitationUrl(request, authorization.event.slug, recovery.token)
+        console.info(JSON.stringify({
+            event: 'rsvp_invitation.copied',
+            linkId: link.id,
+            eventId: authorization.event.slug,
+            actorId: currentUser.id,
+        }))
+
+        return NextResponse.json({
+            success: true,
+            url,
+        }, { headers: { 'Cache-Control': 'no-store' } })
+    } catch {
+        // Never log the row digest, reconstructed bearer, body or driver error.
+        console.error('Error recovering RSVP invitation link')
+        return NextResponse.json({ success: false, error: 'Error al recuperar el link de invitación' }, {
+            status: 500,
+            headers: { 'Cache-Control': 'no-store' },
+        })
     }
 }
 

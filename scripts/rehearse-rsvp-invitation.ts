@@ -48,6 +48,7 @@ async function main() {
         eventSlug = event.slug
 
         const link = await createRsvpInvitationLink({
+            id: randomUUID(),
             eventId: event.slug,
             tokenHash: hashRsvpInvitationToken(token),
             expiresAt: new Date(Date.now() + 60 * 60 * 1_000),
@@ -110,6 +111,7 @@ async function main() {
         }
 
         const concurrentLink = await createRsvpInvitationLink({
+            id: randomUUID(),
             eventId: event.slug,
             tokenHash: hashRsvpInvitationToken(concurrentToken),
             expiresAt: new Date(Date.now() + 60 * 60 * 1_000),

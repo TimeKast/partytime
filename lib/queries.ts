@@ -84,9 +84,10 @@ export async function saveRSVP(rsvpData: {
     return withDeadlockRetry(() => saveRSVPOnce(rsvpData))
 }
 
-export interface RsvpInvitationLinkAdminDto {
+export interface RsvpInvitationLinkAdminRecord {
     id: string
     eventId: string
+    tokenHash: string
     expiresAt: Date
     usedAt: Date | null
     usedRsvpId: string | null
@@ -111,14 +112,16 @@ export interface SaveRsvpWithInvitationInput {
  * Persist only the digest for a newly issued bearer capability.
  */
 export async function createRsvpInvitationLink(input: {
+    id: string
     eventId: string
     tokenHash: string
     expiresAt: Date
     createdBy: string
-}): Promise<RsvpInvitationLinkAdminDto> {
+}): Promise<RsvpInvitationLinkAdminRecord> {
     if (!db) throw new Error('Database not configured')
 
     const [created] = await db.insert(rsvpInvitationLinks).values({
+        id: input.id,
         eventId: input.eventId,
         tokenHash: input.tokenHash,
         expiresAt: input.expiresAt,
@@ -126,6 +129,7 @@ export async function createRsvpInvitationLink(input: {
     }).returning({
         id: rsvpInvitationLinks.id,
         eventId: rsvpInvitationLinks.eventId,
+        tokenHash: rsvpInvitationLinks.tokenHash,
         expiresAt: rsvpInvitationLinks.expiresAt,
         usedAt: rsvpInvitationLinks.usedAt,
         usedRsvpId: rsvpInvitationLinks.usedRsvpId,
@@ -138,12 +142,13 @@ export async function createRsvpInvitationLink(input: {
     return { ...created, usedRsvpName: null }
 }
 
-export async function listRsvpInvitationLinks(eventId: string): Promise<RsvpInvitationLinkAdminDto[]> {
+export async function listRsvpInvitationLinks(eventId: string): Promise<RsvpInvitationLinkAdminRecord[]> {
     if (!db) throw new Error('Database not configured')
 
     return db.select({
         id: rsvpInvitationLinks.id,
         eventId: rsvpInvitationLinks.eventId,
+        tokenHash: rsvpInvitationLinks.tokenHash,
         expiresAt: rsvpInvitationLinks.expiresAt,
         usedAt: rsvpInvitationLinks.usedAt,
         usedRsvpId: rsvpInvitationLinks.usedRsvpId,
@@ -160,6 +165,40 @@ export async function listRsvpInvitationLinks(eventId: string): Promise<RsvpInvi
         ))
         .where(eq(rsvpInvitationLinks.eventId, eventId))
         .orderBy(desc(rsvpInvitationLinks.createdAt))
+}
+
+/** Internal admin record used to prove and reconstruct one selected bearer. */
+export async function getRsvpInvitationLinkForAdmin(
+    id: string,
+    eventId: string,
+): Promise<RsvpInvitationLinkAdminRecord | null> {
+    if (!db) throw new Error('Database not configured')
+
+    const [link] = await db.select({
+        id: rsvpInvitationLinks.id,
+        eventId: rsvpInvitationLinks.eventId,
+        tokenHash: rsvpInvitationLinks.tokenHash,
+        expiresAt: rsvpInvitationLinks.expiresAt,
+        usedAt: rsvpInvitationLinks.usedAt,
+        usedRsvpId: rsvpInvitationLinks.usedRsvpId,
+        usedRsvpName: rsvps.name,
+        revokedAt: rsvpInvitationLinks.revokedAt,
+        revokedBy: rsvpInvitationLinks.revokedBy,
+        createdBy: rsvpInvitationLinks.createdBy,
+        createdAt: rsvpInvitationLinks.createdAt,
+    })
+        .from(rsvpInvitationLinks)
+        .leftJoin(rsvps, and(
+            eq(rsvps.id, rsvpInvitationLinks.usedRsvpId),
+            eq(rsvps.eventId, rsvpInvitationLinks.eventId),
+        ))
+        .where(and(
+            eq(rsvpInvitationLinks.id, id),
+            eq(rsvpInvitationLinks.eventId, eventId),
+        ))
+        .limit(1)
+
+    return link || null
 }
 
 /** Revoke only a still-active link belonging to the selected event. */

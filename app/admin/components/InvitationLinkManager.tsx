@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import styles from '../admin.module.css'
 
 type InvitationLinkStatus = 'active' | 'used' | 'revoked' | 'expired'
+type InvitationLinkUrlAvailability = 'available' | 'not_recoverable' | 'configuration_unavailable'
 
 interface InvitationLink {
   id: string
@@ -16,6 +17,7 @@ interface InvitationLink {
   createdBy: string
   createdAt: string
   status: InvitationLinkStatus
+  urlAvailability: InvitationLinkUrlAvailability
 }
 
 interface InvitationLinkManagerProps {
@@ -67,6 +69,7 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
   const [loadingLinks, setLoadingLinks] = useState(true)
   const [creating, setCreating] = useState(false)
+  const [copyingId, setCopyingId] = useState<string | null>(null)
   const [revokingId, setRevokingId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [feedback, setFeedback] = useState('')
@@ -83,6 +86,7 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
     setFeedback('')
     setLinksExpanded(false)
     setCreating(false)
+    setCopyingId(null)
     setRevokingId(null)
     setLoadingLinks(true)
 
@@ -162,7 +166,7 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
       if (activeEventSlug.current !== requestEventSlug) return
       setGeneratedUrl(data.url)
       setLinks(current => [data.link as InvitationLink, ...current])
-      setFeedback('Link generado. Cópialo ahora: no volverá a mostrarse.')
+      setFeedback('Link generado. Puedes copiarlo ahora o después desde Links emitidos.')
     } catch (createError) {
       if (activeEventSlug.current !== requestEventSlug) return
       setError(createError instanceof Error ? createError.message : 'No se pudo generar el link.')
@@ -178,6 +182,54 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
       setFeedback('Link copiado. Guárdalo en un lugar seguro antes de salir de esta vista.')
     } catch {
       setFeedback('No se pudo copiar automáticamente. Selecciona y copia el link del campo.')
+    }
+  }
+
+  const copyIssuedLink = async (id: string, createdAt: string) => {
+    const requestEventSlug = eventSlug
+    setCopyingId(id)
+    setError('')
+    setFeedback('')
+
+    try {
+      const response = await fetch('/api/admin/rsvp-invitations', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventSlug: requestEventSlug, id }),
+      })
+      const data: unknown = await response.json()
+      if (!response.ok) {
+        throw new Error(errorMessage(data, 'No se pudo recuperar el link.'))
+      }
+      if (
+        typeof data !== 'object'
+        || data === null
+        || !('success' in data)
+        || data.success !== true
+        || !('url' in data)
+        || typeof data.url !== 'string'
+      ) {
+        throw new Error('La respuesta para copiar el link no es válida.')
+      }
+      if (activeEventSlug.current !== requestEventSlug) return
+
+      try {
+        await navigator.clipboard.writeText(data.url)
+        if (activeEventSlug.current === requestEventSlug) {
+          setFeedback(`Link creado el ${formatDate(createdAt)} copiado.`)
+        }
+      } catch {
+        if (activeEventSlug.current !== requestEventSlug) return
+        window.prompt('No se pudo copiar automáticamente. Copia este link:', data.url)
+        if (activeEventSlug.current === requestEventSlug) {
+          setFeedback('Se abrió el link para que puedas copiarlo manualmente.')
+        }
+      }
+    } catch (copyError) {
+      if (activeEventSlug.current !== requestEventSlug) return
+      setError(copyError instanceof Error ? copyError.message : 'No se pudo recuperar el link.')
+    } finally {
+      if (activeEventSlug.current === requestEventSlug) setCopyingId(null)
     }
   }
 
@@ -249,7 +301,7 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
 
       {generatedUrl && (
         <div className={styles.invitationSecret}>
-          <p><strong>Se muestra una sola vez.</strong> Cópialo antes de cambiar de evento o recargar.</p>
+          <p><strong>Link generado.</strong> También podrás copiarlo después desde Links emitidos.</p>
           <div className={styles.invitationSecretRow}>
             <input
               aria-label="Link de invitación recién generado"
@@ -318,15 +370,28 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
                       {STATUS_LABELS[link.status]}
                     </span>
                     {link.status === 'active' && (
-                      <button
-                        className={styles.invitationRevokeAction}
-                        type="button"
-                        onClick={() => void handleRevoke(link.id)}
-                        disabled={revokingId === link.id}
-                        aria-label={`Revocar link creado el ${formatDate(link.createdAt)}`}
-                      >
-                        {revokingId === link.id ? 'Revocando…' : 'Revocar'}
-                      </button>
+                      <>
+                        {link.urlAvailability === 'available' && (
+                          <button
+                            className={styles.invitationCopyAction}
+                            type="button"
+                            onClick={() => void copyIssuedLink(link.id, link.createdAt)}
+                            disabled={copyingId !== null || revokingId !== null}
+                            aria-label={`Copiar link creado el ${formatDate(link.createdAt)}`}
+                          >
+                            {copyingId === link.id ? 'Copiando…' : 'Copiar link'}
+                          </button>
+                        )}
+                        <button
+                          className={styles.invitationRevokeAction}
+                          type="button"
+                          onClick={() => void handleRevoke(link.id)}
+                          disabled={revokingId !== null || copyingId !== null}
+                          aria-label={`Revocar link creado el ${formatDate(link.createdAt)}`}
+                        >
+                          {revokingId === link.id ? 'Revocando…' : 'Revocar'}
+                        </button>
+                      </>
                     )}
                   </div>
                 </li>

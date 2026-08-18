@@ -4,9 +4,11 @@ import {
     generateRsvpInvitationToken,
     getRsvpInvitationStatus,
     hashRsvpInvitationToken,
+    issueRecoverableRsvpInvitationToken,
     isRsvpInvitationTokenHash,
     isValidRsvpInvitationToken,
     parseRsvpInvitationExpiry,
+    recoverRsvpInvitationToken,
 } from '@/lib/rsvp-invitation'
 
 const { executeMock } = vi.hoisted(() => ({ executeMock: vi.fn() }))
@@ -86,6 +88,65 @@ describe('RSVP invitation token helpers', () => {
         expect(getRsvpInvitationStatus({ expiresAt: now, usedAt: null, revokedAt: null }, now)).toBe('expired')
         expect(getRsvpInvitationStatus({ expiresAt: future, usedAt: now, revokedAt: null }, now)).toBe('used')
         expect(getRsvpInvitationStatus({ expiresAt: future, usedAt: now, revokedAt: now }, now)).toBe('revoked')
+    })
+
+    it('reconstructs a deterministic bearer with its versioned dedicated key', () => {
+        const v1 = `v1:${'11'.repeat(32)}`
+        const token = issueRecoverableRsvpInvitationToken('link-1', 'event-uuid', v1)
+
+        expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/)
+        expect(recoverRsvpInvitationToken({
+            id: 'link-1',
+            eventBindingId: 'event-uuid',
+            tokenHash: hashRsvpInvitationToken(token!),
+        }, v1)).toEqual({ status: 'available', token })
+    })
+
+    it('keeps old keys recoverable after rotation and uses the first key for issuance', () => {
+        const v1 = `v1:${'11'.repeat(32)}`
+        const rotated = `v2:${'22'.repeat(32)},${v1}`
+        const oldToken = issueRecoverableRsvpInvitationToken('link-1', 'event-uuid', v1)!
+        const newToken = issueRecoverableRsvpInvitationToken('link-1', 'event-uuid', rotated)!
+
+        expect(newToken).not.toBe(oldToken)
+        expect(recoverRsvpInvitationToken({
+            id: 'link-1',
+            eventBindingId: 'event-uuid',
+            tokenHash: hashRsvpInvitationToken(oldToken),
+        }, rotated)).toEqual({ status: 'available', token: oldToken })
+    })
+
+    it('fails closed for malformed config and marks random legacy tokens as non-recoverable', () => {
+        const legacyToken = generateRsvpInvitationToken()
+        const record = {
+            id: 'legacy-link',
+            eventBindingId: 'event-uuid',
+            tokenHash: hashRsvpInvitationToken(legacyToken),
+        }
+
+        expect(issueRecoverableRsvpInvitationToken('link-1', 'fiesta', undefined)).toBeNull()
+        expect(issueRecoverableRsvpInvitationToken('link-1', 'fiesta', 'v1:not-hex')).toBeNull()
+        expect(recoverRsvpInvitationToken(record, undefined)).toEqual({
+            status: 'configuration_unavailable',
+        })
+        expect(recoverRsvpInvitationToken(record, `v1:${'11'.repeat(32)}`)).toEqual({
+            status: 'not_recoverable',
+        })
+    })
+
+    it('binds recovery to both the immutable link id and immutable event identity', () => {
+        const keyring = `v1:${'33'.repeat(32)}`
+        const token = issueRecoverableRsvpInvitationToken('link-1', 'event-uuid', keyring)!
+        const tokenHash = hashRsvpInvitationToken(token)
+
+        expect(recoverRsvpInvitationToken({
+            id: 'link-2', eventBindingId: 'event-uuid', tokenHash,
+        }, keyring).status)
+            .toBe('not_recoverable')
+        expect(recoverRsvpInvitationToken({
+            id: 'link-1', eventBindingId: 'other-event-uuid', tokenHash,
+        }, keyring).status)
+            .toBe('not_recoverable')
     })
 })
 

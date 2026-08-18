@@ -23,7 +23,7 @@ describe('admin one-time invitation link UI contract', () => {
     expect(manager).toContain("method: 'POST'")
     expect(manager).toContain('expiresAt: expiration.toISOString()')
     expect(manager).toContain('setGeneratedUrl(data.url)')
-    expect(manager).toContain('Se muestra una sola vez.')
+    expect(manager).toContain('También podrás copiarlo después desde Links emitidos.')
     expect(manager).toContain('navigator.clipboard.writeText(generatedUrl)')
   })
 
@@ -37,6 +37,20 @@ describe('admin one-time invitation link UI contract', () => {
     expect(manager).toContain("method: 'DELETE'")
     expect(manager).toContain('aria-live="polite"')
     expect(adminCss).toMatch(/\.invitationPrimaryAction[\s\S]*?min-height:\s*44px/)
+  })
+
+  it('recovers and copies an available active link only after an explicit click', () => {
+    expect(manager).toContain("urlAvailability: InvitationLinkUrlAvailability")
+    expect(manager).toContain("method: 'PATCH'")
+    expect(manager).toContain('body: JSON.stringify({ eventSlug: requestEventSlug, id })')
+    expect(manager).toContain("link.status === 'active'")
+    expect(manager).toContain("link.urlAvailability === 'available'")
+    expect(manager).toContain('onClick={() => void copyIssuedLink(link.id, link.createdAt)}')
+    expect(manager).toContain('navigator.clipboard.writeText(data.url)')
+    expect(manager).toContain("window.prompt('No se pudo copiar automáticamente. Copia este link:', data.url)")
+    expect(manager).toContain('activeEventSlug.current !== requestEventSlug')
+    expect(manager).not.toContain('setGeneratedUrl(data.url)\n        setFeedback(`Link creado')
+    expect(adminCss).toMatch(/\.invitationCopyAction\s*\{[\s\S]*?border:\s*1px solid var\(--ad-primary\);/)
   })
 
   it('keeps issued links collapsed by default and links a consumed RSVP to its guest row', () => {

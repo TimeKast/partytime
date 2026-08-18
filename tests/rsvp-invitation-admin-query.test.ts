@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => {
         leftJoin: vi.fn(),
         where: vi.fn(),
         orderBy: vi.fn(),
+        limit: vi.fn(),
     }
     chain.from.mockReturnValue(chain)
     chain.leftJoin.mockReturnValue(chain)
@@ -28,6 +29,7 @@ vi.mock('@/lib/db', () => ({
     rsvpInvitationLinks: {
         id: 'link.id',
         eventId: 'link.eventId',
+        tokenHash: 'link.tokenHash',
         expiresAt: 'link.expiresAt',
         usedAt: 'link.usedAt',
         usedRsvpId: 'link.usedRsvpId',
@@ -50,7 +52,7 @@ vi.mock('drizzle-orm', async importOriginal => ({
     desc: mocks.desc,
 }))
 
-import { listRsvpInvitationLinks } from '@/lib/queries'
+import { getRsvpInvitationLinkForAdmin, listRsvpInvitationLinks } from '@/lib/queries'
 
 describe('RSVP invitation admin query', () => {
     beforeEach(() => {
@@ -59,12 +61,14 @@ describe('RSVP invitation admin query', () => {
         mocks.chain.leftJoin.mockReturnValue(mocks.chain)
         mocks.chain.where.mockReturnValue(mocks.chain)
         mocks.chain.orderBy.mockResolvedValue([])
+        mocks.chain.limit.mockResolvedValue([])
     })
 
     it('joins the consuming RSVP in the same event and selects its display name', async () => {
         await listRsvpInvitationLinks('fiesta')
 
         expect(mocks.select).toHaveBeenCalledWith(expect.objectContaining({
+            tokenHash: 'link.tokenHash',
             usedRsvpId: 'link.usedRsvpId',
             usedRsvpName: 'rsvp.name',
         }))
@@ -79,5 +83,18 @@ describe('RSVP invitation admin query', () => {
             left: 'link.eventId',
             right: 'fiesta',
         })
+    })
+
+    it('scopes one recoverable record by both link id and canonical event', async () => {
+        await getRsvpInvitationLinkForAdmin('link-1', 'fiesta')
+
+        expect(mocks.select).toHaveBeenCalledWith(expect.objectContaining({
+            tokenHash: 'link.tokenHash',
+        }))
+        expect(mocks.chain.where).toHaveBeenCalledWith([
+            { left: 'link.id', right: 'link-1' },
+            { left: 'link.eventId', right: 'fiesta' },
+        ])
+        expect(mocks.chain.limit).toHaveBeenCalledWith(1)
     })
 })

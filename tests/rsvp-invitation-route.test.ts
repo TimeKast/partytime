@@ -1,6 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
-import { hashRsvpInvitationToken } from '@/lib/rsvp-invitation'
+import {
+    hashRsvpInvitationToken,
+    issueRecoverableRsvpInvitationToken,
+} from '@/lib/rsvp-invitation'
 
 const mocks = vi.hoisted(() => ({
     cookieValue: 'session-token' as string | undefined,
@@ -10,6 +13,7 @@ const mocks = vi.hoisted(() => ({
     getEventBySlug: vi.fn(),
     createRsvpInvitationLink: vi.fn(),
     listRsvpInvitationLinks: vi.fn(),
+    getRsvpInvitationLinkForAdmin: vi.fn(),
     revokeRsvpInvitationLink: vi.fn(),
     getRsvpInvitationEvent: vi.fn(),
 }))
@@ -27,6 +31,7 @@ vi.mock('@/lib/queries', () => ({
     getEventBySlug: mocks.getEventBySlug,
     createRsvpInvitationLink: mocks.createRsvpInvitationLink,
     listRsvpInvitationLinks: mocks.listRsvpInvitationLinks,
+    getRsvpInvitationLinkForAdmin: mocks.getRsvpInvitationLinkForAdmin,
     revokeRsvpInvitationLink: mocks.revokeRsvpInvitationLink,
     getRsvpInvitationEvent: mocks.getRsvpInvitationEvent,
 }))
@@ -40,10 +45,14 @@ vi.mock('@/lib/public-event', () => ({
 }))
 
 const event = { id: 'event-uuid', slug: 'fiesta', title: 'Fiesta privada' }
+const originalTokenKeys = process.env.RSVP_INVITATION_TOKEN_KEYS
+const tokenKeys = `v1:${'11'.repeat(32)}`
 const futureExpiry = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+const recoverableToken = issueRecoverableRsvpInvitationToken('link-1', 'event-uuid', tokenKeys)!
 const link = {
     id: 'link-1',
     eventId: 'fiesta',
+    tokenHash: hashRsvpInvitationToken(recoverableToken),
     expiresAt: futureExpiry,
     usedAt: null,
     usedRsvpId: null,
@@ -69,6 +78,7 @@ function adminRequest(method: string, body?: unknown, origin = 'http://localhost
 describe('/api/admin/rsvp-invitations', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        process.env.RSVP_INVITATION_TOKEN_KEYS = tokenKeys
         mocks.cookieValue = 'session-token'
         mocks.databaseConfigured = true
         mocks.validateSession.mockResolvedValue({ id: 'admin-1', role: 'super_admin' })
@@ -76,6 +86,7 @@ describe('/api/admin/rsvp-invitations', () => {
         mocks.getEventBySlug.mockResolvedValue(event)
         mocks.createRsvpInvitationLink.mockResolvedValue(link)
         mocks.listRsvpInvitationLinks.mockResolvedValue([link])
+        mocks.getRsvpInvitationLinkForAdmin.mockResolvedValue(link)
         mocks.revokeRsvpInvitationLink.mockResolvedValue(true)
     })
 
@@ -124,6 +135,7 @@ describe('/api/admin/rsvp-invitations', () => {
         expect(issuedUrl.href.split('#')[0]).not.toContain(rawToken)
         expect(issuedUrl.hash).toBe(`#token=${rawToken}`)
         expect(mocks.createRsvpInvitationLink).toHaveBeenCalledWith(expect.objectContaining({
+            id: expect.any(String),
             eventId: 'fiesta',
             tokenHash: hashRsvpInvitationToken(rawToken),
             createdBy: 'admin-1',
@@ -164,6 +176,7 @@ describe('/api/admin/rsvp-invitations', () => {
         expect(listed.status).toBe(200)
         expect(listPayload.links[0]).not.toHaveProperty('tokenHash')
         expect(listPayload.links[0].status).toBe('active')
+        expect(listPayload.links[0].urlAvailability).toBe('available')
         expect(revoked.status).toBe(200)
         expect(mocks.revokeRsvpInvitationLink).toHaveBeenCalledWith('link-1', 'fiesta', 'admin-1')
         expect(info.mock.calls.flat().join(' ')).toContain('rsvp_invitation.revoked')
@@ -187,10 +200,112 @@ describe('/api/admin/rsvp-invitations', () => {
         expect(response.status).toBe(200)
         expect(payload.links[0]).toMatchObject({
             status: 'used',
+            urlAvailability: 'not_recoverable',
             usedRsvpId: 'rsvp-1',
             usedRsvpName: 'Ana Invitada',
         })
         expect(payload.links[0]).not.toHaveProperty('tokenHash')
+    })
+
+    it('recovers one URL on demand with same-origin, auth, RBAC and event binding', async () => {
+        const info = vi.spyOn(console, 'info').mockImplementation(() => undefined)
+        const { PATCH } = await import('@/app/api/admin/rsvp-invitations/route')
+        const response = await PATCH(adminRequest('PATCH', { eventSlug: 'event-uuid', id: 'link-1' }))
+        const payload = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(response.headers.get('cache-control')).toBe('no-store')
+        expect(mocks.getRsvpInvitationLinkForAdmin).toHaveBeenCalledWith('link-1', 'fiesta')
+        expect(mocks.getEventBySlug).toHaveBeenCalledWith('event-uuid')
+        expect(new URL(payload.url).pathname).toBe('/invite/fiesta')
+        expect(new URLSearchParams(new URL(payload.url).hash.slice(1)).get('token')).toBe(recoverableToken)
+        expect(JSON.stringify(payload)).not.toContain(link.tokenHash)
+        const auditLog = info.mock.calls.flat().join(' ')
+        expect(auditLog).toContain('rsvp_invitation.copied')
+        expect(auditLog).toContain('link-1')
+        expect(auditLog).toContain('fiesta')
+        expect(auditLog).toContain('admin-1')
+        expect(auditLog).not.toContain(recoverableToken)
+        expect(auditLog).not.toContain(link.tokenHash)
+        expect(auditLog).not.toContain(payload.url)
+        info.mockRestore()
+    })
+
+    it('rejects cross-origin recovery before auth and does not read a link', async () => {
+        const { PATCH } = await import('@/app/api/admin/rsvp-invitations/route')
+        const response = await PATCH(adminRequest(
+            'PATCH',
+            { eventSlug: 'fiesta', id: 'link-1' },
+            'https://evil.example',
+        ))
+
+        expect(response.status).toBe(403)
+        expect(mocks.validateSession).not.toHaveBeenCalled()
+        expect(mocks.getRsvpInvitationLinkForAdmin).not.toHaveBeenCalled()
+    })
+
+    it('marks legacy random links as unavailable without exposing their digest', async () => {
+        const legacyToken = 'z'.repeat(43)
+        mocks.getRsvpInvitationLinkForAdmin.mockResolvedValueOnce({
+            ...link,
+            tokenHash: hashRsvpInvitationToken(legacyToken),
+        })
+        const { PATCH } = await import('@/app/api/admin/rsvp-invitations/route')
+        const response = await PATCH(adminRequest('PATCH', { eventSlug: 'fiesta', id: 'link-1' }))
+        const payload = await response.json()
+
+        expect(response.status).toBe(409)
+        expect(payload.urlAvailability).toBe('not_recoverable')
+        expect(JSON.stringify(payload)).not.toContain(hashRsvpInvitationToken(legacyToken))
+        expect(JSON.stringify(payload)).not.toContain(legacyToken)
+    })
+
+    it.each([
+        ['used', { usedAt: new Date('2026-08-18T12:00:00.000Z') }],
+        ['revoked', { revokedAt: new Date('2026-08-18T12:00:00.000Z') }],
+        ['expired', { expiresAt: new Date('2026-08-17T00:00:00.000Z') }],
+    ] as const)('rejects a %s link before consulting the recovery keyring', async (_state, override) => {
+        delete process.env.RSVP_INVITATION_TOKEN_KEYS
+        const info = vi.spyOn(console, 'info').mockImplementation(() => undefined)
+        const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        mocks.getRsvpInvitationLinkForAdmin.mockResolvedValueOnce({ ...link, ...override })
+        const { PATCH } = await import('@/app/api/admin/rsvp-invitations/route')
+
+        const response = await PATCH(adminRequest('PATCH', { eventSlug: 'fiesta', id: 'link-1' }))
+        const payload = await response.json()
+        const serialized = JSON.stringify(payload)
+
+        expect(response.status).toBe(409)
+        expect(response.headers.get('cache-control')).toBe('no-store')
+        expect(payload).toEqual({
+            success: false,
+            error: 'Este link ya no está activo',
+            urlAvailability: 'not_recoverable',
+        })
+        expect(payload).not.toHaveProperty('url')
+        expect(serialized).not.toContain(recoverableToken)
+        expect(serialized).not.toContain(link.tokenHash)
+        // Missing config would produce a 503/error log if recovery ran.
+        expect(error).not.toHaveBeenCalled()
+        expect(info).not.toHaveBeenCalled()
+        info.mockRestore()
+        error.mockRestore()
+    })
+
+    it('fails closed before issuance when the dedicated keyring is missing', async () => {
+        delete process.env.RSVP_INVITATION_TOKEN_KEYS
+        const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        const { POST } = await import('@/app/api/admin/rsvp-invitations/route')
+        const response = await POST(adminRequest('POST', {
+            eventSlug: 'fiesta', expiresAt: futureExpiry.toISOString(),
+        }))
+        const payload = await response.json()
+
+        expect(response.status).toBe(503)
+        expect(payload.urlAvailability).toBe('configuration_unavailable')
+        expect(mocks.createRsvpInvitationLink).not.toHaveBeenCalled()
+        expect(error.mock.calls.flat().join(' ')).not.toContain(tokenKeys)
+        error.mockRestore()
     })
 
     it('rejects unknown input keys and expiry beyond 365 days', async () => {
@@ -206,6 +321,11 @@ describe('/api/admin/rsvp-invitations', () => {
         expect(tooLate.status).toBe(400)
         expect(mocks.createRsvpInvitationLink).not.toHaveBeenCalled()
     })
+})
+
+afterAll(() => {
+    if (originalTokenKeys === undefined) delete process.env.RSVP_INVITATION_TOKEN_KEYS
+    else process.env.RSVP_INVITATION_TOKEN_KEYS = originalTokenKeys
 })
 
 function validationRequest(body: unknown, origin?: string) {
