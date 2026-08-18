@@ -534,6 +534,19 @@ describe('production migration safety', () => {
         expect(RSVP_INVITATION_SEMANTICS_QUERY).toContain('token_hash')
     })
 
+    it('accepts only the exact 0008 invitation columns or the complete 0009 flag pair', () => {
+        expect(RSVP_INVITATION_SEMANTICS_QUERY).toContain(
+            "table_name = 'rsvp_invitation_links') IN (10, 12)",
+        )
+        expect(RSVP_INVITATION_SEMANTICS_QUERY).toContain(
+            "column_name IN ('is_courtesy', 'skip_verification')) IN (0, 2)",
+        )
+        expect(RSVP_INVITATION_SEMANTICS_QUERY).toContain('AND column_name NOT IN (')
+        expect(RSVP_INVITATION_SEMANTICS_QUERY).toContain(
+            "'created_at', 'is_courtesy', 'skip_verification'",
+        )
+    })
+
     it('keeps the baseline transaction bounded, locked and fail-closed on the full contract', () => {
         const runbook = readFileSync('docs/PRODUCTION_MIGRATION_RUNBOOK.md', 'utf8')
 

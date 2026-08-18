@@ -40,8 +40,10 @@ export function invalidRsvpInvitationSemantics(state: RsvpInvitationSemanticStat
 }
 
 /**
- * Verifies the exact table, FK actions and index semantics that make the
- * one-time capability safe. Same-named objects on another table do not pass.
+ * Verifies the exact 0008 base table, FK actions and index semantics that make
+ * the one-time capability safe. The only accepted additive shape is the pair
+ * of invitation flags introduced together by 0009; partial or unknown extra
+ * columns still fail closed. Same-named objects on another table do not pass.
  */
 export const RSVP_INVITATION_SEMANTICS_QUERY = String.raw`
 WITH expected_columns(column_name, data_type, udt_name, nullable, max_length, has_now_default) AS (
@@ -62,7 +64,19 @@ column_check AS (
         'table.rsvp_invitation_links.columns'::text AS check_name,
         count(actual.column_name) = 10
         AND (SELECT count(*) FROM information_schema.columns
-             WHERE table_schema = 'public' AND table_name = 'rsvp_invitation_links') = 10
+             WHERE table_schema = 'public' AND table_name = 'rsvp_invitation_links') IN (10, 12)
+        AND (SELECT count(*) FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'rsvp_invitation_links'
+               AND column_name IN ('is_courtesy', 'skip_verification')) IN (0, 2)
+        AND NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'rsvp_invitation_links'
+              AND column_name NOT IN (
+                  'id', 'event_id', 'token_hash', 'expires_at', 'used_at',
+                  'used_rsvp_id', 'revoked_at', 'revoked_by', 'created_by',
+                  'created_at', 'is_courtesy', 'skip_verification'
+              )
+        )
         AND coalesce(bool_and(
             actual.data_type = expected.data_type
             AND actual.udt_name = expected.udt_name
