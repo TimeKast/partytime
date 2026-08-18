@@ -23,6 +23,16 @@ vi.mock('@/lib/queries', () => ({
     // ISSUE-007: the route now expires stale pending rows for the resolved
     // event before touching capacity/the unique (event, email) slot.
     expireStalePendingRsvps: mocks.expireStalePendingRsvps,
+    // ISSUE-011: the route now also destructures these on the pending_payment
+    // branch — unused by this file's scenarios (none reach pending_payment),
+    // but vi.mock requires every named export the route destructures to
+    // exist, even as a bare vi.fn(). See tests/rsvp-payment-route.test.ts for
+    // the payment-branch acceptance criteria these actually drive.
+    saveRSVPPendingPayment: vi.fn(),
+    getActivePaymentForRsvp: vi.fn(),
+    expireRsvpPaymentRecord: vi.fn(),
+    createRsvpPaymentRecord: vi.fn(),
+    expirePendingPaymentRsvp: vi.fn(),
     // ISSUE-006: the route now destructures RSVP_STATUS from this same
     // dynamic import to gate confirmation emails on rsvp.status === CONFIRMED.
     RSVP_STATUS: {
@@ -107,6 +117,11 @@ describe('POST /api/rsvp with invitationToken', () => {
             plusOneName: null,
             verificationCandidate: {
                 tokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+                expiresAt: expect.any(Date),
+            },
+            // ISSUE-011: always attached now, mirroring verificationCandidate
+            // — the CTE decides whether it is ever actually used.
+            paymentCandidate: {
                 expiresAt: expect.any(Date),
             },
         })

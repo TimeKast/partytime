@@ -27,11 +27,13 @@ type ModalStyle = CSSProperties & {
   '--rsvp-primary'?: string
 }
 
-// Mirrors the literal RSVP_STATUS.PENDING_VERIFICATION value from
-// lib/queries.ts (ISSUE-007). Not imported directly — that module pulls in
-// the DB driver, which a client component must never bundle (same reasoning
-// as the local TOKEN_PATTERN copy in InvitationRegistrationClient.tsx).
+// Mirrors the literal RSVP_STATUS.PENDING_VERIFICATION/PENDING_PAYMENT values
+// from lib/queries.ts (ISSUE-007/ISSUE-011). Not imported directly — that
+// module pulls in the DB driver, which a client component must never bundle
+// (same reasoning as the local TOKEN_PATTERN copy in
+// InvitationRegistrationClient.tsx).
 const PENDING_VERIFICATION_STATUS = 'pending_verification'
+const PENDING_PAYMENT_STATUS = 'pending_payment'
 const RESEND_COOLDOWN_SECONDS = 60
 
 export default function RSVPModal({
@@ -73,7 +75,7 @@ export default function RSVPModal({
     plusOneName: '',
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'pending_verification' | 'error'>('idle')
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'pending_verification' | 'pending_payment' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
   const [pendingEmail, setPendingEmail] = useState('')
   const [resendCooldown, setResendCooldown] = useState(0)
@@ -167,6 +169,18 @@ export default function RSVPModal({
         if (data.status === PENDING_VERIFICATION_STATUS) {
           setPendingEmail(formData.email)
           setSubmitStatus('pending_verification')
+          return
+        }
+
+        // ISSUE-011: this event/link requires payment — the RSVP row is only
+        // pending_payment (a seat is held, not confirmed) until Stripe's
+        // webhook confirms it. Same reasoning as pending_verification above:
+        // onSuccess must NOT fire here. The redirect itself happens via a
+        // full navigation (window.location.assign), not client-side routing,
+        // so there is nothing further to await after it starts.
+        if (data.status === PENDING_PAYMENT_STATUS && typeof data.checkoutUrl === 'string') {
+          setSubmitStatus('pending_payment')
+          window.location.assign(data.checkoutUrl)
           return
         }
 
@@ -334,6 +348,24 @@ export default function RSVPModal({
             {resendMessage && (
               <p className={styles.resendNote} role="status" aria-live="polite">{resendMessage}</p>
             )}
+          </motion.div>
+        ) : submitStatus === 'pending_payment' ? (
+          <motion.div
+            className={styles.successMessage}
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 200 }}
+            style={isModern ? undefined : {
+              background: `${activeTheme.secondaryColor}10`,
+              borderRadius: '20px',
+              border: `1px solid ${activeTheme.secondaryColor}33`,
+              padding: '40px 20px',
+              marginTop: '10px'
+            }}
+          >
+            <div className={styles.successIcon}>💳</div>
+            <h3 style={isModern ? undefined : { color: activeTheme.secondaryColor }}>Un momento…</h3>
+            <p>Te llevamos a un pago seguro con Stripe…</p>
           </motion.div>
         ) : (
           <form className={styles.form} onSubmit={handleSubmit}>

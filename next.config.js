@@ -34,6 +34,17 @@ const nextConfig = {
         source: '/verify/:slug',
         headers: invitePrivateHeaders,
       },
+      {
+        // ISSUE-011: the Stripe return page must never be cached — it polls
+        // a status endpoint and must always re-run that check on load, not
+        // serve a stale success/cancelled snapshot from a shared/browser
+        // cache. `:slug/pago` is specific enough (literal `pago` suffix) to
+        // not collide with any other route source above.
+        source: '/:slug/pago',
+        headers: [
+          { key: 'Cache-Control', value: 'private, no-store, max-age=0' },
+        ],
+      },
     ]
   },
 }

@@ -26,6 +26,15 @@ vi.mock('@/lib/queries', () => ({
     recordEmailSent: mocks.recordEmailSent,
     generateCancelToken: mocks.generateCancelToken,
     expireStalePendingRsvps: mocks.expireStalePendingRsvps,
+    // ISSUE-011: the route now also destructures these on the pending_payment
+    // branch — unused here (this event never sets payment_required), but
+    // vi.mock requires every named export the route destructures to exist.
+    // See tests/rsvp-payment-route.test.ts for the payment-branch coverage.
+    saveRSVPPendingPayment: vi.fn(),
+    getActivePaymentForRsvp: vi.fn(),
+    expireRsvpPaymentRecord: vi.fn(),
+    createRsvpPaymentRecord: vi.fn(),
+    expirePendingPaymentRsvp: vi.fn(),
     RSVP_STATUS: {
         CONFIRMED: 'confirmed',
         CANCELLED: 'cancelled',

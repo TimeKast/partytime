@@ -305,6 +305,11 @@ describe('saveRsvpWithInvitation reactivation — verified_at always reset (ISSU
         plusOne: false,
         plusOneName: null,
         verificationCandidate: verification,
+        // ISSUE-011: SaveRsvpWithInvitationInput.paymentCandidate is now
+        // required (mirrors verificationCandidate's "always generated"
+        // contract) — see tests/stripe-checkout.test.ts for the
+        // requires_payment branching this feeds.
+        paymentCandidate: { expiresAt: new Date('2026-08-17T00:35:00.000Z') },
     }
 
     // Unlike saveRSVPOnce, the invitation flow's reactivation branch has NO

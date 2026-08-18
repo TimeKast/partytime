@@ -136,6 +136,12 @@ async function main() {
                     tokenHash: hashVerificationToken(generateVerificationToken()),
                     expiresAt: new Date(Date.now() + VERIFICATION_TOKEN_TTL_MS),
                 },
+                // ISSUE-011: required alongside verificationCandidate now —
+                // this rehearsal event never sets payment_required, so it is
+                // never actually persisted.
+                paymentCandidate: {
+                    expiresAt: new Date(Date.now() + 35 * 60 * 1_000),
+                },
             }),
         ))
         const winners = concurrentResults.filter(result => result !== null)

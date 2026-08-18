@@ -1,0 +1,138 @@
+/*
+ * ISSUE-011: same dark-shell / stateCard visual language as
+ * app/verify/[slug]/verify.module.css (values duplicated intentionally —
+ * this route has no form, so sharing the file directly would carry a lot of
+ * unused rules for a purely informational return page).
+ */
+
+.container {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-x: hidden;
+  background: var(--pago-background-color, #0f0f10);
+  color: #ffffff;
+  padding: max(24px, env(safe-area-inset-top)) 20px max(32px, env(safe-area-inset-bottom));
+}
+
+.backgroundWrapper {
+  position: fixed;
+  z-index: -2;
+  inset: 0;
+  overflow: hidden;
+  background: var(--pago-background-color, #0f0f10);
+}
+
+.backgroundImage {
+  width: 100%;
+  height: 100%;
+  object-fit: var(--pago-background-fit, cover);
+  object-position: var(--pago-background-position, center);
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--pago-overlay-background, rgba(0, 0, 0, 0.48));
+}
+
+.card {
+  box-sizing: border-box;
+  width: min(100%, 520px);
+  min-width: 0;
+  margin: auto;
+  padding: clamp(24px, 6vw, 40px);
+  overflow-wrap: anywhere;
+  background: rgba(15, 15, 16, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 20px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.32);
+  text-align: center;
+}
+
+.card h1,
+.card p {
+  color: inherit;
+}
+
+.card h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 6vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+}
+
+.card > p {
+  margin: 14px auto 0;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.homeBtn,
+.primaryBtn {
+  display: inline-flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 22px;
+  padding: 13px 18px;
+  color: var(--pago-cta-text, #000000);
+  background: var(--pago-cta-background, #f5f5f4);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.homeBtn:hover,
+.primaryBtn:hover {
+  transform: translateY(-1px);
+}
+
+.homeBtn:focus-visible,
+.primaryBtn:focus-visible {
+  outline: 3px solid rgba(255, 255, 255, 0.92);
+  outline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: max(16px, env(safe-area-inset-top)) 12px max(24px, env(safe-area-inset-bottom));
+  }
+
+  .card {
+    padding: 22px 16px;
+    border-radius: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .homeBtn,
+  .primaryBtn {
+    transition: none;
+  }
+
+  .homeBtn:hover,
+  .primaryBtn:hover {
+    transform: none;
+  }
+}

@@ -15,6 +15,9 @@ import {
   hashVerificationToken,
 } from '@/lib/verification'
 import { buildVerificationEmailSubject, generateVerificationEmail } from '@/lib/verification-email'
+import { stripe } from '@/lib/stripe'
+import { buildCheckoutSessionParams, PENDING_PAYMENT_RSVP_TTL_MS } from '@/lib/stripe-checkout'
+import { derivePaymentAmountCents } from '@/lib/payment-config'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,7 +82,14 @@ export async function POST(request: NextRequest) {
 
     // Check if database is configured
     if (isDatabaseConfigured()) {
-      const { saveRSVP, saveRsvpWithInvitation, getEventBySlug, expireStalePendingRsvps, RSVP_STATUS } = await import('@/lib/queries')
+      const {
+        saveRSVP,
+        saveRsvpWithInvitation,
+        saveRSVPPendingPayment,
+        getEventBySlug,
+        expireStalePendingRsvps,
+        RSVP_STATUS,
+      } = await import('@/lib/queries')
 
       // Resolve the target event on EVERY path — the explicit eventSlug, or the
       // configured default. Resolving unconditionally means the isActive /
@@ -137,6 +147,15 @@ export async function POST(request: NextRequest) {
         eventId,
       }
 
+      // ISSUE-011 (PLAN §2): payment supersedes verification. For the PUBLIC
+      // path this is decided directly from the freshly-fetched event row —
+      // no per-link flag to race against, same trust level already applied
+      // to isActive/rsvpClosed above. For the invitation path the decision
+      // is made fresh inside saveRsvpWithInvitation's CTE from
+      // invitation_event.payment_required AND NOT candidate.is_courtesy —
+      // never from anything read here.
+      const publicRequiresPayment = invitationToken === undefined && event.paymentRequired === true
+
       // ISSUE-007: candidate verification bearer. For the invitation path
       // this is ALWAYS generated — whether it ends up persisted is decided
       // inside saveRsvpWithInvitation's atomic CTE from data it reads fresh
@@ -145,11 +164,9 @@ export async function POST(request: NextRequest) {
       // path there is no per-link flag to race against, so the route's own
       // freshly-fetched `event.emailVerificationEnabled` is authoritative —
       // same trust level already applied to the isActive/rsvpClosed checks
-      // above.
-      // TODO(ISSUE-011): once events.payment_required exists, a paid event
-      // supersedes verification here too (PLAN-EPICS-002-005.md §2) — this
-      // branch will gain `&& !event.paymentRequired`.
-      const verificationCandidate = invitationToken !== undefined || event.emailVerificationEnabled
+      // above. ISSUE-011: on the public path, a payment-required event skips
+      // this entirely (payment IS the verification, PLAN §2).
+      const verificationCandidate = invitationToken !== undefined || (event.emailVerificationEnabled && !publicRequiresPayment)
         ? (() => {
           const token = generateVerificationToken()
           return {
@@ -160,13 +177,20 @@ export async function POST(request: NextRequest) {
         })()
         : undefined
 
+      // ISSUE-011: TTL for a pending_payment row — cheap to compute even when
+      // it ends up unused (invitation path: the CTE decides fresh whether to
+      // persist it, exactly like verificationCandidate above).
+      const paymentExpiresAt = new Date(Date.now() + PENDING_PAYMENT_RSVP_TTL_MS)
+
       const rsvp = invitationToken === undefined
-        ? await saveRSVP(
-          rsvpInput,
-          verificationCandidate
-            ? { tokenHash: verificationCandidate.tokenHash, expiresAt: verificationCandidate.expiresAt }
-            : undefined,
-        )
+        ? (publicRequiresPayment
+          ? await saveRSVPPendingPayment(rsvpInput, paymentExpiresAt)
+          : await saveRSVP(
+            rsvpInput,
+            verificationCandidate
+              ? { tokenHash: verificationCandidate.tokenHash, expiresAt: verificationCandidate.expiresAt }
+              : undefined,
+          ))
         : await saveRsvpWithInvitation({
           ...rsvpInput,
           tokenHash: hashRsvpInvitationToken(invitationToken),
@@ -175,6 +199,7 @@ export async function POST(request: NextRequest) {
             tokenHash: verificationCandidate!.tokenHash,
             expiresAt: verificationCandidate!.expiresAt,
           },
+          paymentCandidate: { expiresAt: paymentExpiresAt },
         })
 
       if (!rsvp) {
@@ -190,6 +215,115 @@ export async function POST(request: NextRequest) {
           eventId,
           rsvpId: rsvp.id,
         }))
+      }
+
+      // ISSUE-011: a row that landed on pending_payment never gets the
+      // verification/confirmation email branches below — it gets redirected
+      // to a hosted Stripe Checkout session instead. Real confirmation only
+      // ever happens via the webhook (ISSUE-012); this response is purely
+      // "here's where to pay".
+      if (rsvp.status === RSVP_STATUS.PENDING_PAYMENT) {
+        const {
+          getActivePaymentForRsvp,
+          expireRsvpPaymentRecord,
+          createRsvpPaymentRecord,
+          expirePendingPaymentRsvp,
+        } = await import('@/lib/queries')
+
+        // ISSUE-011: a re-submit while this guest's OWN pending_payment row
+        // is still valid reuses the row (saveRSVPPendingPayment above) but
+        // must never leave two live Stripe sessions. Best-effort expire the
+        // previous session and mark its row 'expired' ourselves now, rather
+        // than waiting on the ISSUE-012 webhook — which doesn't exist yet
+        // and, once it does, simply no-ops on an already-'expired' row (see
+        // expireRsvpPaymentRecord's status='created' guard). Unreachable on
+        // the invitation path: a link is single-use, so a second POST with
+        // the same token never re-matches eligible_invitation and 409s above
+        // instead of reaching this branch.
+        const previousPayment = await getActivePaymentForRsvp(rsvp.id)
+        if (previousPayment) {
+          try {
+            await stripe.checkout.sessions.expire(previousPayment.stripeSessionId)
+          } catch (expireError) {
+            console.error(
+              'Failed to expire previous Stripe checkout session (best-effort):',
+              expireError instanceof Error ? expireError.name : 'UnknownError',
+            )
+          }
+          await expireRsvpPaymentRecord(previousPayment.id)
+        }
+
+        const amountCents = derivePaymentAmountCents(event)
+        const currency = event.priceCurrency || 'MXN'
+
+        // Defensive: payment_required should never be true without a
+        // positive price (checkPaymentRequiredEligibility enforces this at
+        // write time in the admin API), but never send Stripe a zero/
+        // negative amount — release the seat instead of a broken checkout.
+        if (amountCents <= 0) {
+          await expirePendingPaymentRsvp(rsvp.id)
+          console.error(`payment_required event with non-positive derived amount: ${eventId}`)
+          return NextResponse.json(
+            { error: 'No pudimos iniciar el pago. Intenta de nuevo en unos minutos.' },
+            { status: 502 },
+          )
+        }
+
+        let session
+        try {
+          session = await stripe.checkout.sessions.create(buildCheckoutSessionParams({
+            rsvpId: rsvp.id,
+            eventSlug: eventId,
+            email: rsvp.email,
+            eventTitle: buildEventEmailData(event).title,
+            amountCents,
+            currency,
+          }))
+        } catch (stripeError) {
+          // ISSUE-011 acceptance criterion: never leave an orphaned
+          // pending_payment row with no way to pay — release the seat (and
+          // restore the invitation link, if any) the same way a lazily
+          // expired row would.
+          console.error(
+            'Stripe checkout session creation failed:',
+            stripeError instanceof Error ? stripeError.name : 'UnknownError',
+          )
+          await expirePendingPaymentRsvp(rsvp.id)
+          return NextResponse.json(
+            { error: 'No pudimos iniciar el pago. Intenta de nuevo en unos minutos.' },
+            { status: 502 },
+          )
+        }
+
+        if (!session.url) {
+          // Should never happen for a mode:'payment', non-embedded session,
+          // but fail the same closed way if it ever does.
+          console.error('Stripe checkout session created without a redirect URL')
+          await expirePendingPaymentRsvp(rsvp.id)
+          return NextResponse.json(
+            { error: 'No pudimos iniciar el pago. Intenta de nuevo en unos minutos.' },
+            { status: 502 },
+          )
+        }
+
+        await createRsvpPaymentRecord({
+          rsvpId: rsvp.id,
+          eventId,
+          stripeSessionId: session.id,
+          amountCents,
+          currency,
+        })
+
+        return NextResponse.json(
+          {
+            success: true,
+            status: RSVP_STATUS.PENDING_PAYMENT,
+            message: 'Te llevamos a un pago seguro con Stripe…',
+            checkoutUrl: session.url,
+            rsvp,
+          },
+          { status: 201 },
+        )
       }
 
       // ISSUE-007: a row that landed on pending_verification never gets the

@@ -43,6 +43,11 @@ const input = {
         tokenHash: 'b'.repeat(64),
         expiresAt: new Date('2026-08-18T00:00:00.000Z'),
     },
+    // ISSUE-011: same "always generated, CTE decides" contract as
+    // verificationCandidate above — see SaveRsvpWithInvitationInput.paymentCandidate.
+    paymentCandidate: {
+        expiresAt: new Date('2026-08-17T00:35:00.000Z'),
+    },
 }
 
 const returnedRsvp = {
@@ -188,6 +193,22 @@ describe('saveRsvpWithInvitation atomic contract', () => {
         expect(statement).toContain('EXISTS (SELECT 1 FROM successful_rsvp)')
         expect(statement).toContain('used_rsvp_id = (SELECT id FROM successful_rsvp LIMIT 1)')
         expect(statement.match(/UPDATE rsvp_invitation_links/g)).toHaveLength(1)
+    })
+
+    it('reactivates cancelled AND expired rows so a restored link can be retried (PLAN §2.1)', async () => {
+        executeMock.mockResolvedValueOnce({ rows: [returnedRsvp] })
+        await saveRsvpWithInvitation(input)
+
+        const statement = sqlTextOf(executeMock.mock.calls[0][0])
+        const reactivated = statement.slice(
+            statement.indexOf('reactivated_rsvp AS'),
+            statement.indexOf('inserted_rsvp AS'),
+        )
+        expect(reactivated).toContain('target.status IN (')
+        const params = executeMock.mock.calls[0][0]?.queryChunks ?? []
+        const bound = JSON.stringify(params)
+        expect(bound).toContain('cancelled')
+        expect(bound).toContain('expired')
     })
 
     it('returns null without claiming when the token is unavailable or RSVP cannot win', async () => {

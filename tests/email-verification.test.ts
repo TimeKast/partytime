@@ -438,6 +438,11 @@ describe('saveRsvpWithInvitation — skip_verification branching (ISSUE-007)', (
         plusOne: false,
         plusOneName: null,
         verificationCandidate: verification,
+        // ISSUE-011: SaveRsvpWithInvitationInput.paymentCandidate is now
+        // required (mirrors verificationCandidate's "always generated"
+        // contract) — see tests/stripe-checkout.test.ts for the
+        // requires_payment branching this feeds.
+        paymentCandidate: { expiresAt: new Date('2026-08-17T00:35:00.000Z') },
     }
 
     it('computes requires_verification fresh from the event flag AND NOT the link skip_verification flag — never from caller-supplied state', async () => {

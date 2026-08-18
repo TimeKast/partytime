@@ -4,9 +4,9 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { db, isDatabaseConfigured, rsvps, events, appSettings, rsvpInvitationLinks } from './db'
+import { db, isDatabaseConfigured, rsvps, events, appSettings, rsvpInvitationLinks, rsvpPayments } from './db'
 import { eq, desc, and, isNull, lte, gt, gte, sql } from 'drizzle-orm'
-import type { Event, NewEvent, RSVP, NewRSVP } from './schema'
+import type { Event, NewEvent, RSVP, NewRSVP, RsvpPayment } from './schema'
 
 // ============================================
 // RSVP Functions
@@ -30,6 +30,23 @@ export const RSVP_STATUS = {
 } as const
 
 export type RsvpStatus = typeof RSVP_STATUS[keyof typeof RSVP_STATUS]
+
+// ISSUE-011 (EPIC-004, migration 0010): canonical rsvp_payments.status
+// values. 'created' is the row inserted right after a Checkout Session is
+// created; the webhook (ISSUE-012) is the only writer of 'paid'/'refunded'.
+// 'expired' is written both by that same webhook (checkout.session.expired)
+// and, synchronously, by this file when a re-submit supersedes a still-
+// 'created' row or a Stripe API error leaves no session to pay — see
+// expireRsvpPaymentRecord below for why that direct write never breaks the
+// webhook's own idempotency.
+export const RSVP_PAYMENT_STATUS = {
+    CREATED: 'created',
+    PAID: 'paid',
+    EXPIRED: 'expired',
+    REFUNDED: 'refunded',
+} as const
+
+export type RsvpPaymentStatus = typeof RSVP_PAYMENT_STATUS[keyof typeof RSVP_PAYMENT_STATUS]
 
 // drizzle >= 0.44 wraps driver errors in DrizzleQueryError: err.message is
 // "Failed query: <sql>" and the real NeonDbError (with .code / the PG
@@ -151,6 +168,17 @@ export interface SaveRsvpWithInvitationInput {
     // land a pending_verification row with no token, stranding the guest.
     verificationCandidate: {
         tokenHash: string
+        expiresAt: Date
+    }
+    // ISSUE-011 (EPIC-004): a payment bearer the caller MUST always generate
+    // for every invitation-flow attempt, exactly like verificationCandidate
+    // above — cheap (just a Date), and whether it is actually used is decided
+    // fresh inside the CTE below (invitation_event.payment_required AND NOT
+    // candidate.is_courtesy). Only the TTL is needed here: creating the real
+    // Stripe Checkout Session is a network call the route makes AFTER this
+    // statement returns, once it knows the row actually landed on
+    // pending_payment — see app/api/rsvp/route.ts.
+    paymentCandidate: {
         expiresAt: Date
     }
 }
@@ -335,6 +363,7 @@ export async function saveRsvpWithInvitation(
     const emailLower = email.toLowerCase()
     const verificationTokenHash = input.verificationCandidate.tokenHash
     const verificationExpiresAt = input.verificationCandidate.expiresAt
+    const paymentExpiresAt = input.paymentCandidate.expiresAt
     // ISSUE-009 (EPIC-003): reactivated_rsvp's verified_at is set NULL
     // unconditionally below, unlike saveRSVPOnce's public-flow reactivation
     // above (which has a CASE preserving it for an already-verified,
@@ -352,12 +381,18 @@ export async function saveRsvpWithInvitation(
     try {
         result = await withDeadlockRetry(() => db!.execute(sql`
         WITH eligible_invitation AS MATERIALIZED (
-            -- ISSUE-007/PLAN §2.1: requires_verification is computed fresh
-            -- here (not from anything the caller read earlier) — payment
-            -- (ISSUE-011, is_courtesy) would supersede this once it lands;
-            -- for now the pay-required predicate is simply absent.
+            -- ISSUE-011/PLAN §2.1: requires_payment and requires_verification
+            -- are both computed fresh here — never from anything the caller
+            -- read earlier (same TOCTOU reasoning as the ISSUE-007 predecessor
+            -- of this comment). Payment supersedes verification: requires_
+            -- verification is only true when requires_payment is false, so the
+            -- two are mutually exclusive and the CASE branches below can check
+            -- requires_payment first without ever double-gating a row.
             SELECT candidate.id, candidate.is_courtesy, candidate.skip_verification,
-                   (invitation_event.email_verification_enabled AND NOT candidate.skip_verification)
+                   (invitation_event.payment_required AND NOT candidate.is_courtesy)
+                       AS requires_payment,
+                   (NOT (invitation_event.payment_required AND NOT candidate.is_courtesy)
+                       AND invitation_event.email_verification_enabled AND NOT candidate.skip_verification)
                        AS requires_verification
             FROM rsvp_invitation_links AS candidate
             INNER JOIN events AS invitation_event
@@ -385,17 +420,25 @@ export async function saveRsvpWithInvitation(
                 phone = ${input.phone},
                 plus_one = ${input.plusOne},
                 plus_one_name = ${input.plusOneName || null},
-                status = CASE WHEN (SELECT requires_verification FROM eligible_invitation)
+                status = CASE WHEN (SELECT requires_payment FROM eligible_invitation)
+                              THEN ${RSVP_STATUS.PENDING_PAYMENT}
+                              WHEN (SELECT requires_verification FROM eligible_invitation)
                               THEN ${RSVP_STATUS.PENDING_VERIFICATION} ELSE ${RSVP_STATUS.CONFIRMED} END,
                 verified_at = NULL,
                 verification_token_hash = CASE WHEN (SELECT requires_verification FROM eligible_invitation)
                               THEN ${verificationTokenHash} ELSE NULL END,
                 verification_expires_at = CASE WHEN (SELECT requires_verification FROM eligible_invitation)
                               THEN ${verificationExpiresAt} ELSE NULL END,
-                pending_expires_at = CASE WHEN (SELECT requires_verification FROM eligible_invitation)
+                pending_expires_at = CASE WHEN (SELECT requires_payment FROM eligible_invitation)
+                              THEN ${paymentExpiresAt}
+                              WHEN (SELECT requires_verification FROM eligible_invitation)
                               THEN ${verificationExpiresAt} ELSE NULL END
+            -- PLAN §2.1: expired rows must be reactivable so a guest whose
+            -- pending payment/verification lapsed can retry with the same
+            -- (restored) invitation link. Seats are re-checked by the
+            -- capacity trigger on this UPDATE (expired rows hold no seat).
             WHERE target.id IN (SELECT id FROM existing_rsvp)
-              AND target.status = ${RSVP_STATUS.CANCELLED}
+              AND target.status IN (${RSVP_STATUS.CANCELLED}, ${RSVP_STATUS.EXPIRED})
               AND EXISTS (SELECT 1 FROM eligible_invitation)
             RETURNING target.*
         ),
@@ -406,13 +449,17 @@ export async function saveRsvpWithInvitation(
             )
             SELECT ${randomUUID()}, ${input.eventId}, ${input.name}, ${email}, ${input.phone},
                    ${input.plusOne}, ${input.plusOneName || null},
-                   CASE WHEN eligible_invitation.requires_verification
+                   CASE WHEN eligible_invitation.requires_payment
+                        THEN ${RSVP_STATUS.PENDING_PAYMENT}
+                        WHEN eligible_invitation.requires_verification
                         THEN ${RSVP_STATUS.PENDING_VERIFICATION} ELSE ${RSVP_STATUS.CONFIRMED} END,
                    CASE WHEN eligible_invitation.requires_verification
                         THEN ${verificationTokenHash} ELSE NULL END,
                    CASE WHEN eligible_invitation.requires_verification
                         THEN ${verificationExpiresAt} ELSE NULL END,
-                   CASE WHEN eligible_invitation.requires_verification
+                   CASE WHEN eligible_invitation.requires_payment
+                        THEN ${paymentExpiresAt}
+                        WHEN eligible_invitation.requires_verification
                         THEN ${verificationExpiresAt} ELSE NULL END
             FROM eligible_invitation
             WHERE NOT EXISTS (SELECT 1 FROM existing_rsvp)
@@ -732,6 +779,251 @@ async function saveRSVPOnce(
         if (isCapacityFullError(err)) throw new Error(CAPACITY_FULL_MESSAGE)
         throw err
     }
+}
+
+// ISSUE-011: statuses saveRSVPPendingPayment may move a row FROM. Unlike
+// RSVP_REACTIVATABLE_STATUSES above, PENDING_PAYMENT itself is included —
+// a re-submit while the guest's OWN pending_payment row is still valid
+// reuses that SAME row in place (refreshing its TTL) rather than erroring,
+// per the ISSUE-011 Gherkin ("el mismo email reintenta mientras su pending
+// sigue vivo"). CONFIRMED is deliberately excluded: a live registration is a
+// duplicate, not something a public-flow payment attempt may overwrite.
+const RSVP_PENDING_PAYMENT_REACTIVATABLE_STATUSES: readonly string[] = [
+    RSVP_STATUS.CANCELLED,
+    RSVP_STATUS.EXPIRED,
+    RSVP_STATUS.PENDING_VERIFICATION,
+    RSVP_STATUS.PENDING_PAYMENT,
+]
+
+/**
+ * ISSUE-011 (EPIC-004): create or reuse the `pending_payment` row for the
+ * PUBLIC (non-invitation) flow — `event.payment_required` is a plain column
+ * read fresh by the route just before this call (no per-link flag to race
+ * against, same trust level as `saveRSVP`'s `event.emailVerificationEnabled`
+ * usage). Unlike the invitation flow's CTE, there is no capability to consume
+ * here, so a plain select-then-update/insert is enough; the reactivation
+ * UPDATE's `WHERE status = ${prev.status}` predicate still makes concurrent
+ * re-submits/reactivations race-safe (loser matches zero rows, treated as a
+ * duplicate) exactly like `saveRSVPOnce`.
+ *
+ * The caller (app/api/rsvp/route.ts) is responsible for everything Stripe:
+ * this function only ever returns the RSVP row so the route can decide,
+ * from its OWN `id`, whether a Checkout Session already exists for it
+ * (`getActivePaymentForRsvp`) and needs to be superseded.
+ */
+export async function saveRSVPPendingPayment(
+    rsvpData: {
+        name: string
+        email: string
+        phone: string
+        plusOne: boolean
+        plusOneName?: string | null
+        eventId: string
+    },
+    pendingExpiresAt: Date,
+): Promise<RSVP> {
+    return withDeadlockRetry(() => saveRSVPPendingPaymentOnce(rsvpData, pendingExpiresAt))
+}
+
+async function saveRSVPPendingPaymentOnce(
+    rsvpData: {
+        name: string
+        email: string
+        phone: string
+        plusOne: boolean
+        plusOneName?: string | null
+        eventId: string
+    },
+    pendingExpiresAt: Date,
+): Promise<RSVP> {
+    if (!db) throw new Error('Database not configured')
+
+    const email = rsvpData.email.trim()
+    const emailLower = email.toLowerCase()
+
+    // A2-H05: same case-insensitive lookup as saveRSVPOnce.
+    const existing = await db.select()
+        .from(rsvps)
+        .where(and(
+            eq(rsvps.eventId, rsvpData.eventId),
+            sql`lower(${rsvps.email}) = ${emailLower}`
+        ))
+        .limit(1)
+
+    if (existing.length > 0) {
+        const prev = existing[0]
+        if (!RSVP_PENDING_PAYMENT_REACTIVATABLE_STATUSES.includes(prev.status)) {
+            throw new Error('Ya existe un RSVP con este email para este evento')
+        }
+        try {
+            const [updated] = await db.update(rsvps)
+                .set({
+                    name: rsvpData.name,
+                    email,
+                    phone: rsvpData.phone,
+                    plusOne: rsvpData.plusOne,
+                    plusOneName: rsvpData.plusOneName || null,
+                    status: RSVP_STATUS.PENDING_PAYMENT,
+                    // Payment supersedes verification (PLAN §2) — a row
+                    // moving into (or refreshed within) pending_payment never
+                    // carries a stray verification token/expiry.
+                    verifiedAt: null,
+                    verificationTokenHash: null,
+                    verificationExpiresAt: null,
+                    pendingExpiresAt,
+                })
+                .where(and(eq(rsvps.id, prev.id), eq(rsvps.status, prev.status)))
+                .returning()
+
+            if (!updated) {
+                // Concurrent re-submit/reactivation won the race first.
+                throw new Error('Ya existe un RSVP con este email para este evento')
+            }
+            return updated
+        } catch (err: any) {
+            if (isCapacityFullError(err)) throw new Error(CAPACITY_FULL_MESSAGE)
+            throw err
+        }
+    }
+
+    try {
+        const [newRsvp] = await db.insert(rsvps)
+            .values({
+                name: rsvpData.name,
+                email,
+                phone: rsvpData.phone,
+                plusOne: rsvpData.plusOne,
+                plusOneName: rsvpData.plusOneName || null,
+                eventId: rsvpData.eventId,
+                status: RSVP_STATUS.PENDING_PAYMENT,
+                pendingExpiresAt,
+            })
+            .returning()
+
+        return newRsvp
+    } catch (err: any) {
+        if (isUniqueViolationError(err)) {
+            throw new Error('Ya existe un RSVP con este email para este evento')
+        }
+        if (isCapacityFullError(err)) throw new Error(CAPACITY_FULL_MESSAGE)
+        throw err
+    }
+}
+
+/**
+ * ISSUE-011: release a `pending_payment` row that will never be paid — a
+ * Stripe API error right after the row was created/reused (no Checkout
+ * Session exists to redirect the guest to). Single UPDATE+CTE, same shape as
+ * `expireStalePendingRsvps`, but targeted by id instead of by TTL: flips the
+ * row to `expired` and restores the invitation link that produced it, if any
+ * (the restore is a no-op for a public-flow row, since `used_rsvp_id` never
+ * points at one).
+ */
+export async function expirePendingPaymentRsvp(rsvpId: string): Promise<RSVP | null> {
+    if (!db) throw new Error('Database not configured')
+
+    const result = await withDeadlockRetry(() => db!.execute(sql`
+        WITH expired_rsvp AS (
+            UPDATE rsvps
+            SET status = ${RSVP_STATUS.EXPIRED}, pending_expires_at = NULL
+            WHERE id = ${rsvpId} AND status = ${RSVP_STATUS.PENDING_PAYMENT}
+            RETURNING *
+        ),
+        restored_link AS (
+            UPDATE rsvp_invitation_links
+            SET used_at = NULL,
+                used_rsvp_id = NULL
+            WHERE used_rsvp_id IN (SELECT id FROM expired_rsvp)
+              AND revoked_at IS NULL
+              AND (expires_at IS NULL OR expires_at > now())
+            RETURNING id
+        )
+        SELECT * FROM expired_rsvp
+    `))
+
+    const row = result.rows[0] as Record<string, unknown> | undefined
+    return row ? mapRsvpRow(row) : null
+}
+
+/**
+ * ISSUE-011: the most recent still-open (`created`) Checkout Session row for
+ * an RSVP, if any. Used by the route to detect a re-submit of the guest's own
+ * pending_payment row so the previous Stripe session can be expired
+ * best-effort before a new one is created (PLAN §3.3 Gherkin: "solo hay una
+ * sesión activa").
+ */
+export async function getActivePaymentForRsvp(rsvpId: string): Promise<RsvpPayment | null> {
+    if (!db) throw new Error('Database not configured')
+
+    const [result] = await db.select()
+        .from(rsvpPayments)
+        .where(and(eq(rsvpPayments.rsvpId, rsvpId), eq(rsvpPayments.status, RSVP_PAYMENT_STATUS.CREATED)))
+        .orderBy(desc(rsvpPayments.createdAt))
+        .limit(1)
+
+    return result || null
+}
+
+/**
+ * ISSUE-011: mark a Checkout Session row `expired` — called synchronously
+ * when a re-submit supersedes it (see getActivePaymentForRsvp above), ahead
+ * of the ISSUE-012 webhook's own `checkout.session.expired` handling. The
+ * `status = created` guard makes this idempotent: if that webhook later
+ * arrives for the SAME row (Stripe still sent the event even though we
+ * pre-empted it), its own equivalent UPDATE matches zero rows and no-ops —
+ * exactly the same "loser matches zero rows" shape used throughout this file.
+ */
+export async function expireRsvpPaymentRecord(id: string): Promise<void> {
+    if (!db) throw new Error('Database not configured')
+
+    await db.update(rsvpPayments)
+        .set({ status: RSVP_PAYMENT_STATUS.EXPIRED })
+        .where(and(eq(rsvpPayments.id, id), eq(rsvpPayments.status, RSVP_PAYMENT_STATUS.CREATED)))
+}
+
+/**
+ * ISSUE-011: insert the `rsvp_payments` row for a freshly created Checkout
+ * Session. `amountCents`/`currency` are passed in rather than re-derived here
+ * so the route can guarantee the EXACT same value it sent to Stripe is what
+ * gets persisted (PLAN §3.3 "Fuente única de precio").
+ */
+export async function createRsvpPaymentRecord(input: {
+    rsvpId: string
+    eventId: string
+    stripeSessionId: string
+    amountCents: number
+    currency: string
+}): Promise<RsvpPayment> {
+    if (!db) throw new Error('Database not configured')
+
+    const [created] = await db.insert(rsvpPayments)
+        .values({
+            rsvpId: input.rsvpId,
+            eventId: input.eventId,
+            stripeSessionId: input.stripeSessionId,
+            amountCents: input.amountCents,
+            currency: input.currency,
+            status: RSVP_PAYMENT_STATUS.CREATED,
+        })
+        .returning()
+
+    return created
+}
+
+/**
+ * ISSUE-011: the ONLY thing `GET /api/rsvp/payment-status` is allowed to read
+ * — a bare status string, never a full row (no rsvp_id, no amount, no name/
+ * email). Session id format is validated by the route before this is called.
+ */
+export async function getRsvpPaymentStatusBySessionId(stripeSessionId: string): Promise<RsvpPaymentStatus | null> {
+    if (!db) throw new Error('Database not configured')
+
+    const [result] = await db.select({ status: rsvpPayments.status })
+        .from(rsvpPayments)
+        .where(eq(rsvpPayments.stripeSessionId, stripeSessionId))
+        .limit(1)
+
+    return result ? (result.status as RsvpPaymentStatus) : null
 }
 
 /**
