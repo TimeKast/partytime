@@ -26,6 +26,14 @@ const nextConfig = {
         source: '/invite/:slug',
         headers: invitePrivateHeaders,
       },
+      {
+        source: '/verify',
+        headers: invitePrivateHeaders,
+      },
+      {
+        source: '/verify/:slug',
+        headers: invitePrivateHeaders,
+      },
     ]
   },
 }

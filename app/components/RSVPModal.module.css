@@ -298,6 +298,40 @@
   color: #ffffff;
 }
 
+/* Pending verification state (ISSUE-008) */
+.pendingEmail {
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.resendButton {
+  margin-top: 20px;
+  padding: 12px 24px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.resendButton:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.resendButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.resendNote {
+  margin-top: 12px;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
 /* Error message */
 .errorMessage {
   background: rgba(255, 0, 0, 0.2);
@@ -380,9 +414,15 @@
 .modernModal .closeButton:focus-visible,
 .modernModal .submitButton:focus-visible,
 .modernModal .countrySelector:focus-visible,
-.modernModal .checkbox:focus-visible {
+.modernModal .checkbox:focus-visible,
+.modernModal .resendButton:focus-visible {
   outline: 3px solid rgba(255, 255, 255, 0.92);
   outline-offset: 3px;
+}
+
+.modernModal .resendButton {
+  border-radius: 10px;
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .modernModal .modalHeader {

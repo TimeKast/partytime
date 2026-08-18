@@ -65,6 +65,7 @@ const storedEvent = {
     rsvpClosed: false,
     rsvpClosedMessage: '',
     emailConfirmationEnabled: false,
+    emailVerificationEnabled: false,
     reminderEnabled: false,
     reminderScheduledAt: null,
     reminderSentAt: null,
@@ -163,6 +164,32 @@ describe('admin event settings theme round-trip', () => {
                 backgroundColor: '#aa10ff',
             },
         }))
+    })
+
+    it('persists emailVerificationEnabled through the settings update route and round-trips via GET (ISSUE-008)', async () => {
+        const response = await updateSettings({
+            ...fullUpdate(storedTheme),
+            emailVerificationEnabled: true,
+        })
+
+        expect(response.status).toBe(200)
+        expect(mocks.updateEvent).toHaveBeenCalledWith(storedEvent.id, expect.objectContaining({
+            emailVerificationEnabled: true,
+        }))
+
+        mocks.getEventBySlug.mockResolvedValue({ ...storedEvent, emailVerificationEnabled: true })
+        const settingsResponse = await getSettings()
+        const payload = await settingsResponse.json()
+        expect(payload.settings.emailVerificationEnabled).toBe(true)
+    })
+
+    it('leaves emailVerificationEnabled untouched when the field is omitted from a settings update', async () => {
+        await updateSettings(fullUpdate(storedTheme))
+
+        expect(mocks.updateEvent).toHaveBeenCalledWith(
+            storedEvent.id,
+            expect.not.objectContaining({ emailVerificationEnabled: expect.anything() }),
+        )
     })
 
     it.each(['#abc', '#12345', '#1234567', '120b18', '#12zz18', '']) (

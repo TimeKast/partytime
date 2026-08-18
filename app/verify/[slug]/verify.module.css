@@ -1,0 +1,314 @@
+/*
+ * ISSUE-008: same dark-shell / stateCard visual language as
+ * app/cancel/[rsvpId]/cancel.module.css (values duplicated intentionally —
+ * this route's form/fields differ enough that sharing the file directly
+ * would couple two independent flows).
+ */
+
+.container {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-x: hidden;
+  background: var(--verify-background-color, #0f0f10);
+  color: #ffffff;
+  padding: max(24px, env(safe-area-inset-top)) 20px max(32px, env(safe-area-inset-bottom));
+}
+
+.backgroundWrapper {
+  position: fixed;
+  z-index: -2;
+  inset: 0;
+  overflow: hidden;
+  background: var(--verify-background-color, #0f0f10);
+}
+
+.backgroundImage {
+  width: 100%;
+  height: 100%;
+  object-fit: var(--verify-background-fit, cover);
+  object-position: var(--verify-background-position, center);
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--verify-overlay-background, rgba(0, 0, 0, 0.48));
+}
+
+.card {
+  box-sizing: border-box;
+  width: min(100%, 520px);
+  min-width: 0;
+  margin: auto;
+  padding: clamp(24px, 6vw, 40px);
+  overflow-wrap: anywhere;
+  background: rgba(15, 15, 16, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 20px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.32);
+  text-align: center;
+}
+
+.card h1,
+.card h2,
+.card p {
+  color: inherit;
+}
+
+.card h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 6vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+}
+
+.card > p {
+  margin: 14px auto 0;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.eventInfo {
+  margin: 24px 0 0;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  text-align: left;
+}
+
+.eventInfo h2 {
+  margin: 0;
+  font-size: clamp(1.15rem, 5vw, 1.5rem);
+  line-height: 1.25;
+}
+
+.eventSubtitle {
+  margin: 6px 0 0;
+  color: rgba(255, 255, 255, 0.72) !important;
+  line-height: 1.5;
+}
+
+.eventDetails {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+}
+
+.eventDetail {
+  display: grid;
+  grid-template-columns: minmax(72px, auto) minmax(0, 1fr);
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.eventDetail dt {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.eventDetail dd {
+  min-width: 0;
+  color: #ffffff;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.warning,
+.error,
+.success {
+  margin: 20px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.warning {
+  color: #fde68a !important;
+  background: rgba(120, 53, 15, 0.36);
+  border: 1px solid rgba(251, 191, 36, 0.42);
+}
+
+.error {
+  color: #fecaca !important;
+  background: rgba(127, 29, 29, 0.32);
+  border: 1px solid rgba(248, 113, 113, 0.42);
+}
+
+.success {
+  color: #bbf7d0 !important;
+  background: rgba(20, 83, 45, 0.32);
+  border: 1px solid rgba(74, 222, 128, 0.36);
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+  margin: 24px 0 0;
+  text-align: left;
+}
+
+.formGroup {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.formGroup label {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.formGroup input[type='email'] {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 11px 13px;
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 1rem;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.formGroup input::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.formGroup input:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.formGroup input:focus-visible,
+.primaryBtn:focus-visible,
+.homeBtn:focus-visible,
+.backLink:focus-visible {
+  outline: 3px solid rgba(255, 255, 255, 0.92);
+  outline-offset: 3px;
+}
+
+.formGroup input:focus {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.16) !important;
+}
+
+.primaryBtn,
+.homeBtn {
+  display: inline-flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  padding: 13px 18px;
+  color: var(--verify-cta-text, #000000);
+  background: var(--verify-cta-background, #f5f5f4);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.primaryBtn:hover:not(:disabled),
+.homeBtn:hover {
+  transform: translateY(-1px);
+}
+
+.primaryBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.homeBtn {
+  margin-top: 22px;
+}
+
+.backLink {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 16px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 4px;
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
+}
+
+.backLink:hover {
+  color: #ffffff;
+  text-decoration-color: currentColor;
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: max(16px, env(safe-area-inset-top)) 12px max(24px, env(safe-area-inset-bottom));
+  }
+
+  .card {
+    padding: 22px 16px;
+    border-radius: 16px;
+  }
+
+  .eventInfo {
+    margin-top: 20px;
+    padding: 16px;
+  }
+
+  .form {
+    gap: 12px;
+    margin-top: 20px;
+  }
+
+  .eventDetail {
+    grid-template-columns: 68px minmax(0, 1fr);
+    gap: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .formGroup input,
+  .primaryBtn,
+  .homeBtn,
+  .backLink {
+    transition: none;
+  }
+
+  .primaryBtn:hover:not(:disabled),
+  .homeBtn:hover {
+    transform: none;
+  }
+}

@@ -27,6 +27,13 @@ type ModalStyle = CSSProperties & {
   '--rsvp-primary'?: string
 }
 
+// Mirrors the literal RSVP_STATUS.PENDING_VERIFICATION value from
+// lib/queries.ts (ISSUE-007). Not imported directly — that module pulls in
+// the DB driver, which a client component must never bundle (same reasoning
+// as the local TOKEN_PATTERN copy in InvitationRegistrationClient.tsx).
+const PENDING_VERIFICATION_STATUS = 'pending_verification'
+const RESEND_COOLDOWN_SECONDS = 60
+
 export default function RSVPModal({
   isOpen,
   onClose,
@@ -66,10 +73,21 @@ export default function RSVPModal({
     plusOneName: '',
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'pending_verification' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
+  const [pendingEmail, setPendingEmail] = useState('')
+  const [resendCooldown, setResendCooldown] = useState(0)
+  const [isResending, setIsResending] = useState(false)
+  const [resendMessage, setResendMessage] = useState('')
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+
+  // ISSUE-008: ticks the 60s resend cooldown down to 0, one second at a time.
+  useEffect(() => {
+    if (resendCooldown <= 0) return undefined
+    const timer = setTimeout(() => setResendCooldown(seconds => Math.max(0, seconds - 1)), 1000)
+    return () => clearTimeout(timer)
+  }, [resendCooldown])
 
   useEffect(() => {
     if (!isOpen) return
@@ -141,6 +159,17 @@ export default function RSVPModal({
       const data = await response.json()
 
       if (response.ok) {
+        // ISSUE-008: this event requires email verification — stay open and
+        // show the "check your email" state instead of the normal success
+        // path. The RSVP row is not confirmed yet, so onSuccess (which would
+        // e.g. mark the invitation link as consumed/confirmed upstream)
+        // must NOT fire here.
+        if (data.status === PENDING_VERIFICATION_STATUS) {
+          setPendingEmail(formData.email)
+          setSubmitStatus('pending_verification')
+          return
+        }
+
         setSubmitStatus('success')
         if (onSuccess) {
           onSuccess()
@@ -174,6 +203,27 @@ export default function RSVPModal({
       newData.plusOneName = ''
     }
     setFormData(newData)
+  }
+
+  const handleResend = async () => {
+    if (isResending || resendCooldown > 0) return
+    setIsResending(true)
+    setResendMessage('')
+
+    try {
+      await fetch('/api/rsvp/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: eventSlug, email: pendingEmail }),
+      })
+    } catch {
+      // Endpoint is intentionally opaque (ISSUE-007) — a network error here
+      // isn't distinguishable from "not eligible" and shouldn't be either.
+    } finally {
+      setIsResending(false)
+      setResendMessage('Si tu RSVP está pendiente de verificación, te reenviamos el enlace.')
+      setResendCooldown(RESEND_COOLDOWN_SECONDS)
+    }
   }
 
   if (!isOpen) return null
@@ -245,6 +295,45 @@ export default function RSVPModal({
             <div className={styles.successIcon}>🎉</div>
             <h3 style={isModern ? undefined : { color: activeTheme.secondaryColor }}>¡Confirmado!</h3>
             <p>Nos vemos en la fiesta</p>
+          </motion.div>
+        ) : submitStatus === 'pending_verification' ? (
+          <motion.div
+            className={styles.successMessage}
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 200 }}
+            style={isModern ? undefined : {
+              background: `${activeTheme.secondaryColor}10`,
+              borderRadius: '20px',
+              border: `1px solid ${activeTheme.secondaryColor}33`,
+              padding: '40px 20px',
+              marginTop: '10px'
+            }}
+          >
+            <div className={styles.successIcon}>📬</div>
+            <h3 style={isModern ? undefined : { color: activeTheme.secondaryColor }}>Revisa tu correo</h3>
+            <p>
+              Te mandamos un link para confirmar tu asistencia a{' '}
+              <span className={styles.pendingEmail}>{pendingEmail}</span>
+            </p>
+            <p className={styles.resendNote}>El link expira en 24 horas.</p>
+
+            <button
+              type="button"
+              className={styles.resendButton}
+              onClick={handleResend}
+              disabled={isResending || resendCooldown > 0}
+            >
+              {resendCooldown > 0
+                ? `Reenviar (${resendCooldown}s)`
+                : isResending
+                  ? 'Enviando…'
+                  : 'Reenviar'}
+            </button>
+
+            {resendMessage && (
+              <p className={styles.resendNote} role="status" aria-live="polite">{resendMessage}</p>
+            )}
           </motion.div>
         ) : (
           <form className={styles.form} onSubmit={handleSubmit}>

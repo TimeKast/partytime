@@ -178,6 +178,34 @@ describe('event API request contracts', () => {
             .not.toHaveProperty('backgroundImagePosition')
     })
 
+    it('registers emailVerificationEnabled as a writable, patch-semantics boolean field (ISSUE-008)', () => {
+        expect(parseEventUpdateRequest(
+            { emailVerificationEnabled: true },
+            existingEvent.slug,
+            existingEvent,
+        )).toEqual({
+            success: true,
+            value: {
+                newSlug: undefined,
+                updates: { emailVerificationEnabled: true },
+            },
+        })
+
+        // Omitted entirely: leaves the stored value untouched (patch semantics).
+        const omitted = parseEventUpdateRequest({ rsvpTitle: 'Nuevo RSVP' }, existingEvent.slug, existingEvent)
+        expect(omitted.success && omitted.value.updates).not.toHaveProperty('emailVerificationEnabled')
+
+        // Wrong type rejects the whole PUT instead of silently coercing.
+        expect(parseEventUpdateRequest(
+            { emailVerificationEnabled: 'yes' },
+            existingEvent.slug,
+            existingEvent,
+        )).toEqual({
+            success: false,
+            error: 'emailVerificationEnabled debe ser booleano',
+        })
+    })
+
     it.each([
         { presentationMode: 'future_mode' },
         { rsvpButtonLabel: '' },

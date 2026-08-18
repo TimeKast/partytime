@@ -190,6 +190,12 @@ export async function POST(request: NextRequest) {
         if (body.rsvpClosedMessage !== undefined) {
           updates.rsvpClosedMessage = body.rsvpClosedMessage
         }
+        // ISSUE-008: was read-only here (GET /api/event-settings already
+        // exposed it — ISSUE-020). Same "only change when explicitly
+        // provided" contract as rsvpClosed above.
+        if (body.emailVerificationEnabled !== undefined) {
+          updates.emailVerificationEnabled = body.emailVerificationEnabled === true
+        }
       }
 
       // Email configuration (only update if provided)

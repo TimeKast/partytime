@@ -327,12 +327,18 @@ export function parseEventUpdateRequest(
     const active = parseBoolean(input, 'isActive')
     const closed = parseBoolean(input, 'rsvpClosed')
     const closedMessage = parseOptionalString(input, 'rsvpClosedMessage')
+    // ISSUE-008: per-event email verification toggle (EPIC-003). Same
+    // optional-boolean pattern as isActive/rsvpClosed above — omitted from
+    // the body leaves the stored value untouched.
+    const emailVerificationEnabled = parseBoolean(input, 'emailVerificationEnabled')
     if (!active.success) return active
     if (!closed.success) return closed
     if (!closedMessage.success) return closedMessage
+    if (!emailVerificationEnabled.success) return emailVerificationEnabled
     if (active.value !== undefined) updates.isActive = active.value
     if (closed.value !== undefined) updates.rsvpClosed = closed.value
     if (closedMessage.value !== undefined) updates.rsvpClosedMessage = closedMessage.value
+    if (emailVerificationEnabled.value !== undefined) updates.emailVerificationEnabled = emailVerificationEnabled.value
 
     return { success: true, value: { newSlug, updates } }
 }

@@ -99,6 +99,10 @@ export default function AdminDashboard() {
     backgroundColor: '#1a0033',
     // Email configuration
     emailConfirmationEnabled: false,
+    // ISSUE-008: gates whether a guest must click a verification link before
+    // their RSVP counts as confirmed (bypassed by private invite links and
+    // by paid events — see the helper text next to the toggle).
+    emailVerificationEnabled: false,
     reminderEnabled: false,
     reminderScheduledAt: '',
     reminderSentAt: null as string | null,
@@ -382,6 +386,7 @@ export default function AdminDashboard() {
             backgroundColor: data.settings.theme?.backgroundColor || '#1a0033',
             // Email configuration
             emailConfirmationEnabled: data.settings.emailConfig?.confirmationEnabled || false,
+            emailVerificationEnabled: data.settings.emailVerificationEnabled || false,
             reminderEnabled: data.settings.emailConfig?.reminderEnabled || false,
             reminderScheduledAt: data.settings.emailConfig?.reminderScheduledAt
               // A1-03: load the stored UTC instant as a LOCAL wall-clock for the
@@ -955,7 +960,9 @@ export default function AdminDashboard() {
         requirePlusOneName: configForm.requirePlusOneName,
         // RSVP Closed configuration
         rsvpClosed: configForm.rsvpClosed,
-        rsvpClosedMessage: configForm.rsvpClosedMessage
+        rsvpClosedMessage: configForm.rsvpClosedMessage,
+        // Email verification configuration (ISSUE-008)
+        emailVerificationEnabled: configForm.emailVerificationEnabled
       }
 
       console.log('🖼️ backgroundImage URL being sent:', configForm.backgroundImage)
@@ -2043,6 +2050,32 @@ export default function AdminDashboard() {
                   {configForm.emailConfirmationEnabled
                     ? '✅ Se enviará un email automáticamente cuando alguien confirme su asistencia'
                     : '⏸️ Los emails de confirmación se enviarán manualmente desde el dashboard'}
+                </p>
+              </div>
+
+              {/* Verificación por email (ISSUE-008) */}
+              <div style={{
+                padding: '20px',
+                background: '#f8fafc',
+                borderRadius: '12px',
+                marginBottom: '20px',
+                border: '1px solid #e2e8f0'
+              }}>
+                <div className={styles.configToggleGroup}>
+                  <input
+                    type="checkbox"
+                    id="emailVerificationEnabled"
+                    className={styles.configCheckbox}
+                    checked={configForm.emailVerificationEnabled}
+                    onChange={(e) => setConfigForm({ ...configForm, emailVerificationEnabled: e.target.checked })}
+                  />
+                  <label htmlFor="emailVerificationEnabled" className={styles.configToggleLabel} style={{ fontWeight: '600' }}>
+                    📬 Verificación por email
+                  </label>
+                </div>
+                <p style={{ margin: '10px 0 0 28px', fontSize: '13px', color: '#64748b' }}>
+                  El invitado debe confirmar su correo para quedar registrado. Los links privados de
+                  invitación no lo requieren. En eventos de pago se ignora: el pago verifica el correo.
                 </p>
               </div>
 
