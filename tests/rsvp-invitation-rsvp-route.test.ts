@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
     saveRsvpWithInvitation: vi.fn(),
     recordEmailSent: vi.fn(),
     generateCancelToken: vi.fn(),
+    expireStalePendingRsvps: vi.fn(),
+    send: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({ isDatabaseConfigured: () => mocks.databaseConfigured }))
@@ -18,6 +20,9 @@ vi.mock('@/lib/queries', () => ({
     saveRsvpWithInvitation: mocks.saveRsvpWithInvitation,
     recordEmailSent: mocks.recordEmailSent,
     generateCancelToken: mocks.generateCancelToken,
+    // ISSUE-007: the route now expires stale pending rows for the resolved
+    // event before touching capacity/the unique (event, email) slot.
+    expireStalePendingRsvps: mocks.expireStalePendingRsvps,
     // ISSUE-006: the route now destructures RSVP_STATUS from this same
     // dynamic import to gate confirmation emails on rsvp.status === CONFIRMED.
     RSVP_STATUS: {
@@ -29,7 +34,7 @@ vi.mock('@/lib/queries', () => ({
     },
 }))
 vi.mock('@/lib/resend', () => ({
-    resend: { emails: { send: vi.fn() } },
+    resend: { emails: { send: mocks.send } },
     FROM_EMAIL: 'noreply@example.com',
 }))
 vi.mock('next/headers', () => ({ cookies: vi.fn() }))
@@ -45,6 +50,8 @@ const event = {
     rsvpClosedMessage: 'RSVP público cerrado',
     requirePlusOneName: false,
     emailConfirmationEnabled: false,
+    title: 'Fiesta',
+    displayTitle: '',
 }
 const rsvp = {
     id: 'rsvp-1', eventId: 'fiesta', name: 'Alex', email: 'alex@example.com',
@@ -76,6 +83,9 @@ describe('POST /api/rsvp with invitationToken', () => {
         mocks.getEventBySlug.mockResolvedValue(event)
         mocks.saveRsvpWithInvitation.mockResolvedValue(rsvp)
         mocks.saveRSVP.mockResolvedValue(rsvp)
+        mocks.expireStalePendingRsvps.mockResolvedValue([])
+        mocks.send.mockResolvedValue({ error: null })
+        mocks.recordEmailSent.mockResolvedValue(true)
     })
 
     it('bypasses only rsvpClosed and delegates the linked write to the atomic query', async () => {
@@ -85,6 +95,8 @@ describe('POST /api/rsvp with invitationToken', () => {
 
         expect(response.status).toBe(201)
         expect(mocks.saveRSVP).not.toHaveBeenCalled()
+        // ISSUE-007: the route now always attaches a verification candidate
+        // on the invitation path — the CTE decides whether to use it.
         expect(mocks.saveRsvpWithInvitation).toHaveBeenCalledWith({
             tokenHash: hashRsvpInvitationToken(token),
             eventId: 'fiesta',
@@ -93,7 +105,12 @@ describe('POST /api/rsvp with invitationToken', () => {
             phone: '+525500000000',
             plusOne: false,
             plusOneName: null,
+            verificationCandidate: {
+                tokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+                expiresAt: expect.any(Date),
+            },
         })
+        expect(mocks.expireStalePendingRsvps).toHaveBeenCalledWith('fiesta')
         const auditLog = info.mock.calls.flat().join(' ')
         expect(auditLog).toContain('rsvp_invitation.consumed')
         expect(auditLog).toContain('rsvp-1')
@@ -151,5 +168,82 @@ describe('POST /api/rsvp with invitationToken', () => {
         expect(response.status).toBe(400)
         expect(mocks.saveRSVP).not.toHaveBeenCalled()
         expect(mocks.saveRsvpWithInvitation).not.toHaveBeenCalled()
+    })
+})
+
+// ISSUE-007 (PLAN-EPICS-002-005.md §2.1) Gherkin:
+// "Given evento con verificación activada e invitación privada con
+// skip_verification=true (default) / When el invitado del link registra /
+// Then queda confirmed directo (bypass)"
+// "Given evento con verificación activada e invitación con
+// skip_verification=false / When el invitado del link registra / Then
+// queda pending_verification con el link consumido, y si expira sin
+// verificar el link se restaura" (restoration itself is
+// expireStalePendingRsvps' job, already covered in tests/pending-states.test.ts
+// and exercised at the route layer above via expireStalePendingRsvps being
+// called first on every attempt).
+//
+// The actual skip_verification branching decision lives inside
+// saveRsvpWithInvitation's atomic CTE (tests/email-verification.test.ts).
+// At the route layer, both scenarios are indistinguishable from the route's
+// point of view except by the STATUS saveRsvpWithInvitation returns — so
+// these tests drive that return value directly, the same way
+// tests/rsvp-invitation-rsvp-route.test.ts already treats saveRsvpWithInvitation
+// as an opaque atomic boundary.
+describe('POST /api/rsvp with invitationToken — skip_verification bypass/pending (ISSUE-007)', () => {
+    const verifyingEvent = { ...event, rsvpClosed: false, emailConfirmationEnabled: true, emailVerificationEnabled: true }
+
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.databaseConfigured = true
+        mocks.getEventBySlug.mockResolvedValue(verifyingEvent)
+        mocks.expireStalePendingRsvps.mockResolvedValue([])
+        mocks.send.mockResolvedValue({ error: null })
+        mocks.recordEmailSent.mockResolvedValue(true)
+    })
+
+    it('always attaches a verification candidate on the invitation path, even when the event does not verify', async () => {
+        mocks.getEventBySlug.mockResolvedValue({ ...event, rsvpClosed: false, emailVerificationEnabled: false })
+        mocks.saveRsvpWithInvitation.mockResolvedValue(rsvp)
+
+        const { POST } = await import('@/app/api/rsvp/route')
+        await POST(request())
+
+        const [callArgs] = mocks.saveRsvpWithInvitation.mock.calls[0]
+        expect(callArgs.verificationCandidate.tokenHash).toMatch(/^[a-f0-9]{64}$/)
+    })
+
+    it('bypass (skip_verification=true or default): confirmed directly, only the confirmation email goes out', async () => {
+        mocks.saveRsvpWithInvitation.mockResolvedValue({ ...rsvp, status: 'confirmed' })
+
+        const { POST } = await import('@/app/api/rsvp/route')
+        const response = await POST(request())
+        const payload = await response.json()
+
+        expect(response.status).toBe(201)
+        expect(payload.status).toBe('confirmed')
+        expect(mocks.send).toHaveBeenCalledTimes(1)
+        const [sendArgs] = mocks.send.mock.calls[0]
+        expect(sendArgs.subject).not.toContain('Confirma tu asistencia')
+        expect(mocks.recordEmailSent).toHaveBeenCalledWith('rsvp-1', 'confirmation')
+    })
+
+    it('pending (skip_verification=false): pending_verification with the link consumed, only the verification email goes out', async () => {
+        mocks.saveRsvpWithInvitation.mockResolvedValue({ ...rsvp, status: 'pending_verification' })
+
+        const { POST } = await import('@/app/api/rsvp/route')
+        const response = await POST(request())
+        const payload = await response.json()
+
+        expect(response.status).toBe(201)
+        expect(payload.status).toBe('pending_verification')
+        // The link was still consumed atomically by saveRsvpWithInvitation —
+        // the route made exactly one call, regardless of the resulting status.
+        expect(mocks.saveRsvpWithInvitation).toHaveBeenCalledTimes(1)
+        expect(mocks.send).toHaveBeenCalledTimes(1)
+        const [sendArgs] = mocks.send.mock.calls[0]
+        expect(sendArgs.subject).toBe('Confirma tu asistencia a Fiesta')
+        expect(mocks.recordEmailSent).toHaveBeenCalledWith('rsvp-1', 'verification')
+        expect(mocks.recordEmailSent).not.toHaveBeenCalledWith('rsvp-1', 'confirmation')
     })
 })

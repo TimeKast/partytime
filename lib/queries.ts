@@ -84,18 +84,33 @@ async function withDeadlockRetry<T>(fn: () => Promise<T>): Promise<T> {
     }
 }
 
+// ISSUE-007 (EPIC-003): the caller (route) generates the raw token, hashes
+// it, and passes only the hash + shared TTL expiry here — the raw token
+// never enters lib/queries.ts. Both verification_expires_at and
+// pending_expires_at get this same instant (PLAN-EPICS-002-005.md §3.2): if
+// the guest never clicks, the pending row expires and releases its seat.
+export interface PendingVerificationIssuance {
+    tokenHash: string
+    expiresAt: Date
+}
+
 /**
- * Save a new RSVP
+ * Save a new RSVP. When `verification` is provided the row is created (or
+ * an eligible existing row reactivated) as `pending_verification` with that
+ * token hash/expiry instead of going straight to `confirmed`.
  */
-export async function saveRSVP(rsvpData: {
-    name: string
-    email: string
-    phone: string
-    plusOne: boolean
-    plusOneName?: string | null
-    eventId: string
-}): Promise<RSVP> {
-    return withDeadlockRetry(() => saveRSVPOnce(rsvpData))
+export async function saveRSVP(
+    rsvpData: {
+        name: string
+        email: string
+        phone: string
+        plusOne: boolean
+        plusOneName?: string | null
+        eventId: string
+    },
+    verification?: PendingVerificationIssuance,
+): Promise<RSVP> {
+    return withDeadlockRetry(() => saveRSVPOnce(rsvpData, verification))
 }
 
 export interface RsvpInvitationLinkAdminRecord {
@@ -124,6 +139,20 @@ export interface SaveRsvpWithInvitationInput {
     phone: string
     plusOne: boolean
     plusOneName?: string | null
+    // ISSUE-007: a verification bearer the caller MUST always generate for
+    // every invitation-flow attempt (cheap: one randomBytes + one sha256),
+    // regardless of whether it will end up used. Whether it is actually
+    // persisted is decided entirely inside the CTE below, from data read
+    // fresh in the same statement (invitation_event.email_verification_enabled
+    // AND NOT candidate.skip_verification) — never from a value the caller
+    // read moments earlier. That closes the TOCTOU window a caller-side
+    // decision would otherwise open: if the flag flipped between the
+    // caller's read and this statement, a stale caller-side "skip" would
+    // land a pending_verification row with no token, stranding the guest.
+    verificationCandidate: {
+        tokenHash: string
+        expiresAt: Date
+    }
 }
 
 /**
@@ -304,14 +333,19 @@ export async function saveRsvpWithInvitation(
 
     const email = input.email.trim()
     const emailLower = email.toLowerCase()
+    const verificationTokenHash = input.verificationCandidate.tokenHash
+    const verificationExpiresAt = input.verificationCandidate.expiresAt
     let result
     try {
         result = await withDeadlockRetry(() => db!.execute(sql`
         WITH eligible_invitation AS MATERIALIZED (
-            -- ISSUE-020: is_courtesy/skip_verification ride along read-only so
-            -- ISSUE-007/011 can branch the inserted status on them without
-            -- touching this eligibility predicate.
-            SELECT candidate.id, candidate.is_courtesy, candidate.skip_verification
+            -- ISSUE-007/PLAN §2.1: requires_verification is computed fresh
+            -- here (not from anything the caller read earlier) — payment
+            -- (ISSUE-011, is_courtesy) would supersede this once it lands;
+            -- for now the pay-required predicate is simply absent.
+            SELECT candidate.id, candidate.is_courtesy, candidate.skip_verification,
+                   (invitation_event.email_verification_enabled AND NOT candidate.skip_verification)
+                       AS requires_verification
             FROM rsvp_invitation_links AS candidate
             INNER JOIN events AS invitation_event
                 ON invitation_event.slug = candidate.event_id
@@ -338,7 +372,15 @@ export async function saveRsvpWithInvitation(
                 phone = ${input.phone},
                 plus_one = ${input.plusOne},
                 plus_one_name = ${input.plusOneName || null},
-                status = ${RSVP_STATUS.CONFIRMED}
+                status = CASE WHEN (SELECT requires_verification FROM eligible_invitation)
+                              THEN ${RSVP_STATUS.PENDING_VERIFICATION} ELSE ${RSVP_STATUS.CONFIRMED} END,
+                verified_at = NULL,
+                verification_token_hash = CASE WHEN (SELECT requires_verification FROM eligible_invitation)
+                              THEN ${verificationTokenHash} ELSE NULL END,
+                verification_expires_at = CASE WHEN (SELECT requires_verification FROM eligible_invitation)
+                              THEN ${verificationExpiresAt} ELSE NULL END,
+                pending_expires_at = CASE WHEN (SELECT requires_verification FROM eligible_invitation)
+                              THEN ${verificationExpiresAt} ELSE NULL END
             WHERE target.id IN (SELECT id FROM existing_rsvp)
               AND target.status = ${RSVP_STATUS.CANCELLED}
               AND EXISTS (SELECT 1 FROM eligible_invitation)
@@ -346,10 +388,19 @@ export async function saveRsvpWithInvitation(
         ),
         inserted_rsvp AS (
             INSERT INTO rsvps (
-                id, event_id, name, email, phone, plus_one, plus_one_name, status
+                id, event_id, name, email, phone, plus_one, plus_one_name, status,
+                verification_token_hash, verification_expires_at, pending_expires_at
             )
             SELECT ${randomUUID()}, ${input.eventId}, ${input.name}, ${email}, ${input.phone},
-                   ${input.plusOne}, ${input.plusOneName || null}, ${RSVP_STATUS.CONFIRMED}
+                   ${input.plusOne}, ${input.plusOneName || null},
+                   CASE WHEN eligible_invitation.requires_verification
+                        THEN ${RSVP_STATUS.PENDING_VERIFICATION} ELSE ${RSVP_STATUS.CONFIRMED} END,
+                   CASE WHEN eligible_invitation.requires_verification
+                        THEN ${verificationTokenHash} ELSE NULL END,
+                   CASE WHEN eligible_invitation.requires_verification
+                        THEN ${verificationExpiresAt} ELSE NULL END,
+                   CASE WHEN eligible_invitation.requires_verification
+                        THEN ${verificationExpiresAt} ELSE NULL END
             FROM eligible_invitation
             WHERE NOT EXISTS (SELECT 1 FROM existing_rsvp)
             ON CONFLICT DO NOTHING
@@ -454,18 +505,107 @@ export async function expireStalePendingRsvps(eventSlug: string): Promise<RSVP[]
     return (result.rows as Record<string, unknown>[]).map(mapRsvpRow)
 }
 
-async function saveRSVPOnce(rsvpData: {
-    name: string
-    email: string
-    phone: string
-    plusOne: boolean
-    plusOneName?: string | null
+/**
+ * ISSUE-007 (EPIC-003): atomically consume a verification token — validates
+ * status, expiry and hash match, and flips the row to `confirmed` in the
+ * same statement. Single-table, so a plain `UPDATE ... RETURNING` is already
+ * one atomic statement (no CTE needed here, unlike saveRsvpWithInvitation's
+ * multi-table consume+claim). Of any number of concurrent callers racing the
+ * same token, the predicate (`status = pending_verification AND
+ * verification_token_hash = tokenHash AND verification_expires_at > now()`)
+ * combined with `RETURNING` guarantees at most one observes a non-empty
+ * result — the loser's UPDATE matches zero rows because the winner already
+ * moved the row's status away from `pending_verification`. A vencido, ya
+ * usado (status no longer pending_verification), or otro-evento token (slug
+ * mismatch) never matches the WHERE clause, so it fails closed without any
+ * mutation. Comparing the hash via SQL `=` is not a JS secret-length
+ * comparison (64 hex chars) — see lib/verification.ts.
+ */
+export async function verifyRsvpByToken(slug: string, tokenHash: string): Promise<RSVP | null> {
+    if (!db) throw new Error('Database not configured')
+
+    const result = await db.execute(sql`
+        UPDATE rsvps
+        SET status = ${RSVP_STATUS.CONFIRMED},
+            verified_at = now(),
+            verification_token_hash = NULL,
+            verification_expires_at = NULL,
+            pending_expires_at = NULL
+        WHERE event_id = ${slug}
+          AND status = ${RSVP_STATUS.PENDING_VERIFICATION}
+          AND verification_token_hash = ${tokenHash}
+          AND verification_expires_at > now()
+        RETURNING *
+    `)
+
+    const row = result.rows[0] as Record<string, unknown> | undefined
+    return row ? mapRsvpRow(row) : null
+}
+
+/**
+ * ISSUE-007: reissue (overwrite) the verification token/expiries on a
+ * guest's own still-pending row — the resend-verification route's atomic
+ * write. Scoped to `pending_verification` only: an already-confirmed,
+ * cancelled, or expired row has nothing to resend for, and this UPDATE
+ * simply matches zero rows in that case (fails closed, same shape as
+ * verifyRsvpByToken above).
+ */
+export async function reissueVerificationToken(input: {
     eventId: string
-}): Promise<RSVP> {
+    email: string
+    tokenHash: string
+    expiresAt: Date
+}): Promise<RSVP | null> {
+    if (!db) throw new Error('Database not configured')
+
+    const emailLower = input.email.trim().toLowerCase()
+    const result = await db.execute(sql`
+        UPDATE rsvps
+        SET verification_token_hash = ${input.tokenHash},
+            verification_expires_at = ${input.expiresAt},
+            pending_expires_at = ${input.expiresAt}
+        WHERE event_id = ${input.eventId}
+          AND lower(email) = ${emailLower}
+          AND status = ${RSVP_STATUS.PENDING_VERIFICATION}
+        RETURNING *
+    `)
+
+    const row = result.rows[0] as Record<string, unknown> | undefined
+    return row ? mapRsvpRow(row) : null
+}
+
+// ISSUE-007: statuses an existing row may be reactivated FROM. A confirmed
+// (or, once ISSUE-011 lands, pending_payment) row is a live registration and
+// must reject as a duplicate, not be silently overwritten. An expired row
+// already released its seat (PLAN-EPICS-002-005.md §3.1: "el email queda
+// libre para reintentar") and a still-pending_verification row is exactly
+// the re-submit case the issue's Gherkin covers — refresh it in place.
+const RSVP_REACTIVATABLE_STATUSES: readonly string[] = [
+    RSVP_STATUS.CANCELLED,
+    RSVP_STATUS.EXPIRED,
+    RSVP_STATUS.PENDING_VERIFICATION,
+]
+
+async function saveRSVPOnce(
+    rsvpData: {
+        name: string
+        email: string
+        phone: string
+        plusOne: boolean
+        plusOneName?: string | null
+        eventId: string
+    },
+    verification?: PendingVerificationIssuance,
+): Promise<RSVP> {
     if (!db) throw new Error('Database not configured')
 
     const email = rsvpData.email.trim()
     const emailLower = email.toLowerCase()
+    const initialStatus = verification ? RSVP_STATUS.PENDING_VERIFICATION : RSVP_STATUS.CONFIRMED
+    const verificationTokenHash = verification?.tokenHash ?? null
+    const verificationExpiresAt = verification?.expiresAt ?? null
+    // Same TTL drives both columns — see PendingVerificationIssuance.
+    const pendingExpiresAt = verification?.expiresAt ?? null
 
     // A2-H05: case-insensitive lookup so "Foo@x.com" and "foo@x.com" are the
     // same guest and do not create duplicate confirmations.
@@ -479,14 +619,18 @@ async function saveRSVPOnce(rsvpData: {
 
     if (existing.length > 0) {
         const prev = existing[0]
-        if (prev.status === RSVP_STATUS.CONFIRMED) {
+        if (!RSVP_REACTIVATABLE_STATUSES.includes(prev.status)) {
             throw new Error('Ya existe un RSVP con este email para este evento')
         }
-        // A2-H03: a previously cancelled guest can re-register — reactivate the
-        // existing row (the unique index would otherwise reject a fresh insert).
-        // The predicate requires status STILL 'cancelled' so two concurrent
-        // re-registrations don't both reactivate and both send a confirmation:
-        // the loser gets an empty result and is treated as a duplicate.
+        // A2-H03/ISSUE-007: a previously cancelled/expired guest re-registers,
+        // or a still-pending_verification guest re-submits the form — either
+        // way, reactivate the existing row in place (the unique index would
+        // otherwise reject a fresh insert) rather than erroring. The
+        // predicate requires status STILL `prev.status` so two concurrent
+        // re-submits don't both win: the loser gets an empty result and is
+        // treated as a duplicate. verified_at is cleared unconditionally —
+        // a fresh submission always re-establishes verification state
+        // (PLAN-EPICS-002-005.md §3.2).
         let reactivated
         try {
             [reactivated] = await db.update(rsvps)
@@ -496,9 +640,13 @@ async function saveRSVPOnce(rsvpData: {
                     phone: rsvpData.phone,
                     plusOne: rsvpData.plusOne,
                     plusOneName: rsvpData.plusOneName || null,
-                    status: RSVP_STATUS.CONFIRMED,
+                    status: initialStatus,
+                    verifiedAt: null,
+                    verificationTokenHash,
+                    verificationExpiresAt,
+                    pendingExpiresAt,
                 })
-                .where(and(eq(rsvps.id, prev.id), eq(rsvps.status, RSVP_STATUS.CANCELLED)))
+                .where(and(eq(rsvps.id, prev.id), eq(rsvps.status, prev.status)))
                 .returning()
         } catch (err: any) {
             if (isCapacityFullError(err)) throw new Error(CAPACITY_FULL_MESSAGE)
@@ -519,7 +667,10 @@ async function saveRSVPOnce(rsvpData: {
                 plusOne: rsvpData.plusOne,
                 plusOneName: rsvpData.plusOneName || null,
                 eventId: rsvpData.eventId,
-                status: RSVP_STATUS.CONFIRMED,
+                status: initialStatus,
+                verificationTokenHash,
+                verificationExpiresAt,
+                pendingExpiresAt,
             })
             .returning()
 
@@ -644,7 +795,7 @@ export async function cancelRSVP(rsvpId: string, token: string): Promise<RSVP> {
  */
 export async function recordEmailSent(
     rsvpId: string,
-    type: 'confirmation' | 'reminder' | 're-invitation'
+    type: 'confirmation' | 'reminder' | 're-invitation' | 'verification'
 ): Promise<boolean> {
     if (!db) throw new Error('Database not configured')
 
@@ -657,7 +808,7 @@ export async function recordEmailSent(
 
     const currentHistory = (rsvp.emailHistory || []) as Array<{
         sentAt: string
-        type: 'confirmation' | 'reminder' | 're-invitation'
+        type: 'confirmation' | 'reminder' | 're-invitation' | 'verification'
     }>
 
     await db.update(rsvps)

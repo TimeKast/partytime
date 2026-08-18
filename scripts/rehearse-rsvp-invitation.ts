@@ -9,6 +9,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { db, events, rsvpInvitationLinks, rsvps } from '@/lib/db'
 import { createRsvpInvitationLink, saveRsvpWithInvitation } from '@/lib/queries'
 import { generateRsvpInvitationToken, hashRsvpInvitationToken } from '@/lib/rsvp-invitation'
+import { VERIFICATION_TOKEN_TTL_MS, generateVerificationToken, hashVerificationToken } from '@/lib/verification'
 
 async function main() {
     if (process.env.ALLOW_RSVP_INVITATION_REHEARSAL !== 'true') {
@@ -131,6 +132,10 @@ async function main() {
                 phone: '+15555550100',
                 plusOne: false,
                 plusOneName: null,
+                verificationCandidate: {
+                    tokenHash: hashVerificationToken(generateVerificationToken()),
+                    expiresAt: new Date(Date.now() + VERIFICATION_TOKEN_TTL_MS),
+                },
             }),
         ))
         const winners = concurrentResults.filter(result => result !== null)

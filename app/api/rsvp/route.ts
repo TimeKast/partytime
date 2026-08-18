@@ -8,6 +8,13 @@ import { resend, FROM_EMAIL } from '@/lib/resend'
 import { generateConfirmationEmail } from '@/lib/email-template'
 import { buildEventEmailData, buildEventEmailSubject } from '@/lib/event-email-data'
 import { hashRsvpInvitationToken, isValidRsvpInvitationToken } from '@/lib/rsvp-invitation'
+import {
+  VERIFICATION_TOKEN_TTL_MS,
+  buildVerificationUrl,
+  generateVerificationToken,
+  hashVerificationToken,
+} from '@/lib/verification'
+import { buildVerificationEmailSubject, generateVerificationEmail } from '@/lib/verification-email'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     // Check if database is configured
     if (isDatabaseConfigured()) {
-      const { saveRSVP, saveRsvpWithInvitation, getEventBySlug, RSVP_STATUS } = await import('@/lib/queries')
+      const { saveRSVP, saveRsvpWithInvitation, getEventBySlug, expireStalePendingRsvps, RSVP_STATUS } = await import('@/lib/queries')
 
       // Resolve the target event on EVERY path — the explicit eventSlug, or the
       // configured default. Resolving unconditionally means the isActive /
@@ -89,6 +96,13 @@ export async function POST(request: NextRequest) {
 
       eventId = event.slug
       eventForEmail = event // Store for email sending later
+
+      // ISSUE-005/007: expire stale pending_payment/pending_verification rows
+      // (and restore the invitation links that produced them) before this
+      // attempt reads/writes capacity or the unique (event, email) slot — so
+      // a guest whose earlier attempt lapsed never sees a false duplicate or
+      // false CAPACITY_FULL.
+      await expireStalePendingRsvps(eventId)
 
       if (!event.isActive) {
         return NextResponse.json(
@@ -122,11 +136,45 @@ export async function POST(request: NextRequest) {
         plusOneName: plusOne ? (plusOneName || null) : null,
         eventId,
       }
+
+      // ISSUE-007: candidate verification bearer. For the invitation path
+      // this is ALWAYS generated — whether it ends up persisted is decided
+      // inside saveRsvpWithInvitation's atomic CTE from data it reads fresh
+      // in that same statement (see SaveRsvpWithInvitationInput.verificationCandidate
+      // for why a caller-side decision would be unsafe here). For the public
+      // path there is no per-link flag to race against, so the route's own
+      // freshly-fetched `event.emailVerificationEnabled` is authoritative —
+      // same trust level already applied to the isActive/rsvpClosed checks
+      // above.
+      // TODO(ISSUE-011): once events.payment_required exists, a paid event
+      // supersedes verification here too (PLAN-EPICS-002-005.md §2) — this
+      // branch will gain `&& !event.paymentRequired`.
+      const verificationCandidate = invitationToken !== undefined || event.emailVerificationEnabled
+        ? (() => {
+          const token = generateVerificationToken()
+          return {
+            token,
+            tokenHash: hashVerificationToken(token),
+            expiresAt: new Date(Date.now() + VERIFICATION_TOKEN_TTL_MS),
+          }
+        })()
+        : undefined
+
       const rsvp = invitationToken === undefined
-        ? await saveRSVP(rsvpInput)
+        ? await saveRSVP(
+          rsvpInput,
+          verificationCandidate
+            ? { tokenHash: verificationCandidate.tokenHash, expiresAt: verificationCandidate.expiresAt }
+            : undefined,
+        )
         : await saveRsvpWithInvitation({
           ...rsvpInput,
           tokenHash: hashRsvpInvitationToken(invitationToken),
+          // Always defined on this branch — see verificationCandidate above.
+          verificationCandidate: {
+            tokenHash: verificationCandidate!.tokenHash,
+            expiresAt: verificationCandidate!.expiresAt,
+          },
         })
 
       if (!rsvp) {
@@ -144,16 +192,63 @@ export async function POST(request: NextRequest) {
         }))
       }
 
+      // ISSUE-007: a row that landed on pending_verification never gets the
+      // normal confirmation email — only the verification link. The
+      // invariant "verificationCandidate is defined whenever rsvp.status is
+      // pending_verification" holds because that status is only ever set
+      // (in saveRSVPOnce / the saveRsvpWithInvitation CTE) as a direct
+      // consequence of a candidate having been passed in above.
+      if (rsvp.status === RSVP_STATUS.PENDING_VERIFICATION && verificationCandidate) {
+        try {
+          const { recordEmailSent } = await import('@/lib/queries')
+
+          const eventData = buildEventEmailData(eventForEmail!)
+          const verificationUrl = buildVerificationUrl(eventId, verificationCandidate.token)
+          const { html, text } = generateVerificationEmail({
+            name,
+            eventTitle: eventData.title,
+            verificationUrl,
+          })
+
+          const { error: emailError } = await resend.emails.send({
+            from: `Party Time! <${FROM_EMAIL}>`,
+            to: email,
+            subject: buildVerificationEmailSubject(eventData.title),
+            html,
+            text,
+          })
+
+          if (!emailError) {
+            await recordEmailSent(rsvp.id, 'verification')
+            console.log(`✅ [RSVP] Verification email sent to ${email} for event ${eventForEmail!.slug}`)
+          } else {
+            console.error(`❌ [RSVP] Failed to send verification email:`, emailError)
+          }
+        } catch (emailErr) {
+          // Don't fail the RSVP if email fails, just log it
+          console.error(`❌ [RSVP] Error sending verification email:`, emailErr)
+        }
+
+        return NextResponse.json(
+          {
+            success: true,
+            status: RSVP_STATUS.PENDING_VERIFICATION,
+            message: 'Revisa tu correo para confirmar tu asistencia',
+            rsvp,
+          },
+          { status: 201 }
+        )
+      }
+
       // Check if automatic confirmation email is enabled for this event.
-      // ISSUE-006: confirmation emails only go out once the RSVP is actually
-      // `confirmed` — saveRSVP/saveRsvpWithInvitation only ever return that
-      // status today (pending_payment/pending_verification are wired in
-      // ISSUE-007/011), but this guard makes the invariant explicit instead
-      // of implicit so it keeps holding once those flows land.
+      // ISSUE-006/007: confirmation emails only go out once the RSVP is
+      // actually `confirmed` — a pending_verification row is handled by the
+      // branch above instead, and gets the confirmation email later, from
+      // app/api/rsvp/verify/route.ts, once the guest clicks the link.
       if (eventForEmail && eventForEmail.emailConfirmationEnabled && rsvp.status === RSVP_STATUS.CONFIRMED) {
         try {
           const { generateCancelToken, recordEmailSent } = await import('@/lib/queries')
-          
+
           const eventData = buildEventEmailData(eventForEmail)
 
           // Generate cancel token and URL
@@ -195,6 +290,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: true,
+          status: rsvp.status,
           message: '¡RSVP confirmado exitosamente!',
           rsvp,
         },

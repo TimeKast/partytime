@@ -135,7 +135,9 @@ export const rsvps = pgTable('rsvps', {
     emailSent: timestamp('email_sent'),
     emailHistory: jsonb('email_history').$type<Array<{
         sentAt: string
-        type: 'confirmation' | 'reminder' | 're-invitation'
+        // ISSUE-007/EPIC-003: 'verification' records the pending_verification
+        // link send, distinct from the post-verify 'confirmation' send.
+        type: 'confirmation' | 'reminder' | 're-invitation' | 'verification'
     }>>().default([]),
 
     // Cancel token
