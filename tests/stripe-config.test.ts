@@ -17,9 +17,11 @@ import {
     type MigrationObjectState,
 } from '@/lib/migration-preflight'
 import {
+    CHECKIN_SEMANTIC_CHECK_NAMES,
     HISTORICAL_SEMANTIC_CHECK_NAMES,
     PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES,
     PENDING_STATES_SEMANTIC_CHECK_NAMES,
+    type CheckinSemanticState,
     type HistoricalSemanticState,
     type PasswordLifecycleSemanticState,
     type PendingStatesSemanticState,
@@ -189,6 +191,10 @@ describe('migration preflight — payments tier compatibility (ISSUE-010)', () =
     const validPaymentsSemantics = Object.fromEntries(
         PAYMENTS_SEMANTIC_CHECK_NAMES.map(name => [name, true]),
     ) as PaymentsSemanticState
+    // ISSUE-015: 0011 has not run in this fixture — check-in is absent.
+    const absentCheckinSemantics = Object.fromEntries(
+        CHECKIN_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+    ) as CheckinSemanticState
 
     const objectsThrough0010: MigrationObjectState = {
         tables: [...REQUIRED_HISTORICAL_OBJECTS.tables],
@@ -221,6 +227,8 @@ describe('migration preflight — payments tier compatibility (ISSUE-010)', () =
         paymentsConstraints: [...REQUIRED_PAYMENTS_OBJECTS.constraints],
         paymentsIndexes: [...REQUIRED_PAYMENTS_OBJECTS.indexes],
         paymentsSemantics: validPaymentsSemantics,
+        checkinColumns: [],
+        checkinSemantics: absentCheckinSemantics,
     }
 
     const registryThrough0010 = Array.from({ length: 11 }, (_, index) => ({
@@ -228,7 +236,11 @@ describe('migration preflight — payments tier compatibility (ISSUE-010)', () =
         createdAt: index,
     }))
 
-    it('classifies a database that ran through 0010 as registered-current-schema, with rsvp_payments unique session id verified', () => {
+    // ISSUE-015: this state (0010-complete, 0011's check-in columns absent)
+    // used to classify as the terminal 'registered-current-schema' before
+    // migration 0011 existed. See tests/checkin-migration.test.ts for the new
+    // terminal state.
+    it('classifies a database that ran through 0010 as registered-payments-ready (canApply0011), with rsvp_payments unique session id verified', () => {
         expect(REQUIRED_PAYMENTS_OBJECTS.constraints).toContain('rsvp_payments_stripe_session_id_unique')
 
         const result = classifyMigrationPreflight({
@@ -237,13 +249,15 @@ describe('migration preflight — payments tier compatibility (ISSUE-010)', () =
             expectedFoundationRegistry: [],
             expectedPresentationRegistry: [],
             expectedImagePositionRegistry: [],
+            expectedPaymentsRegistry: registryThrough0010,
             expectedCurrentRegistry: registryThrough0010,
             objects: objectsThrough0010,
         })
 
         expect(result).toMatchObject({
-            classification: 'registered-current-schema',
+            classification: 'registered-payments-ready',
             canApply0010: false,
+            canApply0011: true,
             missingPaymentsObjects: [],
             invalidPaymentsSemantics: [],
         })

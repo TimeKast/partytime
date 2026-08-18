@@ -50,6 +50,9 @@ const existingEvent: DatabaseEvent = {
     reminderEnabled: false,
     reminderScheduledAt: null,
     reminderSentAt: null,
+    checkinEnabled: false,
+    checkinPasswordHash: null,
+    checkinPasswordUpdatedAt: null,
     createdAt: new Date('2026-07-13T00:00:00Z'),
     updatedAt: new Date('2026-07-13T00:00:00Z'),
 }

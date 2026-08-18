@@ -12,12 +12,15 @@
 import { execFileSync } from 'node:child_process'
 import { neon } from '@neondatabase/serverless'
 import {
+    CHECKIN_SEMANTIC_CHECK_NAMES,
+    CHECKIN_SEMANTICS_QUERY,
     HISTORICAL_SEMANTIC_CHECK_NAMES,
     HISTORICAL_SEMANTICS_QUERY,
     PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES,
     PASSWORD_LIFECYCLE_SEMANTICS_QUERY,
     PENDING_STATES_SEMANTIC_CHECK_NAMES,
     PENDING_STATES_SEMANTICS_QUERY,
+    checkinSemanticStateFromRows,
     historicalSemanticStateFromRows,
     passwordLifecycleSemanticStateFromRows,
     pendingStatesSemanticStateFromRows,
@@ -118,6 +121,13 @@ async function main() {
     )
     for (const checkName of PAYMENTS_SEMANTIC_CHECK_NAMES) {
         checks.push([`payments semantic contract: ${checkName}`, paymentsSemantics[checkName]])
+    }
+
+    const checkinSemantics = checkinSemanticStateFromRows(
+        await query(CHECKIN_SEMANTICS_QUERY),
+    )
+    for (const checkName of CHECKIN_SEMANTIC_CHECK_NAMES) {
+        checks.push([`check-in semantic contract: ${checkName}`, checkinSemantics[checkName]])
     }
 
     const foundationColumns = await query(`

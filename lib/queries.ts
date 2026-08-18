@@ -522,6 +522,12 @@ function mapRsvpRow(row: Record<string, unknown>): RSVP {
         verificationExpiresAt: row.verification_expires_at == null
             ? null
             : new Date(String(row.verification_expires_at)),
+        checkedInAt: row.checked_in_at == null ? null : new Date(String(row.checked_in_at)),
+        plusOneCheckedInAt: row.plus_one_checked_in_at == null
+            ? null
+            : new Date(String(row.plus_one_checked_in_at)),
+        checkedInBy: row.checked_in_by == null ? null : String(row.checked_in_by),
+        checkinNote: row.checkin_note == null ? null : String(row.checkin_note),
     }
 }
 

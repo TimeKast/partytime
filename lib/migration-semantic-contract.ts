@@ -605,3 +605,140 @@ UNION ALL SELECT check_name, valid FROM verification_expires_at_check
 UNION ALL SELECT check_name, valid FROM is_courtesy_check
 UNION ALL SELECT check_name, valid FROM skip_verification_check
 ORDER BY check_name`
+
+export const CHECKIN_SEMANTIC_CHECK_NAMES = [
+    'column.events.checkin_enabled',
+    'column.events.checkin_password_hash',
+    'column.events.checkin_password_updated_at',
+    'column.rsvps.checked_in_at',
+    'column.rsvps.plus_one_checked_in_at',
+    'column.rsvps.checked_in_by',
+    'column.rsvps.checkin_note',
+] as const
+
+export type CheckinSemanticCheckName = typeof CHECKIN_SEMANTIC_CHECK_NAMES[number]
+export type CheckinSemanticState = Record<CheckinSemanticCheckName, boolean>
+
+export function checkinSemanticStateFromRows(
+    rows: ReadonlyArray<Record<string, unknown>>,
+): CheckinSemanticState {
+    const state = Object.fromEntries(
+        CHECKIN_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+    ) as CheckinSemanticState
+    const seen = new Set<CheckinSemanticCheckName>()
+
+    for (const row of rows) {
+        if (
+            typeof row.check_name !== 'string'
+            || !CHECKIN_SEMANTIC_CHECK_NAMES.includes(
+                row.check_name as CheckinSemanticCheckName,
+            )
+            || seen.has(row.check_name as CheckinSemanticCheckName)
+        ) continue
+
+        const name = row.check_name as CheckinSemanticCheckName
+        seen.add(name)
+        state[name] = row.valid === true
+    }
+
+    return state
+}
+
+export function invalidCheckinSemantics(state: CheckinSemanticState): string[] {
+    return CHECKIN_SEMANTIC_CHECK_NAMES.filter(name => state[name] !== true)
+}
+
+/**
+ * ISSUE-015 (EPIC-005): the seven columns migration 0011 adds across events
+ * and rsvps for the check-in portal (password gate + arrival marks) — same
+ * flat-column shape as PENDING_STATES_SEMANTICS_QUERY (0009), no new table.
+ */
+export const CHECKIN_SEMANTICS_QUERY = String.raw`
+WITH checkin_enabled_check AS (
+    SELECT
+        'column.events.checkin_enabled'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            data_type = 'boolean'
+            AND is_nullable = 'NO'
+            AND column_default IN ('false', 'false::boolean')
+        ), false) AS valid
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'checkin_enabled'
+), checkin_password_hash_check AS (
+    SELECT
+        'column.events.checkin_password_hash'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            data_type = 'text'
+            AND is_nullable = 'YES'
+            AND column_default IS NULL
+        ), false) AS valid
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'checkin_password_hash'
+), checkin_password_updated_at_check AS (
+    SELECT
+        'column.events.checkin_password_updated_at'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            data_type = 'timestamp without time zone'
+            AND is_nullable = 'YES'
+            AND column_default IS NULL
+        ), false) AS valid
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'checkin_password_updated_at'
+), checked_in_at_check AS (
+    SELECT
+        'column.rsvps.checked_in_at'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            data_type = 'timestamp without time zone'
+            AND is_nullable = 'YES'
+            AND column_default IS NULL
+        ), false) AS valid
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'rsvps' AND column_name = 'checked_in_at'
+), plus_one_checked_in_at_check AS (
+    SELECT
+        'column.rsvps.plus_one_checked_in_at'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            data_type = 'timestamp without time zone'
+            AND is_nullable = 'YES'
+            AND column_default IS NULL
+        ), false) AS valid
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'rsvps' AND column_name = 'plus_one_checked_in_at'
+), checked_in_by_check AS (
+    SELECT
+        'column.rsvps.checked_in_by'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            data_type = 'character varying'
+            AND character_maximum_length = 120
+            AND is_nullable = 'YES'
+            AND column_default IS NULL
+        ), false) AS valid
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'rsvps' AND column_name = 'checked_in_by'
+), checkin_note_check AS (
+    SELECT
+        'column.rsvps.checkin_note'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            data_type = 'character varying'
+            AND character_maximum_length = 500
+            AND is_nullable = 'YES'
+            AND column_default IS NULL
+        ), false) AS valid
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'rsvps' AND column_name = 'checkin_note'
+)
+SELECT check_name, valid FROM checkin_enabled_check
+UNION ALL SELECT check_name, valid FROM checkin_password_hash_check
+UNION ALL SELECT check_name, valid FROM checkin_password_updated_at_check
+UNION ALL SELECT check_name, valid FROM checked_in_at_check
+UNION ALL SELECT check_name, valid FROM plus_one_checked_in_at_check
+UNION ALL SELECT check_name, valid FROM checked_in_by_check
+UNION ALL SELECT check_name, valid FROM checkin_note_check
+ORDER BY check_name`

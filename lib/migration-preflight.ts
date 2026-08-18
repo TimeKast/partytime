@@ -1,7 +1,9 @@
 import {
+    invalidCheckinSemantics,
     invalidHistoricalSemantics,
     invalidPasswordLifecycleSemantics,
     invalidPendingStatesSemantics,
+    type CheckinSemanticState,
     type HistoricalSemanticState,
     type PasswordLifecycleSemanticState,
     type PendingStatesSemanticState,
@@ -51,6 +53,8 @@ export interface MigrationObjectState {
     paymentsConstraints: string[]
     paymentsIndexes: string[]
     paymentsSemantics: PaymentsSemanticState
+    checkinColumns: string[]
+    checkinSemantics: CheckinSemanticState
 }
 
 export interface MigrationPreflightInput {
@@ -65,6 +69,10 @@ export interface MigrationPreflightInput {
     // payments not yet applied) — gates canApply0010, same role
     // expectedRsvpInvitationRegistry plays for canApply0009.
     expectedPendingStatesRegistry?: MigrationRegistryRow[]
+    // ISSUE-015: registry snapshot through 0010 (payments applied, check-in
+    // not yet applied) — gates canApply0011, same role expectedPendingStatesRegistry
+    // plays for canApply0010.
+    expectedPaymentsRegistry?: MigrationRegistryRow[]
     expectedCurrentRegistry: MigrationRegistryRow[]
     objects: MigrationObjectState
 }
@@ -81,6 +89,10 @@ export type MigrationPreflightClassification =
     // 'unregistered-rsvp-invitation-schema' was carved out of the old
     // 'unregistered-current-schema' when 0009 shipped.
     | 'unregistered-pending-states-schema'
+    // ISSUE-015: was 'unregistered-current-schema' before migration 0011
+    // existed (paymentsComplete, nothing beyond) — same rename pattern as
+    // 'unregistered-pending-states-schema' above when 0010 shipped.
+    | 'unregistered-payments-schema'
     | 'unregistered-current-schema'
     | 'unregistered-inconsistent-schema'
     | 'registered-foundation-ready'
@@ -92,6 +104,11 @@ export type MigrationPreflightClassification =
     // existed (pendingStatesComplete, registry through 0009, nothing beyond)
     // — same rename as above, now the "ready to apply 0010" gate.
     | 'registered-pending-states-ready'
+    // ISSUE-015: was 'registered-current-schema' before migration 0011
+    // existed (paymentsComplete, registry through 0010, nothing beyond) —
+    // same rename as 'registered-pending-states-ready' above when 0010
+    // shipped. Now the "ready to apply 0011" gate.
+    | 'registered-payments-ready'
     | 'registered-current-schema'
     | 'registered-inconsistent-schema'
 
@@ -266,6 +283,24 @@ export const REQUIRED_PAYMENTS_OBJECTS = {
     ],
 } as const
 
+// ISSUE-015 (EPIC-005/migration 0011): pure column additions across events
+// and rsvps for the check-in portal — no new table, same flat 'table.column'
+// shape as REQUIRED_PENDING_STATES_OBJECTS (0009), not the full-table depth
+// of REQUIRED_PAYMENTS_OBJECTS (0010) that immediately precedes it in the
+// tier sequence. See lib/migration-semantic-contract.ts's CHECKIN_SEMANTICS_QUERY
+// for the semantic body.
+export const REQUIRED_CHECKIN_OBJECTS = {
+    columns: [
+        'events.checkin_enabled',
+        'events.checkin_password_hash',
+        'events.checkin_password_updated_at',
+        'rsvps.checked_in_at',
+        'rsvps.plus_one_checked_in_at',
+        'rsvps.checked_in_by',
+        'rsvps.checkin_note',
+    ],
+} as const
+
 export interface MigrationPreflightResult {
     classification: MigrationPreflightClassification
     canBaseline0000Through0004: boolean
@@ -275,6 +310,7 @@ export interface MigrationPreflightResult {
     canApply0008: boolean
     canApply0009: boolean
     canApply0010: boolean
+    canApply0011: boolean
     missingHistoricalObjects: string[]
     missingPresentationObjects: string[]
     missingImagePositionObjects: string[]
@@ -282,11 +318,13 @@ export interface MigrationPreflightResult {
     missingRsvpInvitationObjects: string[]
     missingPendingStatesObjects: string[]
     missingPaymentsObjects: string[]
+    missingCheckinObjects: string[]
     invalidHistoricalSemantics: string[]
     invalidPasswordLifecycleSemantics: string[]
     invalidRsvpInvitationSemantics: string[]
     invalidPendingStatesSemantics: string[]
     invalidPaymentsSemantics: string[]
+    invalidCheckinSemantics: string[]
     reasons: string[]
 }
 
@@ -390,6 +428,15 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         : invalidPaymentsSemantics(input.objects.paymentsSemantics)
     const paymentsComplete = missingPaymentsObjects.length === 0
         && invalidPaymentsObjects.length === 0
+    const missingCheckinObjects = [
+        ...missing(REQUIRED_CHECKIN_OBJECTS.columns, input.objects.checkinColumns),
+    ]
+    const checkinAbsent = input.objects.checkinColumns.length === 0
+    const invalidCheckinObjects = checkinAbsent
+        ? []
+        : invalidCheckinSemantics(input.objects.checkinSemantics)
+    const checkinComplete = missingCheckinObjects.length === 0
+        && invalidCheckinObjects.length === 0
     const noRegistry = input.drizzleRegistry === null && input.publicRegistry === null
     const onlyDrizzleRegistry = input.drizzleRegistry !== null && input.publicRegistry === null
     const schemaIsEmpty = input.objects.tables.length === 0
@@ -409,7 +456,9 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         classification = 'unregistered-rsvp-invitation-schema'
     } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleComplete && rsvpInvitationComplete && pendingStatesComplete && paymentsAbsent) {
         classification = 'unregistered-pending-states-schema'
-    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleComplete && rsvpInvitationComplete && pendingStatesComplete && paymentsComplete) {
+    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleComplete && rsvpInvitationComplete && pendingStatesComplete && paymentsComplete && checkinAbsent) {
+        classification = 'unregistered-payments-schema'
+    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleComplete && rsvpInvitationComplete && pendingStatesComplete && paymentsComplete && checkinComplete) {
         classification = 'unregistered-current-schema'
     } else if (noRegistry) {
         classification = 'unregistered-inconsistent-schema'
@@ -500,6 +549,26 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         && rsvpInvitationComplete
         && pendingStatesComplete
         && paymentsComplete
+        && checkinAbsent
+        // Same fallback shape as registered-pending-states-ready above:
+        // scripts/migration-preflight.ts (the real caller) always passes
+        // expectedPaymentsRegistry explicitly now that 0011 exists.
+        && registryMatches(
+            input.drizzleRegistry!,
+            input.expectedPaymentsRegistry ?? input.expectedCurrentRegistry,
+        )
+    ) {
+        classification = 'registered-payments-ready'
+    } else if (
+        onlyDrizzleRegistry
+        && historicalComplete
+        && presentationComplete
+        && imagePositionComplete
+        && passwordLifecycleComplete
+        && rsvpInvitationComplete
+        && pendingStatesComplete
+        && paymentsComplete
+        && checkinComplete
         && registryMatches(input.drizzleRegistry!, input.expectedCurrentRegistry)
     ) {
         classification = 'registered-current-schema'
@@ -550,6 +619,14 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
             reasons.push(`invalid payments semantics: ${invalidPaymentsObjects.join(', ')}`)
         }
     }
+    if (!checkinAbsent && !checkinComplete) {
+        if (missingCheckinObjects.length > 0) {
+            reasons.push(`missing check-in objects: ${missingCheckinObjects.join(', ')}`)
+        }
+        if (invalidCheckinObjects.length > 0) {
+            reasons.push(`invalid check-in semantics: ${invalidCheckinObjects.join(', ')}`)
+        }
+    }
     if (input.publicRegistry !== null) reasons.push('unexpected public.__drizzle_migrations registry')
     if (classification.startsWith('unregistered-')) reasons.push('migration registry is absent')
 
@@ -562,6 +639,7 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         canApply0008: classification === 'registered-password-lifecycle-ready',
         canApply0009: classification === 'registered-rsvp-invitation-ready',
         canApply0010: classification === 'registered-pending-states-ready',
+        canApply0011: classification === 'registered-payments-ready',
         missingHistoricalObjects,
         missingPresentationObjects,
         missingImagePositionObjects,
@@ -569,11 +647,13 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         missingRsvpInvitationObjects,
         missingPendingStatesObjects,
         missingPaymentsObjects,
+        missingCheckinObjects,
         invalidHistoricalSemantics: invalidSemanticObjects,
         invalidPasswordLifecycleSemantics: invalidPasswordLifecycleObjects,
         invalidRsvpInvitationSemantics: invalidRsvpInvitationObjects,
         invalidPendingStatesSemantics: invalidPendingStatesObjects,
         invalidPaymentsSemantics: invalidPaymentsObjects,
+        invalidCheckinSemantics: invalidCheckinObjects,
         reasons,
     }
 }

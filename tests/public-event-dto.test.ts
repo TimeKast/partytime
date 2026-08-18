@@ -45,6 +45,9 @@ const databaseEvent: DatabaseEvent = {
     reminderEnabled: true,
     reminderScheduledAt: new Date('2026-07-20T12:00:00Z'),
     reminderSentAt: new Date('2026-07-20T12:05:00Z'),
+    checkinEnabled: false,
+    checkinPasswordHash: null,
+    checkinPasswordUpdatedAt: null,
     createdAt: new Date('2026-07-13T00:00:00Z'),
     updatedAt: new Date('2026-07-13T01:00:00Z'),
 }

@@ -90,6 +90,17 @@ export const events = pgTable('events', {
     reminderScheduledAt: timestamp('reminder_scheduled_at'),
     reminderSentAt: timestamp('reminder_sent_at'),
 
+    // ISSUE-015/EPIC-005 (migration 0011): check-in portal. Staff authenticate
+    // with a single password shared per event (bcrypt, same 12-round cost as
+    // lib/auth-utils.ts) instead of individual accounts. checkinPasswordUpdatedAt
+    // is the `pwv` (password version) every issued cookie embeds — rotating the
+    // password invalidates every outstanding session cookie without touching
+    // the DB (lib/checkin-session.ts, PLAN-EPICS-002-005.md §3.4). The plaintext
+    // password is never persisted; only its bcrypt hash is.
+    checkinEnabled: boolean('checkin_enabled').notNull().default(false),
+    checkinPasswordHash: text('checkin_password_hash'),
+    checkinPasswordUpdatedAt: timestamp('checkin_password_updated_at'),
+
     // Timestamps
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -159,6 +170,16 @@ export const rsvps = pgTable('rsvps', {
     verifiedAt: timestamp('verified_at'),
     verificationTokenHash: varchar('verification_token_hash', { length: 64 }),
     verificationExpiresAt: timestamp('verification_expires_at'),
+
+    // ISSUE-015/EPIC-005 (migration 0011): check-in portal marks. checkedInBy
+    // is the staff member's free-typed name captured at cookie issuance
+    // (lib/checkin-session.ts) — there is no per-staff users row, same
+    // no-FK-to-users reasoning documented on rsvpInvitationLinks.createdBy
+    // above for the environment-backed super admin.
+    checkedInAt: timestamp('checked_in_at'),
+    plusOneCheckedInAt: timestamp('plus_one_checked_in_at'),
+    checkedInBy: varchar('checked_in_by', { length: 120 }),
+    checkinNote: varchar('checkin_note', { length: 500 }),
 
     // Timestamps
     createdAt: timestamp('created_at').defaultNow().notNull(),

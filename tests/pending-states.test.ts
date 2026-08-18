@@ -2,11 +2,13 @@ import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+    CHECKIN_SEMANTIC_CHECK_NAMES,
     EXPECTED_CAPACITY_FUNCTION_BODY_HASH,
     EXPECTED_PENDING_STATES_CAPACITY_FUNCTION_BODY_HASH,
     HISTORICAL_SEMANTIC_CHECK_NAMES,
     PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES,
     PENDING_STATES_SEMANTIC_CHECK_NAMES,
+    type CheckinSemanticState,
     type HistoricalSemanticState,
     type PasswordLifecycleSemanticState,
     type PendingStatesSemanticState,
@@ -197,6 +199,12 @@ describe('migration-preflight — 0009 pending states classification', () => {
     const validPaymentsSemantics = Object.fromEntries(
         PAYMENTS_SEMANTIC_CHECK_NAMES.map(name => [name, true]),
     ) as PaymentsSemanticState
+    // ISSUE-015: 0011 has not run yet in this suite's fixtures — every state
+    // here represents check-in as absent. See tests/checkin-migration.test.ts
+    // for the classification of a database that has actually run 0011.
+    const absentCheckinSemantics = Object.fromEntries(
+        CHECKIN_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+    ) as CheckinSemanticState
 
     // A DB that has run through exactly 0008 (rsvp invitation complete,
     // migration 0009's columns absent).
@@ -233,6 +241,8 @@ describe('migration-preflight — 0009 pending states classification', () => {
         paymentsConstraints: [],
         paymentsIndexes: [],
         paymentsSemantics: absentPaymentsSemantics,
+        checkinColumns: [],
+        checkinSemantics: absentCheckinSemantics,
     }
 
     const registryUpTo0008 = Array.from({ length: 9 }, (_, index) => ({
@@ -327,7 +337,14 @@ describe('migration-preflight — 0009 pending states classification', () => {
         expect(result.reasons.join('\n')).toContain('invalid pending states semantics')
     })
 
-    it('classifies the 0010 objects (applied on a disposable Neon branch) as the current schema — acceptance criterion for pnpm db:preflight', () => {
+    // ISSUE-015: this exact object state (0010-complete, 0011's check-in
+    // columns still absent) used to be the terminal 'registered-current-schema'
+    // before migration 0011 existed. Now that 0011 exists, this state is one
+    // step behind "current" — it's the new intermediate registered-payments-ready
+    // gate, mirroring how registered-pending-states-ready was introduced when
+    // 0010 shipped. See tests/checkin-migration.test.ts for the classification
+    // of a database that has actually run 0011.
+    it('classifies the 0010 objects (applied on a disposable Neon branch) as ready to apply 0011 (canApply0011)', () => {
         const result = classifyMigrationPreflight({
             drizzleRegistry: registryUpTo0010,
             publicRegistry: null,
@@ -336,6 +353,7 @@ describe('migration-preflight — 0009 pending states classification', () => {
             expectedImagePositionRegistry: [],
             expectedRsvpInvitationRegistry: registryUpTo0008,
             expectedPendingStatesRegistry: registryUpTo0009,
+            expectedPaymentsRegistry: registryUpTo0010,
             expectedCurrentRegistry: registryUpTo0010,
             objects: {
                 ...objectsAt0008,
@@ -350,8 +368,9 @@ describe('migration-preflight — 0009 pending states classification', () => {
         })
 
         expect(result).toMatchObject({
-            classification: 'registered-current-schema',
+            classification: 'registered-payments-ready',
             canApply0010: false,
+            canApply0011: true,
             missingPaymentsObjects: [],
             invalidPaymentsSemantics: [],
         })

@@ -35,6 +35,17 @@ const nextConfig = {
         headers: invitePrivateHeaders,
       },
       {
+        // ISSUE-015: the check-in portal is staff-only, password-gated, and
+        // must never be cached/indexed — same no-store+noindex+no-referrer
+        // treatment as /invite and /verify above.
+        source: '/checkin',
+        headers: invitePrivateHeaders,
+      },
+      {
+        source: '/checkin/:slug',
+        headers: invitePrivateHeaders,
+      },
+      {
         // ISSUE-011: the Stripe return page must never be cached — it polls
         // a status endpoint and must always re-run that check on load, not
         // serve a stale success/cancelled snapshot from a shared/browser

@@ -13,12 +13,14 @@ import {
 } from '@/lib/migration-preflight'
 import {
     CAPACITY_FUNCTION_BODY_FINGERPRINT_SQL,
+    CHECKIN_SEMANTIC_CHECK_NAMES,
     EXPECTED_CAPACITY_FUNCTION_BODY_HASH,
     HISTORICAL_SEMANTIC_CHECK_NAMES,
     HISTORICAL_SEMANTICS_QUERY,
     PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES,
     PASSWORD_LIFECYCLE_SEMANTICS_QUERY,
     PENDING_STATES_SEMANTIC_CHECK_NAMES,
+    type CheckinSemanticState,
     type HistoricalSemanticState,
     type PasswordLifecycleSemanticState,
     type PendingStatesSemanticState,
@@ -73,6 +75,12 @@ const absentPendingStatesSemantics = Object.fromEntries(
 const absentPaymentsSemantics = Object.fromEntries(
     PAYMENTS_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
 ) as PaymentsSemanticState
+// ISSUE-015: 0011 has not been applied to any real database yet either, so
+// every fixture in this file also represents check-in as absent — see
+// tests/checkin-migration.test.ts for the 0011-applied classification coverage.
+const absentCheckinSemantics = Object.fromEntries(
+    CHECKIN_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+) as CheckinSemanticState
 
 const observedHistoricalObjects: MigrationObjectState = {
     tables: [...REQUIRED_HISTORICAL_OBJECTS.tables],
@@ -105,6 +113,8 @@ const observedHistoricalObjects: MigrationObjectState = {
     paymentsConstraints: [],
     paymentsIndexes: [],
     paymentsSemantics: absentPaymentsSemantics,
+    checkinColumns: [],
+    checkinSemantics: absentCheckinSemantics,
 }
 
 const foundationRegistry = Array.from({ length: 5 }, (_, index) => ({

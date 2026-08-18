@@ -78,6 +78,13 @@
       "when": 1787232772759,
       "tag": "0010_rsvp_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1787319172759,
+      "tag": "0011_checkin",
+      "breakpoints": true
     }
   ]
 }
