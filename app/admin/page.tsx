@@ -19,6 +19,8 @@ import {
 import { buildEventExportMetadataRows, createEventExportFilename } from '@/lib/event-export'
 import {
   buildRsvpListView,
+  computeCheckinArrivalCount,
+  describeCheckinArrivals,
   describePaymentsCollected,
   describeRsvpListView,
   filterAndSortRsvps,
@@ -36,6 +38,7 @@ import {
 // H-008 FIX: Import extracted components to reduce monolithic file size
 import {
   ChangePasswordForm,
+  CheckinSettings,
   EventPresentationSettings,
   ForcedPasswordChangeDialog,
   InvitationLinkManager,
@@ -44,6 +47,7 @@ import {
   ReminderStatusSection,
   type RSVP,
 } from './components'
+import type { CheckinStatus } from './components/CheckinSettings'
 import { AdminShell } from './components/shell'
 import { RsvpFilters, RsvpPagination, RsvpTable } from './components/table'
 import { Button, ImagePreview } from './components/ui'
@@ -78,6 +82,11 @@ export default function AdminDashboard() {
   // itself — see GET /api/event-settings). Drives the "Stripe no configurado"
   // notice next to the payment toggle.
   const [stripeConfigured, setStripeConfigured] = useState(true)
+  // ISSUE-018: sourced from the CheckinSettings section's own GET
+  // /api/admin/checkin-config fetch (via onStatusChange) — never fetched a
+  // second time here. Drives the "Llegada" column, the dashboard arrival
+  // counter and the export columns, all gated on `checkinStatus?.enabled`.
+  const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(null)
 
 
   // Estado para configuración del evento
@@ -219,6 +228,12 @@ export default function AdminDashboard() {
     }
     checkAuth()
   }, [router])
+
+  // ISSUE-018: stable identity so it never re-triggers CheckinSettings'
+  // load-on-eventSlug-change effect (see its onStatusChange dependency).
+  const handleCheckinStatusChange = useCallback((status: CheckinStatus | null) => {
+    setCheckinStatus(status)
+  }, [])
 
   const loadRSVPs = useCallback(async (eventId?: string) => {
     setLoading(true)
@@ -1182,6 +1197,11 @@ export default function AdminDashboard() {
     // stats line below) only ever appear for a payment_required event — a
     // free event's export stays byte-for-byte what it was before this issue.
     const showPaymentColumns = configForm.paymentRequired
+    // ISSUE-018: independent of showPaymentColumns above — both can be true
+    // at once (an event can require payment AND have check-in enabled), in
+    // which case the checkin columns are appended AFTER the payment columns
+    // (same left-to-right order as RsvpTable's Pago/Llegada columns).
+    const showCheckinColumns = checkinEnabled
 
     // Header elegante
     doc.setFillColor(102, 102, 234) // Color morado del tema
@@ -1237,6 +1257,22 @@ export default function AdminDashboard() {
             : '—',
         )
       }
+      // ISSUE-018: "Llegó (hora)", "Llegada +1", "Marcó", "Nota check-in" —
+      // only when this event's check-in portal is enabled.
+      if (showCheckinColumns) {
+        row.push(
+          rsvp.checkedInAt
+            ? new Date(rsvp.checkedInAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+            : 'Sin llegar',
+          rsvp.plusOne
+            ? (rsvp.plusOneCheckedInAt
+              ? new Date(rsvp.plusOneCheckedInAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+              : 'Sin llegar')
+            : '—',
+          rsvp.checkedInBy ? stripEmojis(rsvp.checkedInBy) : '—',
+          rsvp.checkinNote ? stripEmojis(rsvp.checkinNote) : '',
+        )
+      }
       tableData.push(row)
       // Si tiene +1 con nombre, agregar fila indentada
       if (rsvp.plusOne && rsvp.plusOneName) {
@@ -1250,36 +1286,57 @@ export default function AdminDashboard() {
           ''
         ]
         if (showPaymentColumns) plusOneRow.push('', '', '')
+        if (showCheckinColumns) plusOneRow.push('', '', '', '')
         tableData.push(plusOneRow)
       }
     })
 
-    const tableHead = showPaymentColumns
-      ? ['#', 'Estado', 'Nombre', 'Email', 'Teléfono', '+1', 'Email', 'Estado de pago', 'Monto', 'Fecha de pago']
-      : ['#', 'Estado', 'Nombre', 'Email', 'Teléfono', '+1', 'Email']
+    const paymentTableHead = ['Estado de pago', 'Monto', 'Fecha de pago']
+    const checkinTableHead = ['Llegó (hora)', 'Llegada +1', 'Marcó', 'Nota check-in']
+    const tableHead = [
+      '#', 'Estado', 'Nombre', 'Email', 'Teléfono', '+1', 'Email',
+      ...(showPaymentColumns ? paymentTableHead : []),
+      ...(showCheckinColumns ? checkinTableHead : []),
+    ]
 
-    const columnStyles = showPaymentColumns
+    type PdfColumnStyle = { halign?: 'left' | 'center' | 'right' | 'justify'; cellWidth: number }
+    // ISSUE-018: the narrower base-column widths (previously only used when
+    // showPaymentColumns added its 3 columns) now apply whenever EITHER
+    // extra column group is present, since both need the same page-width
+    // budget freed up from the base columns.
+    const hasExtraColumns = showPaymentColumns || showCheckinColumns
+    const columnStyles: Record<number, PdfColumnStyle> = hasExtraColumns
       ? {
-        0: { halign: 'center' as const, cellWidth: 8 },
+        0: { halign: 'center', cellWidth: 8 },
         1: { cellWidth: 18 },
         2: { cellWidth: 26 },
         3: { cellWidth: 32 },
         4: { cellWidth: 20 },
-        5: { halign: 'center' as const, cellWidth: 10 },
-        6: { halign: 'center' as const, cellWidth: 14 },
-        7: { cellWidth: 18 },
-        8: { halign: 'right' as const, cellWidth: 16 },
-        9: { halign: 'center' as const, cellWidth: 16 },
+        5: { halign: 'center', cellWidth: 10 },
+        6: { halign: 'center', cellWidth: 14 },
       }
       : {
-        0: { halign: 'center' as const, cellWidth: 10 },
+        0: { halign: 'center', cellWidth: 10 },
         1: { cellWidth: 24 },
         2: { cellWidth: 34 },
         3: { cellWidth: 42 },
         4: { cellWidth: 28 },
-        5: { halign: 'center' as const, cellWidth: 18 },
-        6: { halign: 'center' as const, cellWidth: 26 }
+        5: { halign: 'center', cellWidth: 18 },
+        6: { halign: 'center', cellWidth: 26 }
       }
+
+    let nextColumnIndex = 7
+    if (showPaymentColumns) {
+      columnStyles[nextColumnIndex++] = { cellWidth: 18 }
+      columnStyles[nextColumnIndex++] = { halign: 'right', cellWidth: 16 }
+      columnStyles[nextColumnIndex++] = { halign: 'center', cellWidth: 16 }
+    }
+    if (showCheckinColumns) {
+      columnStyles[nextColumnIndex++] = { halign: 'center', cellWidth: 16 }
+      columnStyles[nextColumnIndex++] = { halign: 'center', cellWidth: 16 }
+      columnStyles[nextColumnIndex++] = { cellWidth: 16 }
+      columnStyles[nextColumnIndex++] = { cellWidth: 22 }
+    }
 
     autoTable(doc, {
       startY: statsY + 9 + summaryLines.length * 4,
@@ -1329,6 +1386,8 @@ export default function AdminDashboard() {
     // ISSUE-013: same gate as the PDF export above — a free event's Excel
     // export stays exactly what it was before this issue.
     const showPaymentColumns = configForm.paymentRequired
+    // ISSUE-018: same independent gate as the PDF export above.
+    const showCheckinColumns = checkinEnabled
     const paymentsStatsFragment = showPaymentColumns
       ? ` - Pagados: ${rsvpListView.paidPaymentsCount} (${formatAmountsCollected(rsvpListView.amountCollectedByCurrency)})`
       : ''
@@ -1345,6 +1404,7 @@ export default function AdminDashboard() {
       [
         '#', 'Estado', 'Nombre', 'Email', 'Teléfono', '+1', 'Nombre +1', 'Email Enviado',
         ...(showPaymentColumns ? ['Estado de pago', 'Monto', 'Fecha de pago'] : []),
+        ...(showCheckinColumns ? ['Llegó (hora)', 'Llegada +1', 'Marcó', 'Nota check-in'] : []),
       ],
       // Datos
       ...exportRsvps.map((rsvp, index) => [
@@ -1364,6 +1424,19 @@ export default function AdminDashboard() {
           rsvp.paidAt
             ? new Date(rsvp.paidAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
             : '—',
+        ] : []),
+        // ISSUE-018: "Llegó (hora)", "Llegada +1", "Marcó", "Nota check-in".
+        ...(showCheckinColumns ? [
+          rsvp.checkedInAt
+            ? new Date(rsvp.checkedInAt).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+            : 'Sin llegar',
+          rsvp.plusOne
+            ? (rsvp.plusOneCheckedInAt
+              ? new Date(rsvp.plusOneCheckedInAt).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+              : 'Sin llegar')
+            : '—',
+          rsvp.checkedInBy || '—',
+          rsvp.checkinNote || '',
         ] : []),
       ])
     ]
@@ -1386,6 +1459,12 @@ export default function AdminDashboard() {
         { wch: 18 }, // Estado de pago
         { wch: 14 }, // Monto
         { wch: 14 }, // Fecha de pago
+      ] : []),
+      ...(showCheckinColumns ? [
+        { wch: 14 }, // Llegó (hora)
+        { wch: 14 }, // Llegada +1
+        { wch: 16 }, // Marcó
+        { wch: 30 }, // Nota check-in
       ] : []),
     ]
 
@@ -1415,6 +1494,12 @@ export default function AdminDashboard() {
     totalGuests: confirmedRsvps.length + confirmedRsvps.filter(r => r.plusOne).length,
     emailsSent: rsvps.filter(r => r.emailSent).length,
   }
+
+  // ISSUE-018: whole-event counter (unfiltered `rsvps`, same scope as
+  // `stats` above) — only ever shown when the event's check-in portal is
+  // enabled.
+  const checkinEnabled = checkinStatus?.enabled ?? false
+  const checkinArrivalCount = computeCheckinArrivalCount(rsvps)
 
   // Permissions (per selected event)
   const selectedEvent = events.find(e => e.slug === selectedEventId)
@@ -1484,6 +1569,16 @@ export default function AdminDashboard() {
             </p>
           )}
 
+          {/* ISSUE-018: "Llegados X / Confirmados Y" — only for a
+              checkin_enabled event, computed from the WHOLE event roster
+              (see checkinArrivalCount's doc comment), unlike the payment
+              aggregate above which follows the current filtered set. */}
+          {checkinEnabled && (
+            <p className={styles.checkinArrivalSummary}>
+              {describeCheckinArrivals(checkinArrivalCount)}
+            </p>
+          )}
+
           {/* Controles */}
           <RsvpFilters
             searchTerm={searchTerm}
@@ -1543,6 +1638,7 @@ export default function AdminDashboard() {
               onEdit={openEditModal}
               onToggleStatus={toggleStatus}
               showPayment={configForm.paymentRequired}
+              showCheckin={checkinEnabled}
             />
 
             <RsvpTable
@@ -1557,6 +1653,7 @@ export default function AdminDashboard() {
               onEdit={openEditModal}
               onToggleStatus={toggleStatus}
               showPayment={configForm.paymentRequired}
+              showCheckin={checkinEnabled}
             />
 
             {/* ISSUE-006: pending/expired rows were previously fetched into
@@ -1577,6 +1674,7 @@ export default function AdminDashboard() {
               onEdit={openEditModal}
               onToggleStatus={toggleStatus}
               showPayment={configForm.paymentRequired}
+              showCheckin={checkinEnabled}
             />
 
             <RsvpTable
@@ -1591,6 +1689,7 @@ export default function AdminDashboard() {
               onEdit={openEditModal}
               onToggleStatus={toggleStatus}
               showPayment={configForm.paymentRequired}
+              showCheckin={checkinEnabled}
             />
 
             <RsvpTable
@@ -1605,6 +1704,7 @@ export default function AdminDashboard() {
               onEdit={openEditModal}
               onToggleStatus={toggleStatus}
               showPayment={configForm.paymentRequired}
+              showCheckin={checkinEnabled}
             />
 
             {rsvpListView.total === 0 && (
@@ -2325,6 +2425,23 @@ export default function AdminDashboard() {
               {/* Sección de Estado de Recordatorios */}
               <ReminderStatusSection eventSlug={selectedEventId} />
             </div>
+
+            {/* Check-in (ISSUE-018): self-contained section, same pattern as
+                InvitationLinkManager/ReminderStatusSection above — manages
+                its own fetches against /api/admin/checkin-config rather than
+                going through configForm/saveEventConfig, since the endpoint
+                is a dedicated write-only-password contract (see that
+                route's own doc comment). Only ever rendered here, i.e. only
+                for canManageSelectedEvent — a viewer never reaches the
+                config tab at all (see the activeTab==='config' guard
+                above), which is this app's existing RBAC pattern for every
+                other manager-only settings surface. */}
+            {selectedEventId && (
+              <div id="config-checkin" className={styles.configSection}>
+                <h3 className={styles.configSectionTitle} id="checkin-settings-title">📲 Check-in</h3>
+                <CheckinSettings eventSlug={selectedEventId} onStatusChange={handleCheckinStatusChange} />
+              </div>
+            )}
 
             <SaveBar saving={loading} statusLabel={message || undefined} />
           </form>

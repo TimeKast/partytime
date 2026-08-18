@@ -11,6 +11,7 @@ export { default as ReminderStatusSection } from './ReminderStatusSection'
 export { default as EventPresentationSettings } from './EventPresentationSettings'
 export { default as InvitationLinkManager } from './InvitationLinkManager'
 export { default as ChangePasswordForm, ForcedPasswordChangeDialog } from './ChangePasswordForm'
+export { default as CheckinSettings } from './CheckinSettings'
 
 // Types for admin components
 // ISSUE-006: status widened to the five canonical rsvps.status values (see
@@ -36,6 +37,14 @@ export interface RSVP {
     paidAt?: string | null
     amountCents?: number | null
     currency?: string | null
+    // ISSUE-018: present on every row regardless of the event's
+    // checkin_enabled flag (see lib/rsvp-list.ts RsvpListItem's doc
+    // comment) — checkin_enabled only gates whether the UI/exports show
+    // them.
+    checkedInAt?: string | null
+    plusOneCheckedInAt?: string | null
+    checkedInBy?: string | null
+    checkinNote?: string | null
 }
 
 export interface AdminStats {

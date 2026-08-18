@@ -40,6 +40,16 @@ export interface RsvpListItem {
   paidAt?: string | null
   amountCents?: number | null
   currency?: string | null
+  // ISSUE-018 (EPIC-005): unlike the payment fields above, these are present
+  // on every row GET /api/rsvp returns (the rsvps table columns always
+  // exist — see lib/queries.ts mapRsvpRow) regardless of the event's
+  // checkin_enabled flag. checkin_enabled only gates whether the admin UI/
+  // exports SHOW them (app/admin/page.tsx), never whether the API sends
+  // them.
+  checkedInAt?: string | null
+  plusOneCheckedInAt?: string | null
+  checkedInBy?: string | null
+  checkinNote?: string | null
 }
 
 export interface RsvpListOptions {
@@ -251,6 +261,45 @@ export function formatAmountsCollected(amountsByCurrency: Record<string, number>
 // amountCollectedByCurrency.
 export function describePaymentsCollected(paidCount: number, amountsByCurrency: Record<string, number>): string {
   return `${paidCount} pagados · ${formatAmountsCollected(amountsByCurrency)} recaudados`
+}
+
+// ISSUE-018 (EPIC-005): "Llegados X / Confirmados Y" header counter in
+// app/admin/page.tsx. Reimplemented here rather than imported from
+// app/checkin/[slug]/checkin-portal-logic.ts's computeArrivalCount — this
+// issue is forbidden from touching lib/checkin-*.ts and the check-in portal
+// module, so the admin surface gets its own copy of the same criterion
+// instead of a cross-surface dependency. Kept in sync deliberately:
+//   - only `confirmed` rows hold a real seat (pending_*/cancelled/expired
+//     never count, mirroring computeArrivalCount's own doc comment);
+//   - a confirmed guest contributes 1 seat, +1 more if plusOne=true;
+//   - `arrived` sums each seat's own independent checked-in timestamp.
+// Computed from the UNFILTERED event roster (same scope as StatsCards'
+// `stats`, not the current search/filter/pagination view) since this is a
+// whole-event counter, not a "results" counter.
+export interface RsvpCheckinArrivalCount {
+  arrived: number
+  totalSeats: number
+}
+
+export function computeCheckinArrivalCount<
+  T extends Pick<RsvpListItem, 'status' | 'plusOne' | 'checkedInAt' | 'plusOneCheckedInAt'>,
+>(rsvps: readonly T[]): RsvpCheckinArrivalCount {
+  let arrived = 0
+  let totalSeats = 0
+  for (const rsvp of rsvps) {
+    if (rsvp.status !== 'confirmed') continue
+    totalSeats += 1
+    if (rsvp.checkedInAt) arrived += 1
+    if (rsvp.plusOne) {
+      totalSeats += 1
+      if (rsvp.plusOneCheckedInAt) arrived += 1
+    }
+  }
+  return { arrived, totalSeats }
+}
+
+export function describeCheckinArrivals(count: RsvpCheckinArrivalCount): string {
+  return `Llegados ${count.arrived} / Confirmados ${count.totalSeats}`
 }
 
 const statusLabels: Record<RsvpStatusFilter, string> = {

@@ -1739,6 +1739,96 @@
   color: #374151;
 }
 
+/* ISSUE-018: the "Llegados X / Confirmados Y" aggregate, shown right under
+   StatsCards for a checkin_enabled event only — same treatment as
+   .paymentsCollectedSummary above. */
+.checkinArrivalSummary {
+  margin: 0 0 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+/* ISSUE-018: "Llegada" column — applies to both mobile and desktop. */
+.checkinCell {
+  white-space: nowrap;
+}
+
+.checkinBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #d1fae5;
+  color: #059669;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.checkinBadgeNone {
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.checkinBy {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #374151;
+}
+
+.checkinPlusOne {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #374151;
+}
+
+.checkinNote {
+  margin: 6px 0 0;
+  max-width: 220px;
+  white-space: normal;
+  font-size: 12px;
+  font-style: italic;
+  color: #6b7280;
+}
+
+/* ISSUE-018: check-in settings section (CheckinSettings.tsx) — password
+   field + suggestion buttons. */
+.checkinPasswordForm {
+  display: grid;
+  gap: var(--ad-3);
+}
+
+.checkinSuggestionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ad-2);
+}
+
+.checkinSuggestionButton {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--ad-border-strong);
+  border-radius: var(--ad-r-md);
+  background: var(--ad-surface);
+  color: var(--ad-text);
+  font: inherit;
+  font-size: var(--ad-fs-xs);
+  font-weight: var(--ad-weight-bold);
+  cursor: pointer;
+  transition: background var(--ad-dur) var(--ad-ease);
+}
+
+.checkinSuggestionButton:hover:not(:disabled) {
+  background: var(--ad-border);
+}
+
+.checkinSuggestionButton:disabled {
+  cursor: not-allowed;
+  opacity: .6;
+}
+
 /* Desktop-specific styles */
 .nameCell {
   font-weight: 600;
@@ -1818,6 +1908,7 @@
       "phone email"
       "date emailsent"
       "payment payment"
+      "checkin checkin"
       "actions actions";
   }
 
@@ -1935,12 +2026,19 @@
     grid-area: payment;
   }
 
+  /* ISSUE-018: check-in arrival - full-width row above actions, below payment */
+  .checkinCell {
+    grid-area: checkin;
+    white-space: normal;
+  }
+
   /* Adjust badge sizes for mobile */
   .confirmedBadge,
   .cancelledBadge,
   .emailSentBadge,
   .emailNotSentBadge,
-  .paymentBadge {
+  .paymentBadge,
+  .checkinBadge {
     font-size: 11px;
     padding: 3px 6px;
   }

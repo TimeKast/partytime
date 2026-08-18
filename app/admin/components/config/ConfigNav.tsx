@@ -10,6 +10,7 @@ const SECTIONS = [
   { id: 'config-images', label: 'Imágenes' },
   { id: 'config-colors', label: 'Colores' },
   { id: 'config-email', label: 'Emails' },
+  { id: 'config-checkin', label: 'Check-in' },
 ]
 
 export function ConfigNav() {

@@ -1,6 +1,6 @@
 # EPIC-005 — Portal de check-in para staff del evento
 
-- **Status:** Pending
+- **Status:** Implemented (pendiente: migración 0011 en Neon + smoke en prod)
 - **Goal:** Pantalla `/checkin/[slug]` con password sencillo por evento,
   compartible con personas sin cuenta (recepción, seguridad), para marcar
   llegadas (invitado y +1 por separado) y notas en tiempo real.
@@ -33,3 +33,17 @@
   Sin teléfono ni email completo.
 - Rate-limit de intentos de password con `lib/bounded-rate-limiter.ts`;
   headers `no-store`/`noindex` como `/invite`.
+
+## Delivery evidence (2026-08-18)
+
+- ISSUE-015..018 implementadas (Sonnet ejecutor, Fable 5 auditor por issue).
+- Suite integrada: 820/820; lint, tsc y build limpios.
+- **Review Tier 3 (auth/PII):** cookie HMAC timing-safe fail-closed sin
+  fallback, 404 opacos indistinguibles, rate-limit antes de bcrypt con
+  igualación de timing (DUMMY_HASH), DTO del portal con keys exactas fijadas
+  por test (sin phone/email completo/tokens), password write-only nunca
+  redevuelto, RBAC manager server-side.
+- **Hallazgo corregido (ISSUE-017):** guardar nota re-estampaba la hora de
+  llegada — ahora COALESCE preserva el timestamp original (test fijado).
+- **Pendiente para producción:** aplicar 0011 en rama Neon desechable → prod
+  (runbook), configurar CHECKIN_SESSION_SECRET en Vercel.

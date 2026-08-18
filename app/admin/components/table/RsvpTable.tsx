@@ -22,6 +22,11 @@ interface RsvpTableProps {
   // free event's rows never carry paymentStatus at all (see
   // lib/queries.ts getRSVPsByEvent), so there is nothing to show here.
   showPayment: boolean
+  // ISSUE-018 (EPIC-005): only rendered when the event's check-in portal is
+  // enabled — unlike showPayment, the underlying checkedInAt/checkedInBy/
+  // checkinNote fields ARE always present on the row (see lib/rsvp-list.ts
+  // RsvpListItem's doc comment); this flag only gates the UI surface.
+  showCheckin: boolean
 }
 
 // ISSUE-013: badge color per rsvp_payments.status — Pagado (green), Pendiente
@@ -66,6 +71,7 @@ export function RsvpTable({
   onEdit,
   onToggleStatus,
   showPayment,
+  showCheckin,
 }: RsvpTableProps) {
   if (totalCount === 0) return null
 
@@ -100,6 +106,7 @@ export function RsvpTable({
             <th scope="col">Teléfono</th>
             <th scope="col">Fecha Registro</th>
             {showPayment && <th scope="col">Pago</th>}
+            {showCheckin && <th scope="col">Llegada</th>}
           </tr>
         </thead>
         <tbody>
@@ -199,6 +206,28 @@ export function RsvpTable({
                   ) : (
                     <span className={styles.paymentBadgeNone}>—</span>
                   )}
+                </td>
+              )}
+              {showCheckin && (
+                <td className={styles.checkinCell}>
+                  {rsvp.checkedInAt ? (
+                    <>
+                      <span className={styles.checkinBadge}>
+                        Llegó {new Date(rsvp.checkedInAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      {rsvp.checkedInBy && <span className={styles.checkinBy}>por {rsvp.checkedInBy}</span>}
+                    </>
+                  ) : (
+                    <span className={styles.checkinBadgeNone}>Sin llegar</span>
+                  )}
+                  {rsvp.plusOne && (
+                    <div className={styles.checkinPlusOne}>
+                      +1: {rsvp.plusOneCheckedInAt
+                        ? `Llegó ${new Date(rsvp.plusOneCheckedInAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`
+                        : 'Sin llegar'}
+                    </div>
+                  )}
+                  {rsvp.checkinNote && <p className={styles.checkinNote}>{rsvp.checkinNote}</p>}
                 </td>
               )}
             </tr>
