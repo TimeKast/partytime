@@ -27,6 +27,11 @@ import {
     RSVP_INVITATION_SEMANTICS_QUERY,
     rsvpInvitationSemanticStateFromRows,
 } from '@/lib/rsvp-invitation-migration-contract'
+import {
+    PAYMENTS_SEMANTIC_CHECK_NAMES,
+    PAYMENTS_SEMANTICS_QUERY,
+    paymentsSemanticStateFromRows,
+} from '@/lib/rsvp-payments-migration-contract'
 
 type QueryRow = Record<string, unknown>
 
@@ -106,6 +111,13 @@ async function main() {
     )
     for (const checkName of PENDING_STATES_SEMANTIC_CHECK_NAMES) {
         checks.push([`pending states semantic contract: ${checkName}`, pendingStatesSemantics[checkName]])
+    }
+
+    const paymentsSemantics = paymentsSemanticStateFromRows(
+        await query(PAYMENTS_SEMANTICS_QUERY),
+    )
+    for (const checkName of PAYMENTS_SEMANTIC_CHECK_NAMES) {
+        checks.push([`payments semantic contract: ${checkName}`, paymentsSemantics[checkName]])
     }
 
     const foundationColumns = await query(`

@@ -30,10 +30,16 @@ interface InvitationLinkManagerProps {
 // ISSUE-020: minimal event context needed to gate the two link flags. The
 // checkbox only appears when the underlying event behavior it overrides is
 // itself active — otherwise the flag would be a no-op and just add noise.
+// ISSUE-010: the courtesy checkbox gates on paymentRequired (whether Stripe
+// Checkout is actually required to confirm), not priceEnabled (which only
+// controls whether a price is *displayed* — an event can show a price
+// without requiring payment). priceEnabled/priceAmount/priceCurrency are
+// still read for the "$X MXN" copy shown once a link is marked non-courtesy.
 interface InvitationEventFlags {
   priceEnabled: boolean
   priceAmount: number
   priceCurrency: string
+  paymentRequired: boolean
   emailVerificationEnabled: boolean
 }
 
@@ -161,12 +167,14 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
         ) {
           const settings = data.settings as {
             price?: { enabled?: boolean; amount?: number; currency?: string }
+            paymentRequired?: boolean
             emailVerificationEnabled?: boolean
           }
           setEventFlags({
             priceEnabled: settings.price?.enabled ?? false,
             priceAmount: settings.price?.amount ?? 0,
             priceCurrency: settings.price?.currency ?? 'MXN',
+            paymentRequired: settings.paymentRequired ?? false,
             emailVerificationEnabled: settings.emailVerificationEnabled ?? false,
           })
         }
@@ -358,9 +366,9 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
           </div>
         </div>
 
-        {(eventFlags?.priceEnabled || eventFlags?.emailVerificationEnabled) && (
+        {(eventFlags?.paymentRequired || eventFlags?.emailVerificationEnabled) && (
           <div className={styles.invitationFlagsRow}>
-            {eventFlags?.priceEnabled && (
+            {eventFlags?.paymentRequired && (
               <div className={styles.invitationFlagField}>
                 <label className={styles.invitationFlagLabel}>
                   <input
@@ -472,7 +480,7 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
                     <span className={`${styles.invitationStatus} ${styles[`invitationStatus_${link.status}`]}`}>
                       {STATUS_LABELS[link.status]}
                     </span>
-                    {eventFlags?.priceEnabled && (
+                    {eventFlags?.paymentRequired && (
                       <span className={styles.invitationFlagBadge}>
                         {link.isCourtesy ? 'Cortesía' : 'Paga'}
                       </span>

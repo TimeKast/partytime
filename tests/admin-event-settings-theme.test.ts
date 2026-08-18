@@ -50,6 +50,7 @@ const storedEvent = {
     priceEnabled: false,
     priceAmount: 0,
     priceCurrency: 'MXN',
+    paymentRequired: false,
     capacityEnabled: false,
     capacityLimit: 0,
     backgroundImageUrl: 'https://images.example.com/party.jpg',
@@ -190,6 +191,73 @@ describe('admin event settings theme round-trip', () => {
             storedEvent.id,
             expect.not.objectContaining({ emailVerificationEnabled: expect.anything() }),
         )
+    })
+
+    it('persists paymentRequired through the settings update route and round-trips via GET (ISSUE-010)', async () => {
+        const response = await updateSettings({
+            ...fullUpdate(storedTheme),
+            price: { enabled: true, amount: 250, currency: 'MXN' },
+            paymentRequired: true,
+        })
+
+        expect(response.status).toBe(200)
+        expect(mocks.updateEvent).toHaveBeenCalledWith(storedEvent.id, expect.objectContaining({
+            paymentRequired: true,
+        }))
+
+        mocks.getEventBySlug.mockResolvedValue({
+            ...storedEvent,
+            priceEnabled: true,
+            priceAmount: 250,
+            paymentRequired: true,
+        })
+        const settingsResponse = await getSettings()
+        const payload = await settingsResponse.json()
+        expect(payload.settings.paymentRequired).toBe(true)
+        expect(payload.settings).toHaveProperty('stripeConfigured')
+    })
+
+    it('leaves paymentRequired untouched when the field is omitted from a settings update', async () => {
+        await updateSettings(fullUpdate(storedTheme))
+
+        expect(mocks.updateEvent).toHaveBeenCalledWith(
+            storedEvent.id,
+            expect.not.objectContaining({ paymentRequired: expect.anything() }),
+        )
+    })
+
+    it('rejects payment_required=true without a valid price (400, does not persist) — ISSUE-010', async () => {
+        const response = await updateSettings({
+            ...fullUpdate(storedTheme),
+            price: { enabled: false, amount: 0, currency: 'MXN' },
+            paymentRequired: true,
+        })
+        const payload = await response.json()
+
+        expect(response.status).toBe(400)
+        expect(payload).toMatchObject({ success: false })
+        expect(mocks.updateEvent).not.toHaveBeenCalled()
+    })
+
+    it('rejects disabling price_enabled while payment_required stays true in the stored event — ISSUE-010', async () => {
+        mocks.getEventBySlug.mockResolvedValue({
+            ...storedEvent,
+            priceEnabled: true,
+            priceAmount: 250,
+            paymentRequired: true,
+        })
+
+        const response = await updateSettings({
+            ...fullUpdate(storedTheme),
+            price: { enabled: false, amount: 0, currency: 'MXN' },
+            // paymentRequired intentionally omitted — the stored value (true)
+            // must still be cross-validated against the new price state.
+        })
+        const payload = await response.json()
+
+        expect(response.status).toBe(400)
+        expect(payload).toMatchObject({ success: false })
+        expect(mocks.updateEvent).not.toHaveBeenCalled()
     })
 
     it.each(['#abc', '#12345', '#1234567', '120b18', '#12zz18', '']) (

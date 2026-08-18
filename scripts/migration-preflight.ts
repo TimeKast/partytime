@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { neon } from '@neondatabase/serverless'
 import {
+    REQUIRED_PAYMENTS_OBJECTS,
     REQUIRED_PENDING_STATES_OBJECTS,
     classifyMigrationPreflight,
     type MigrationObjectState,
@@ -24,6 +25,10 @@ import {
     RSVP_INVITATION_SEMANTICS_QUERY,
     rsvpInvitationSemanticStateFromRows,
 } from '@/lib/rsvp-invitation-migration-contract'
+import {
+    PAYMENTS_SEMANTICS_QUERY,
+    paymentsSemanticStateFromRows,
+} from '@/lib/rsvp-payments-migration-contract'
 
 interface JournalEntry {
     idx: number
@@ -141,14 +146,14 @@ async function main() {
         SELECT table_name
         FROM information_schema.tables
         WHERE table_schema = 'public'
-          AND table_name IN ('app_settings', 'events', 'password_reset_tokens', 'rsvp_invitation_links', 'rsvps', 'user_event_assignments', 'user_sessions', 'users')`
+          AND table_name IN ('app_settings', 'events', 'password_reset_tokens', 'rsvp_invitation_links', 'rsvp_payments', 'rsvps', 'user_event_assignments', 'user_sessions', 'users')`
     ).map(row => String(row.table_name))
     const columns = (await sql`
         SELECT table_name || '.' || column_name AS name
         FROM information_schema.columns
         WHERE table_schema = 'public'
           AND table_name IN (
-              'app_settings', 'events', 'password_reset_tokens', 'rsvp_invitation_links', 'rsvps', 'user_event_assignments', 'user_sessions', 'users'
+              'app_settings', 'events', 'password_reset_tokens', 'rsvp_invitation_links', 'rsvp_payments', 'rsvps', 'user_event_assignments', 'user_sessions', 'users'
           )`
     ).map(row => String(row.name))
     const constraints = (await sql`
@@ -299,6 +304,33 @@ async function main() {
     const pendingStatesSemantics = pendingStatesSemanticStateFromRows(
         await sql.query(PENDING_STATES_SEMANTICS_QUERY),
     )
+    const paymentsTables = tables.filter(table => table === 'rsvp_payments')
+    const paymentsColumnSet = new Set<string>(REQUIRED_PAYMENTS_OBJECTS.columns)
+    const paymentsColumns = columns.filter(column => paymentsColumnSet.has(column))
+    const paymentsConstraints = (await sql`
+        SELECT conname
+        FROM pg_constraint
+        WHERE connamespace = to_regnamespace('public')
+          AND conname IN (
+              'rsvp_payments_pkey',
+              'rsvp_payments_rsvp_id_rsvps_id_fk',
+              'rsvp_payments_event_id_events_slug_fk',
+              'rsvp_payments_stripe_session_id_unique',
+              'rsvp_payments_amount_cents_check'
+          )`
+    ).map(row => String(row.conname))
+    const paymentsIndexes = (await sql`
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND indexname IN (
+              'rsvp_payments_rsvp_id_idx',
+              'rsvp_payments_event_id_status_idx'
+          )`
+    ).map(row => String(row.indexname))
+    const paymentsSemantics = paymentsSemanticStateFromRows(
+        await sql.query(PAYMENTS_SEMANTICS_QUERY),
+    )
 
     const objects: MigrationObjectState = {
         tables,
@@ -326,6 +358,11 @@ async function main() {
         rsvpInvitationSemantics,
         pendingStatesColumns,
         pendingStatesSemantics,
+        paymentsTables,
+        paymentsColumns,
+        paymentsConstraints,
+        paymentsIndexes,
+        paymentsSemantics,
     }
     const expected = expectedRegistry()
     const result = classifyMigrationPreflight({
@@ -336,7 +373,8 @@ async function main() {
         expectedImagePositionRegistry: expected.slice(0, 7),
         expectedPasswordLifecycleRegistry: expected.slice(0, 8),
         expectedRsvpInvitationRegistry: expected.slice(0, 9),
-        expectedCurrentRegistry: expected.slice(0, 10),
+        expectedPendingStatesRegistry: expected.slice(0, 10),
+        expectedCurrentRegistry: expected.slice(0, 11),
         objects,
     })
 
@@ -356,6 +394,7 @@ async function main() {
         && !result.canApply0007
         && !result.canApply0008
         && !result.canApply0009
+        && !result.canApply0010
         && result.classification !== 'registered-current-schema'
     ) {
         process.exitCode = 1

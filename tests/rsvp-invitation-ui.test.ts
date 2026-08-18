@@ -82,11 +82,14 @@ describe('admin one-time invitation link UI contract', () => {
     expect(adminCss).toMatch(/@media \(max-width: 640px\)[\s\S]*?\.invitationLinkActions\s*\{[\s\S]*?align-items:\s*flex-end;/)
   })
 
-  it('ISSUE-020: gates the courtesy/verification checkboxes on the event actually having that behavior, defaults both to true and posts them', () => {
+  it('ISSUE-020/ISSUE-010: gates the courtesy/verification checkboxes on the event actually having that behavior, defaults both to true and posts them', () => {
     expect(manager).toContain('const [isCourtesy, setIsCourtesy] = useState(true)')
     expect(manager).toContain('const [skipVerification, setSkipVerification] = useState(true)')
     expect(manager).toContain('/api/event-settings?eventId=')
-    expect(manager).toContain('eventFlags?.priceEnabled')
+    // ISSUE-010: gates on paymentRequired (Stripe actually required), not
+    // priceEnabled (which only controls whether a price is displayed).
+    expect(manager).toContain('eventFlags?.paymentRequired')
+    expect(manager).not.toContain('eventFlags?.priceEnabled')
     expect(manager).toContain('eventFlags?.emailVerificationEnabled')
     expect(manager).toContain('Cortesía — no paga')
     expect(manager).toContain('Saltar verificación de email')

@@ -10,6 +10,10 @@ import {
     invalidRsvpInvitationSemantics,
     type RsvpInvitationSemanticState,
 } from '@/lib/rsvp-invitation-migration-contract'
+import {
+    invalidPaymentsSemantics,
+    type PaymentsSemanticState,
+} from '@/lib/rsvp-payments-migration-contract'
 
 export interface MigrationRegistryRow {
     hash: string
@@ -42,6 +46,11 @@ export interface MigrationObjectState {
     rsvpInvitationSemantics: RsvpInvitationSemanticState
     pendingStatesColumns: string[]
     pendingStatesSemantics: PendingStatesSemanticState
+    paymentsTables: string[]
+    paymentsColumns: string[]
+    paymentsConstraints: string[]
+    paymentsIndexes: string[]
+    paymentsSemantics: PaymentsSemanticState
 }
 
 export interface MigrationPreflightInput {
@@ -52,6 +61,10 @@ export interface MigrationPreflightInput {
     expectedImagePositionRegistry: MigrationRegistryRow[]
     expectedPasswordLifecycleRegistry?: MigrationRegistryRow[]
     expectedRsvpInvitationRegistry?: MigrationRegistryRow[]
+    // ISSUE-010: registry snapshot through 0009 (pending states applied,
+    // payments not yet applied) — gates canApply0010, same role
+    // expectedRsvpInvitationRegistry plays for canApply0009.
+    expectedPendingStatesRegistry?: MigrationRegistryRow[]
     expectedCurrentRegistry: MigrationRegistryRow[]
     objects: MigrationObjectState
 }
@@ -63,6 +76,11 @@ export type MigrationPreflightClassification =
     | 'unregistered-image-position-schema'
     | 'unregistered-password-lifecycle-schema'
     | 'unregistered-rsvp-invitation-schema'
+    // ISSUE-010: was 'unregistered-current-schema' before migration 0010
+    // existed (pendingStatesComplete, nothing beyond) — renamed the same way
+    // 'unregistered-rsvp-invitation-schema' was carved out of the old
+    // 'unregistered-current-schema' when 0009 shipped.
+    | 'unregistered-pending-states-schema'
     | 'unregistered-current-schema'
     | 'unregistered-inconsistent-schema'
     | 'registered-foundation-ready'
@@ -70,6 +88,10 @@ export type MigrationPreflightClassification =
     | 'registered-image-position-ready'
     | 'registered-password-lifecycle-ready'
     | 'registered-rsvp-invitation-ready'
+    // ISSUE-010: was 'registered-current-schema' before migration 0010
+    // existed (pendingStatesComplete, registry through 0009, nothing beyond)
+    // — same rename as above, now the "ready to apply 0010" gate.
+    | 'registered-pending-states-ready'
     | 'registered-current-schema'
     | 'registered-inconsistent-schema'
 
@@ -211,6 +233,39 @@ export const REQUIRED_PENDING_STATES_OBJECTS = {
     ],
 } as const
 
+// ISSUE-010 (EPIC-004/migration 0010): a new full table (rsvp_payments), same
+// depth of verification as REQUIRED_RSVP_INVITATION_OBJECTS (0008) — plus the
+// one flat column addition on events, same shape as REQUIRED_PENDING_STATES_OBJECTS
+// (0009). See lib/rsvp-payments-migration-contract.ts for the semantic body.
+export const REQUIRED_PAYMENTS_OBJECTS = {
+    tables: ['rsvp_payments'],
+    columns: [
+        'events.payment_required',
+        'rsvp_payments.id',
+        'rsvp_payments.rsvp_id',
+        'rsvp_payments.event_id',
+        'rsvp_payments.stripe_session_id',
+        'rsvp_payments.stripe_payment_intent_id',
+        'rsvp_payments.amount_cents',
+        'rsvp_payments.currency',
+        'rsvp_payments.status',
+        'rsvp_payments.created_at',
+        'rsvp_payments.paid_at',
+        'rsvp_payments.refunded_at',
+    ],
+    constraints: [
+        'rsvp_payments_pkey',
+        'rsvp_payments_rsvp_id_rsvps_id_fk',
+        'rsvp_payments_event_id_events_slug_fk',
+        'rsvp_payments_stripe_session_id_unique',
+        'rsvp_payments_amount_cents_check',
+    ],
+    indexes: [
+        'rsvp_payments_rsvp_id_idx',
+        'rsvp_payments_event_id_status_idx',
+    ],
+} as const
+
 export interface MigrationPreflightResult {
     classification: MigrationPreflightClassification
     canBaseline0000Through0004: boolean
@@ -219,16 +274,19 @@ export interface MigrationPreflightResult {
     canApply0007: boolean
     canApply0008: boolean
     canApply0009: boolean
+    canApply0010: boolean
     missingHistoricalObjects: string[]
     missingPresentationObjects: string[]
     missingImagePositionObjects: string[]
     missingPasswordLifecycleObjects: string[]
     missingRsvpInvitationObjects: string[]
     missingPendingStatesObjects: string[]
+    missingPaymentsObjects: string[]
     invalidHistoricalSemantics: string[]
     invalidPasswordLifecycleSemantics: string[]
     invalidRsvpInvitationSemantics: string[]
     invalidPendingStatesSemantics: string[]
+    invalidPaymentsSemantics: string[]
     reasons: string[]
 }
 
@@ -317,6 +375,21 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         : invalidPendingStatesSemantics(input.objects.pendingStatesSemantics)
     const pendingStatesComplete = missingPendingStatesObjects.length === 0
         && invalidPendingStatesObjects.length === 0
+    const missingPaymentsObjects = [
+        ...missing(REQUIRED_PAYMENTS_OBJECTS.tables, input.objects.paymentsTables),
+        ...missing(REQUIRED_PAYMENTS_OBJECTS.columns, input.objects.paymentsColumns),
+        ...missing(REQUIRED_PAYMENTS_OBJECTS.constraints, input.objects.paymentsConstraints),
+        ...missing(REQUIRED_PAYMENTS_OBJECTS.indexes, input.objects.paymentsIndexes),
+    ]
+    const paymentsAbsent = input.objects.paymentsTables.length === 0
+        && input.objects.paymentsColumns.length === 0
+        && input.objects.paymentsConstraints.length === 0
+        && input.objects.paymentsIndexes.length === 0
+    const invalidPaymentsObjects = paymentsAbsent
+        ? []
+        : invalidPaymentsSemantics(input.objects.paymentsSemantics)
+    const paymentsComplete = missingPaymentsObjects.length === 0
+        && invalidPaymentsObjects.length === 0
     const noRegistry = input.drizzleRegistry === null && input.publicRegistry === null
     const onlyDrizzleRegistry = input.drizzleRegistry !== null && input.publicRegistry === null
     const schemaIsEmpty = input.objects.tables.length === 0
@@ -334,7 +407,9 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         classification = 'unregistered-password-lifecycle-schema'
     } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleComplete && rsvpInvitationComplete && pendingStatesAbsent) {
         classification = 'unregistered-rsvp-invitation-schema'
-    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleComplete && rsvpInvitationComplete && pendingStatesComplete) {
+    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleComplete && rsvpInvitationComplete && pendingStatesComplete && paymentsAbsent) {
+        classification = 'unregistered-pending-states-schema'
+    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleComplete && rsvpInvitationComplete && pendingStatesComplete && paymentsComplete) {
         classification = 'unregistered-current-schema'
     } else if (noRegistry) {
         classification = 'unregistered-inconsistent-schema'
@@ -406,6 +481,25 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         && passwordLifecycleComplete
         && rsvpInvitationComplete
         && pendingStatesComplete
+        && paymentsAbsent
+        // Same fallback shape as registered-rsvp-invitation-ready above:
+        // scripts/migration-preflight.ts (the real caller) always passes
+        // expectedPendingStatesRegistry explicitly now that 0010 exists.
+        && registryMatches(
+            input.drizzleRegistry!,
+            input.expectedPendingStatesRegistry ?? input.expectedCurrentRegistry,
+        )
+    ) {
+        classification = 'registered-pending-states-ready'
+    } else if (
+        onlyDrizzleRegistry
+        && historicalComplete
+        && presentationComplete
+        && imagePositionComplete
+        && passwordLifecycleComplete
+        && rsvpInvitationComplete
+        && pendingStatesComplete
+        && paymentsComplete
         && registryMatches(input.drizzleRegistry!, input.expectedCurrentRegistry)
     ) {
         classification = 'registered-current-schema'
@@ -448,6 +542,14 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
             reasons.push(`invalid pending states semantics: ${invalidPendingStatesObjects.join(', ')}`)
         }
     }
+    if (!paymentsAbsent && !paymentsComplete) {
+        if (missingPaymentsObjects.length > 0) {
+            reasons.push(`missing payments objects: ${missingPaymentsObjects.join(', ')}`)
+        }
+        if (invalidPaymentsObjects.length > 0) {
+            reasons.push(`invalid payments semantics: ${invalidPaymentsObjects.join(', ')}`)
+        }
+    }
     if (input.publicRegistry !== null) reasons.push('unexpected public.__drizzle_migrations registry')
     if (classification.startsWith('unregistered-')) reasons.push('migration registry is absent')
 
@@ -459,16 +561,19 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         canApply0007: classification === 'registered-image-position-ready',
         canApply0008: classification === 'registered-password-lifecycle-ready',
         canApply0009: classification === 'registered-rsvp-invitation-ready',
+        canApply0010: classification === 'registered-pending-states-ready',
         missingHistoricalObjects,
         missingPresentationObjects,
         missingImagePositionObjects,
         missingPasswordLifecycleObjects,
         missingRsvpInvitationObjects,
         missingPendingStatesObjects,
+        missingPaymentsObjects,
         invalidHistoricalSemantics: invalidSemanticObjects,
         invalidPasswordLifecycleSemantics: invalidPasswordLifecycleObjects,
         invalidRsvpInvitationSemantics: invalidRsvpInvitationObjects,
         invalidPendingStatesSemantics: invalidPendingStatesObjects,
+        invalidPaymentsSemantics: invalidPaymentsObjects,
         reasons,
     }
 }

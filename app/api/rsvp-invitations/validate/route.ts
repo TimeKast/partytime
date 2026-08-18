@@ -52,12 +52,13 @@ export async function POST(request: NextRequest) {
         if (!result) {
             return NextResponse.json(UNAVAILABLE, { status: 404, headers: NO_STORE_HEADERS })
         }
-        const { event, skipVerification } = result
+        const { event, skipVerification, isCourtesy } = result
 
-        // TODO(ISSUE-010): events.payment_required doesn't exist yet. Once it
-        // lands, this becomes `event.paymentRequired && !result.isCourtesy`.
-        // The pay supersedes verification, same as the public flow (PLAN §2.1).
-        const requiresPayment = false
+        // ISSUE-010: the pay supersedes verification, same as the public flow
+        // (PLAN §2.1) — a courtesy link never charges even on a paid event.
+        // Strict `=== true` guards against a nullish paymentRequired (older
+        // fixtures/rows that predate the column) resolving to a non-boolean.
+        const requiresPayment = event.paymentRequired === true && !isCourtesy
         const requiresVerification = event.emailVerificationEnabled && !skipVerification && !requiresPayment
 
         return NextResponse.json(

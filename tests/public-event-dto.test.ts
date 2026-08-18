@@ -15,6 +15,7 @@ const databaseEvent: DatabaseEvent = {
     priceEnabled: true,
     priceAmount: 500,
     priceCurrency: 'MXN',
+    paymentRequired: false,
     capacityEnabled: true,
     capacityLimit: 100,
     backgroundImageUrl: '/fiesta.jpg',

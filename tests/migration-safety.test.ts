@@ -28,6 +28,10 @@ import {
     RSVP_INVITATION_SEMANTICS_QUERY,
     type RsvpInvitationSemanticState,
 } from '@/lib/rsvp-invitation-migration-contract'
+import {
+    PAYMENTS_SEMANTIC_CHECK_NAMES,
+    type PaymentsSemanticState,
+} from '@/lib/rsvp-payments-migration-contract'
 
 function capacityFunctionBodyFromMigration(): string {
     const migration = readFileSync('drizzle/0002_enforce_event_capacity.sql', 'utf8')
@@ -63,6 +67,12 @@ const absentRsvpInvitationSemantics = Object.fromEntries(
 const absentPendingStatesSemantics = Object.fromEntries(
     PENDING_STATES_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
 ) as PendingStatesSemanticState
+// ISSUE-010: 0010 has not been applied to any real database yet either, so
+// every fixture in this file also represents payments as absent — see
+// tests/pending-states.test.ts for the 0010-applied classification coverage.
+const absentPaymentsSemantics = Object.fromEntries(
+    PAYMENTS_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+) as PaymentsSemanticState
 
 const observedHistoricalObjects: MigrationObjectState = {
     tables: [...REQUIRED_HISTORICAL_OBJECTS.tables],
@@ -90,6 +100,11 @@ const observedHistoricalObjects: MigrationObjectState = {
     rsvpInvitationSemantics: absentRsvpInvitationSemantics,
     pendingStatesColumns: [],
     pendingStatesSemantics: absentPendingStatesSemantics,
+    paymentsTables: [],
+    paymentsColumns: [],
+    paymentsConstraints: [],
+    paymentsIndexes: [],
+    paymentsSemantics: absentPaymentsSemantics,
 }
 
 const foundationRegistry = Array.from({ length: 5 }, (_, index) => ({

@@ -33,6 +33,7 @@
     "react-international-phone": "^4.6.0",
     "resend": "^6.4.1",
     "sharp": "^0.34.5",
+    "stripe": "^22.5.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

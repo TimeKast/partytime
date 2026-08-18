@@ -71,6 +71,13 @@
       "when": 1787146372759,
       "tag": "0009_pending_states",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787232772759,
+      "tag": "0010_rsvp_payments",
+      "breakpoints": true
     }
   ]
 }

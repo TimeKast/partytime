@@ -20,6 +20,7 @@ const existingEvent: DatabaseEvent = {
     priceEnabled: false,
     priceAmount: 0,
     priceCurrency: 'MXN',
+    paymentRequired: false,
     capacityEnabled: false,
     capacityLimit: 0,
     backgroundImageUrl: '/background.png',
@@ -204,6 +205,66 @@ describe('event API request contracts', () => {
             success: false,
             error: 'emailVerificationEnabled debe ser booleano',
         })
+    })
+
+    it('registers paymentRequired as a writable, patch-semantics boolean field, cross-validated against price (ISSUE-010)', () => {
+        expect(parseEventUpdateRequest(
+            { paymentRequired: true },
+            existingEvent.slug,
+            { ...existingEvent, priceEnabled: true, priceAmount: 250, priceCurrency: 'MXN' },
+        )).toEqual({
+            success: true,
+            value: {
+                newSlug: undefined,
+                updates: { paymentRequired: true },
+            },
+        })
+
+        // Omitted entirely: leaves the stored value untouched (patch semantics).
+        const omitted = parseEventUpdateRequest({ rsvpTitle: 'Nuevo RSVP' }, existingEvent.slug, existingEvent)
+        expect(omitted.success && omitted.value.updates).not.toHaveProperty('paymentRequired')
+
+        // Wrong type rejects the whole PUT instead of silently coercing.
+        expect(parseEventUpdateRequest(
+            { paymentRequired: 'yes' },
+            existingEvent.slug,
+            existingEvent,
+        )).toEqual({
+            success: false,
+            error: 'paymentRequired debe ser booleano',
+        })
+    })
+
+    it('rejects payment_required=true when the stored/effective price is not eligible (ISSUE-010)', () => {
+        // No price configured at all on the existing event (defaults).
+        expect(parseEventUpdateRequest(
+            { paymentRequired: true },
+            existingEvent.slug,
+            existingEvent,
+        )).toMatchObject({ success: false })
+
+        // Explicitly turning price OFF in the same payload as payment_required=true.
+        expect(parseEventUpdateRequest(
+            { paymentRequired: true, price: { enabled: false } },
+            existingEvent.slug,
+            { ...existingEvent, priceEnabled: true, priceAmount: 250, priceCurrency: 'MXN' },
+        )).toMatchObject({ success: false })
+
+        // Disabling price_enabled while payment_required stays true in the
+        // STORED event (paymentRequired omitted from this request) — the
+        // exact acceptance criterion scenario from the issue.
+        expect(parseEventUpdateRequest(
+            { price: { enabled: false } },
+            existingEvent.slug,
+            { ...existingEvent, priceEnabled: true, priceAmount: 250, priceCurrency: 'MXN', paymentRequired: true },
+        )).toMatchObject({ success: false })
+
+        // A non-whitelisted currency also disqualifies it.
+        expect(parseEventUpdateRequest(
+            { paymentRequired: true, price: { enabled: true, amount: 250, currency: 'EUR' } },
+            existingEvent.slug,
+            existingEvent,
+        )).toMatchObject({ success: false })
     })
 
     it.each([

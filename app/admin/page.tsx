@@ -69,6 +69,10 @@ export default function AdminDashboard() {
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEventId, setSelectedEventId] = useState<string>('') // Will be set from homeEventId
   const [homeEventId, setHomeEventId] = useState<string>('')
+  // ISSUE-010: whether STRIPE_SECRET_KEY is set server-side (never the key
+  // itself — see GET /api/event-settings). Drives the "Stripe no configurado"
+  // notice next to the payment toggle.
+  const [stripeConfigured, setStripeConfigured] = useState(true)
 
 
   // Estado para configuración del evento
@@ -82,6 +86,11 @@ export default function AdminDashboard() {
     details: eventConfig.event.details,
     priceEnabled: true,
     priceAmount: 250,
+    // ISSUE-010: gates whether Stripe Checkout is required to confirm this
+    // event's RSVP. Only ever writable while priceEnabled && priceAmount>0
+    // (enforced server-side too — lib/payment-config.ts) — the toggle below
+    // disables itself otherwise.
+    paymentRequired: false,
     capacityEnabled: true,
     capacityLimit: 100,
     backgroundImage: eventConfig.event.backgroundImage,
@@ -375,6 +384,7 @@ export default function AdminDashboard() {
             ...presentation,
             priceEnabled: data.settings.price?.enabled || false,
             priceAmount: data.settings.price?.amount || 0,
+            paymentRequired: data.settings.paymentRequired || false,
             capacityEnabled: data.settings.capacity?.enabled || false,
             capacityLimit: data.settings.capacity?.limit || 0,
             backgroundImage: data.settings.backgroundImage?.url || '/background.png',
@@ -403,6 +413,7 @@ export default function AdminDashboard() {
             rsvpClosed: data.settings.rsvpClosed || false,
             rsvpClosedMessage: data.settings.rsvpClosedMessage || '¡Nos vemos en el próximo evento!'
           })
+          setStripeConfigured(data.settings.stripeConfigured !== false)
         }
       }
     } catch (error) {
@@ -930,6 +941,11 @@ export default function AdminDashboard() {
           amount: configForm.priceAmount,
           currency: 'MXN'
         },
+        // ISSUE-010: cross-validated server-side against price.enabled/amount
+        // (lib/payment-config.ts) — a 400 here means the toggle below was
+        // somehow enabled without a valid price (should be prevented by the
+        // `disabled` attribute already, this is defense in depth).
+        paymentRequired: configForm.paymentRequired,
         capacity: {
           enabled: configForm.capacityEnabled,
           limit: configForm.capacityLimit
@@ -1628,7 +1644,15 @@ export default function AdminDashboard() {
                   id="priceEnabled"
                   className={styles.configCheckbox}
                   checked={configForm.priceEnabled}
-                  onChange={(e) => setConfigForm({ ...configForm, priceEnabled: e.target.checked })}
+                  onChange={(e) => setConfigForm({
+                    ...configForm,
+                    priceEnabled: e.target.checked,
+                    // ISSUE-010: turning off the price makes payment_required
+                    // invalid server-side too (lib/payment-config.ts) — clear
+                    // it client-side so the toggle below never renders
+                    // checked-but-disabled.
+                    paymentRequired: e.target.checked ? configForm.paymentRequired : false,
+                  })}
                 />
                 <label htmlFor="priceEnabled" className={styles.configToggleLabel}>
                   Mostrar cuota de recuperación
@@ -1642,11 +1666,42 @@ export default function AdminDashboard() {
                     type="number"
                     className={styles.configInput}
                     value={configForm.priceAmount}
-                    onChange={(e) => setConfigForm({ ...configForm, priceAmount: parseInt(e.target.value) || 0 })}
+                    onChange={(e) => setConfigForm({
+                      ...configForm,
+                      priceAmount: parseInt(e.target.value) || 0,
+                      // Same auto-clear as disabling the price outright: a
+                      // $0 amount makes payment_required invalid too.
+                      paymentRequired: (parseInt(e.target.value) || 0) > 0 ? configForm.paymentRequired : false,
+                    })}
                     min="0"
                     required={configForm.priceEnabled}
                   />
                 </div>
+              )}
+
+              {/* Requiere pago para confirmar (ISSUE-010) */}
+              <div className={styles.configToggleGroup} style={{ marginTop: '16px' }}>
+                <input
+                  type="checkbox"
+                  id="paymentRequired"
+                  className={styles.configCheckbox}
+                  checked={configForm.paymentRequired}
+                  disabled={!configForm.priceEnabled || !configForm.priceAmount}
+                  onChange={(e) => setConfigForm({ ...configForm, paymentRequired: e.target.checked })}
+                />
+                <label htmlFor="paymentRequired" className={styles.configToggleLabel}>
+                  💳 Requiere pago para confirmar
+                </label>
+              </div>
+              <p style={{ margin: '10px 0 0 28px', fontSize: '13px', color: '#64748b' }}>
+                {configForm.priceEnabled && configForm.priceAmount > 0
+                  ? `Se cobrará exactamente el precio mostrado ($${configForm.priceAmount} MXN) vía Stripe. Los links privados de invitación no pagan.`
+                  : 'Habilita y define una cuota de recuperación mayor a $0 para poder requerir pago.'}
+              </p>
+              {configForm.paymentRequired && !stripeConfigured && (
+                <p style={{ margin: '10px 0 0 28px', fontSize: '13px', color: '#b91c1c', fontWeight: 600 }}>
+                  ⚠️ Stripe no está configurado en este entorno (falta STRIPE_SECRET_KEY). Los cobros fallarán hasta configurarlo.
+                </p>
               )}
             </div>
 

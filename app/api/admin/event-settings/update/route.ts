@@ -5,6 +5,7 @@ import { validateSession } from '@/lib/auth-utils'
 import { userHasEventAccess } from '@/lib/user-queries'
 import type { Event as DatabaseEvent } from '@/lib/schema'
 import { parseFullUpdatePrice } from '@/lib/event-api-contract'
+import { checkPaymentRequiredEligibility } from '@/lib/payment-config'
 import {
   normalizeBackgroundImageUrl,
   normalizeOptionalString,
@@ -195,6 +196,32 @@ export async function POST(request: NextRequest) {
         // provided" contract as rsvpClosed above.
         if (body.emailVerificationEnabled !== undefined) {
           updates.emailVerificationEnabled = body.emailVerificationEnabled === true
+        }
+        // ISSUE-010: same "only change when explicitly provided" contract.
+        if (body.paymentRequired !== undefined) {
+          updates.paymentRequired = body.paymentRequired === true
+        }
+      }
+
+      // ISSUE-010: payment_required is only ever valid alongside price_enabled
+      // + price_amount>0 + a whitelisted price_currency (PLAN §3.3), enforced
+      // here too (not just lib/event-api-contract.ts, ISSUE-008's precedent
+      // for emailVerificationEnabled) since this route has its own separate
+      // parsing path. Validated against the EFFECTIVE post-update state
+      // (updates.* if this request touched it, else the stored event.*) so
+      // disabling price_enabled while payment_required stays true — in the
+      // DB or in the same payload — 400s with a clear message either way.
+      {
+        const effectivePaymentRequired = updates.paymentRequired ?? event.paymentRequired ?? false
+        if (effectivePaymentRequired) {
+          const eligibility = checkPaymentRequiredEligibility({
+            priceEnabled: updates.priceEnabled ?? event.priceEnabled ?? false,
+            priceAmount: updates.priceAmount ?? event.priceAmount ?? 0,
+            priceCurrency: updates.priceCurrency ?? event.priceCurrency ?? 'MXN',
+          })
+          if (!eligibility.eligible) {
+            return NextResponse.json({ success: false, message: eligibility.reason }, { status: 400 })
+          }
         }
       }
 

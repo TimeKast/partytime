@@ -16,9 +16,14 @@ import {
     type RsvpInvitationSemanticState,
 } from '@/lib/rsvp-invitation-migration-contract'
 import {
+    PAYMENTS_SEMANTIC_CHECK_NAMES,
+    type PaymentsSemanticState,
+} from '@/lib/rsvp-payments-migration-contract'
+import {
     REQUIRED_HISTORICAL_OBJECTS,
     REQUIRED_IMAGE_POSITION_OBJECTS,
     REQUIRED_PASSWORD_LIFECYCLE_OBJECTS,
+    REQUIRED_PAYMENTS_OBJECTS,
     REQUIRED_PENDING_STATES_OBJECTS,
     REQUIRED_PRESENTATION_OBJECTS,
     REQUIRED_RSVP_INVITATION_OBJECTS,
@@ -186,6 +191,12 @@ describe('migration-preflight — 0009 pending states classification', () => {
     const validPendingStatesSemantics = Object.fromEntries(
         PENDING_STATES_SEMANTIC_CHECK_NAMES.map(name => [name, true]),
     ) as PendingStatesSemanticState
+    const absentPaymentsSemantics = Object.fromEntries(
+        PAYMENTS_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+    ) as PaymentsSemanticState
+    const validPaymentsSemantics = Object.fromEntries(
+        PAYMENTS_SEMANTIC_CHECK_NAMES.map(name => [name, true]),
+    ) as PaymentsSemanticState
 
     // A DB that has run through exactly 0008 (rsvp invitation complete,
     // migration 0009's columns absent).
@@ -217,6 +228,11 @@ describe('migration-preflight — 0009 pending states classification', () => {
         pendingStatesSemantics: Object.fromEntries(
             PENDING_STATES_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
         ) as PendingStatesSemanticState,
+        paymentsTables: [],
+        paymentsColumns: [],
+        paymentsConstraints: [],
+        paymentsIndexes: [],
+        paymentsSemantics: absentPaymentsSemantics,
     }
 
     const registryUpTo0008 = Array.from({ length: 9 }, (_, index) => ({
@@ -224,6 +240,7 @@ describe('migration-preflight — 0009 pending states classification', () => {
         createdAt: index,
     }))
     const registryUpTo0009 = [...registryUpTo0008, { hash: 'hash-9', createdAt: 9 }]
+    const registryUpTo0010 = [...registryUpTo0009, { hash: 'hash-10', createdAt: 10 }]
 
     it('classifies an exact 0008 database as ready to apply 0009 (canApply0009)', () => {
         const result = classifyMigrationPreflight({
@@ -245,7 +262,15 @@ describe('migration-preflight — 0009 pending states classification', () => {
         })
     })
 
-    it('classifies the 0009 objects (applied on a disposable Neon branch) as the current schema — acceptance criterion for pnpm db:preflight', () => {
+    // ISSUE-010: this exact object state (0009-complete, 0010's rsvp_payments/
+    // payment_required objects still absent) used to be the terminal
+    // 'registered-current-schema' before migration 0010 existed. Now that
+    // 0010 exists, this state is one step behind "current" — it's the new
+    // intermediate registered-pending-states-ready gate, mirroring how
+    // registered-rsvp-invitation-ready was introduced when 0009 shipped. See
+    // tests/rsvp-payments-migration.test.ts for the classification of a
+    // database that has actually run 0010.
+    it('classifies the 0009 objects (applied on a disposable Neon branch) as ready to apply 0010 (canApply0010)', () => {
         const result = classifyMigrationPreflight({
             drizzleRegistry: registryUpTo0009,
             publicRegistry: null,
@@ -253,7 +278,8 @@ describe('migration-preflight — 0009 pending states classification', () => {
             expectedPresentationRegistry: [],
             expectedImagePositionRegistry: [],
             expectedRsvpInvitationRegistry: registryUpTo0008,
-            expectedCurrentRegistry: registryUpTo0009,
+            expectedPendingStatesRegistry: registryUpTo0009,
+            expectedCurrentRegistry: registryUpTo0010,
             objects: {
                 ...objectsAt0008,
                 pendingStatesColumns: [...REQUIRED_PENDING_STATES_OBJECTS.columns],
@@ -262,10 +288,17 @@ describe('migration-preflight — 0009 pending states classification', () => {
         })
 
         expect(result).toMatchObject({
-            classification: 'registered-current-schema',
+            classification: 'registered-pending-states-ready',
             canApply0009: false,
+            canApply0010: true,
             missingPendingStatesObjects: [],
             invalidPendingStatesSemantics: [],
+            missingPaymentsObjects: [
+                ...REQUIRED_PAYMENTS_OBJECTS.tables,
+                ...REQUIRED_PAYMENTS_OBJECTS.columns,
+                ...REQUIRED_PAYMENTS_OBJECTS.constraints,
+                ...REQUIRED_PAYMENTS_OBJECTS.indexes,
+            ],
         })
     })
 
@@ -277,7 +310,8 @@ describe('migration-preflight — 0009 pending states classification', () => {
             expectedPresentationRegistry: [],
             expectedImagePositionRegistry: [],
             expectedRsvpInvitationRegistry: registryUpTo0008,
-            expectedCurrentRegistry: registryUpTo0009,
+            expectedPendingStatesRegistry: registryUpTo0009,
+            expectedCurrentRegistry: registryUpTo0010,
             objects: {
                 ...objectsAt0008,
                 pendingStatesColumns: [...REQUIRED_PENDING_STATES_OBJECTS.columns],
@@ -291,6 +325,66 @@ describe('migration-preflight — 0009 pending states classification', () => {
         expect(result.classification).toBe('registered-inconsistent-schema')
         expect(result.invalidPendingStatesSemantics).toContain('column.rsvps.verification_token_hash')
         expect(result.reasons.join('\n')).toContain('invalid pending states semantics')
+    })
+
+    it('classifies the 0010 objects (applied on a disposable Neon branch) as the current schema — acceptance criterion for pnpm db:preflight', () => {
+        const result = classifyMigrationPreflight({
+            drizzleRegistry: registryUpTo0010,
+            publicRegistry: null,
+            expectedFoundationRegistry: [],
+            expectedPresentationRegistry: [],
+            expectedImagePositionRegistry: [],
+            expectedRsvpInvitationRegistry: registryUpTo0008,
+            expectedPendingStatesRegistry: registryUpTo0009,
+            expectedCurrentRegistry: registryUpTo0010,
+            objects: {
+                ...objectsAt0008,
+                pendingStatesColumns: [...REQUIRED_PENDING_STATES_OBJECTS.columns],
+                pendingStatesSemantics: validPendingStatesSemantics,
+                paymentsTables: [...REQUIRED_PAYMENTS_OBJECTS.tables],
+                paymentsColumns: [...REQUIRED_PAYMENTS_OBJECTS.columns],
+                paymentsConstraints: [...REQUIRED_PAYMENTS_OBJECTS.constraints],
+                paymentsIndexes: [...REQUIRED_PAYMENTS_OBJECTS.indexes],
+                paymentsSemantics: validPaymentsSemantics,
+            },
+        })
+
+        expect(result).toMatchObject({
+            classification: 'registered-current-schema',
+            canApply0010: false,
+            missingPaymentsObjects: [],
+            invalidPaymentsSemantics: [],
+        })
+    })
+
+    it('fails closed for a partial 0010 state (rsvp_payments columns present, amount_cents CHECK not yet valid)', () => {
+        const result = classifyMigrationPreflight({
+            drizzleRegistry: registryUpTo0010,
+            publicRegistry: null,
+            expectedFoundationRegistry: [],
+            expectedPresentationRegistry: [],
+            expectedImagePositionRegistry: [],
+            expectedRsvpInvitationRegistry: registryUpTo0008,
+            expectedPendingStatesRegistry: registryUpTo0009,
+            expectedCurrentRegistry: registryUpTo0010,
+            objects: {
+                ...objectsAt0008,
+                pendingStatesColumns: [...REQUIRED_PENDING_STATES_OBJECTS.columns],
+                pendingStatesSemantics: validPendingStatesSemantics,
+                paymentsTables: [...REQUIRED_PAYMENTS_OBJECTS.tables],
+                paymentsColumns: [...REQUIRED_PAYMENTS_OBJECTS.columns],
+                paymentsConstraints: [...REQUIRED_PAYMENTS_OBJECTS.constraints],
+                paymentsIndexes: [...REQUIRED_PAYMENTS_OBJECTS.indexes],
+                paymentsSemantics: {
+                    ...validPaymentsSemantics,
+                    'constraint.rsvp_payments_amount_cents_check': false,
+                },
+            },
+        })
+
+        expect(result.classification).toBe('registered-inconsistent-schema')
+        expect(result.invalidPaymentsSemantics).toContain('constraint.rsvp_payments_amount_cents_check')
+        expect(result.reasons.join('\n')).toContain('invalid payments semantics')
     })
 })
 

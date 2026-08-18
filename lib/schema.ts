@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, integer, jsonb, varchar, uniqueIndex, index, check } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, timestamp, integer, jsonb, varchar, uuid, uniqueIndex, index, check } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
 // Helper to generate IDs safely across environments
@@ -25,6 +25,13 @@ export const events = pgTable('events', {
     priceEnabled: boolean('price_enabled').default(false),
     priceAmount: integer('price_amount').default(0),
     priceCurrency: varchar('price_currency', { length: 10 }).default('MXN'),
+    // ISSUE-010/EPIC-004: gates whether Stripe Checkout is required to confirm
+    // an RSVP. Only ever true alongside priceEnabled/priceAmount>0/a whitelisted
+    // priceCurrency — enforced at the API layer (lib/event-api-contract.ts +
+    // app/api/admin/event-settings/update/route.ts), not by a DB constraint,
+    // since it cross-references three columns. Private courtesy links bypass
+    // it (PLAN-EPICS-002-005.md §2.1).
+    paymentRequired: boolean('payment_required').notNull().default(false),
 
     // Capacity configuration
     capacityEnabled: boolean('capacity_enabled').default(false),
@@ -246,6 +253,44 @@ export const rsvpInvitationLinks = pgTable('rsvp_invitation_links', {
     tokenHashIndex: uniqueIndex('rsvp_invitation_links_token_hash_unique').on(table.tokenHash),
 }))
 
+// ISSUE-010/EPIC-004: one row per Stripe Checkout session created for a paid
+// RSVP. stripeSessionId is the idempotency key the webhook (ISSUE-012) will
+// use to make `checkout.session.completed` safe to receive more than once.
+// No DB CHECK constrains `status`/`currency` to a fixed set (same choice as
+// rsvps.status): the small enum is enforced in the application layer.
+export const rsvpPayments = pgTable('rsvp_payments', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // ISSUE-010 deviation from the issue text ("rsvp_id int"): rsvps.id is
+    // TEXT ($defaultFn(generateId) — see the rsvps table above), never an
+    // integer, so an integer column could never satisfy this FK. Typed to
+    // match the actual PK it references.
+    rsvpId: text('rsvp_id').notNull()
+        .references(() => rsvps.id, { onDelete: 'restrict' }),
+    // Same slug convention as rsvps.eventId/rsvpInvitationLinks.eventId (PLAN
+    // gotcha #1: this column stores events.slug, NOT events.id). Typed
+    // varchar(100) per the issue spec (events.slug's own width); Postgres FKs
+    // text<->varchar(n) cleanly either way, as rsvps.eventId already proves.
+    eventId: varchar('event_id', { length: 100 }).notNull()
+        .references(() => events.slug, { onUpdate: 'cascade', onDelete: 'restrict' }),
+    // Idempotency key for the webhook: exactly one payment row per Checkout
+    // session, ever.
+    stripeSessionId: varchar('stripe_session_id', { length: 255 }).notNull().unique(),
+    stripePaymentIntentId: varchar('stripe_payment_intent_id', { length: 255 }),
+    // Always derived as price_amount * 100 (lib/payment-config.ts) — never a
+    // second, independently-editable amount that could diverge from display.
+    amountCents: integer('amount_cents').notNull(),
+    currency: varchar('currency', { length: 10 }).notNull(),
+    // 'created' | 'paid' | 'expired' | 'refunded'
+    status: varchar('status', { length: 20 }).notNull().default('created'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    paidAt: timestamp('paid_at'),
+    refundedAt: timestamp('refunded_at'),
+}, table => ({
+    rsvpIdIndex: index('rsvp_payments_rsvp_id_idx').on(table.rsvpId),
+    eventIdStatusIndex: index('rsvp_payments_event_id_status_idx').on(table.eventId, table.status),
+    amountCentsCheck: check('rsvp_payments_amount_cents_check', sql`${table.amountCents} > 0`),
+}))
+
 // User sessions for persistent login (up to 30 days)
 export const userSessions = pgTable('user_sessions', {
     id: text('id').primaryKey().$defaultFn(generateId),
@@ -283,3 +328,5 @@ export type PasswordResetToken = typeof passwordResetTokens.$inferSelect
 export type NewPasswordResetToken = typeof passwordResetTokens.$inferInsert
 export type RsvpInvitationLink = typeof rsvpInvitationLinks.$inferSelect
 export type NewRsvpInvitationLink = typeof rsvpInvitationLinks.$inferInsert
+export type RsvpPayment = typeof rsvpPayments.$inferSelect
+export type NewRsvpPayment = typeof rsvpPayments.$inferInsert

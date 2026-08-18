@@ -5,6 +5,7 @@ import {
     normalizeOptionalString,
     parseEventPresentationPatch,
 } from '@/lib/event-presentation'
+import { checkPaymentRequiredEligibility } from '@/lib/payment-config'
 
 export const DEFAULT_EVENT_THEME = {
     primaryColor: '#FF1493',
@@ -23,7 +24,13 @@ type ParseResult<T> =
     | { success: false; error: string }
 
 interface EventUpdateState {
+    priceEnabled: boolean | null
     priceAmount: number | null
+    priceCurrency: string | null
+    // ISSUE-010: needed so a request that omits `paymentRequired` (leaving it
+    // unchanged) can still be cross-validated against a price change that
+    // would make the *stored* payment_required=true invalid.
+    paymentRequired: boolean | null
     capacityEnabled: boolean | null
     capacityLimit: number | null
 }
@@ -271,6 +278,27 @@ export function parseEventUpdateRequest(
         ) {
             return { success: false, error: 'La cuota debe ser un entero no negativo' }
         }
+    }
+
+    // ISSUE-010: payment_required is only ever valid alongside price_enabled
+    // + price_amount>0 + a whitelisted price_currency (PLAN §3.3). Parsed
+    // like emailVerificationEnabled below, but cross-validated here against
+    // the EFFECTIVE price state (incoming price.* if provided, else the
+    // stored value) so a request that turns price_enabled off while
+    // payment_required stays true — in the DB or in the same payload — 400s
+    // with a clear message either way.
+    const paymentRequired = parseBoolean(input, 'paymentRequired')
+    if (!paymentRequired.success) return paymentRequired
+    if (paymentRequired.value !== undefined) updates.paymentRequired = paymentRequired.value
+
+    const effectivePaymentRequired = paymentRequired.value ?? existing.paymentRequired ?? false
+    if (effectivePaymentRequired) {
+        const eligibility = checkPaymentRequiredEligibility({
+            priceEnabled: updates.priceEnabled ?? existing.priceEnabled ?? false,
+            priceAmount: updates.priceAmount ?? existing.priceAmount ?? 0,
+            priceCurrency: updates.priceCurrency ?? existing.priceCurrency ?? 'MXN',
+        })
+        if (!eligibility.eligible) return { success: false, error: eligibility.reason }
     }
 
     if (input.capacity !== undefined) {

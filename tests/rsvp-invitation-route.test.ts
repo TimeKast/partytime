@@ -435,6 +435,36 @@ describe('POST /api/rsvp-invitations/validate', () => {
         expect(payload.requiresVerification).toBe(false)
     })
 
+    // ISSUE-010: paymentRequired now exists on events; a non-courtesy link on
+    // a paid event must surface requiresPayment=true and supersede
+    // verification (PLAN §2.1), same as the public flow.
+    it('surfaces requiresPayment when the event requires payment and the link is not a courtesy', async () => {
+        mocks.getRsvpInvitationEvent.mockResolvedValueOnce({
+            event: { ...event, paymentRequired: true, emailVerificationEnabled: true },
+            isCourtesy: false,
+            skipVerification: false,
+        })
+        const { POST } = await import('@/app/api/rsvp-invitations/validate/route')
+        const response = await POST(validationRequest({ token: 'f'.repeat(43) }))
+        const payload = await response.json()
+
+        expect(payload.requiresPayment).toBe(true)
+        expect(payload.requiresVerification).toBe(false)
+    })
+
+    it('never charges a courtesy link even on a paid event', async () => {
+        mocks.getRsvpInvitationEvent.mockResolvedValueOnce({
+            event: { ...event, paymentRequired: true },
+            isCourtesy: true,
+            skipVerification: true,
+        })
+        const { POST } = await import('@/app/api/rsvp-invitations/validate/route')
+        const response = await POST(validationRequest({ token: 'g'.repeat(43) }))
+        const payload = await response.json()
+
+        expect(payload.requiresPayment).toBe(false)
+    })
+
     it('uses one indistinguishable 404 for malformed, used, expired or revoked links', async () => {
         const { POST } = await import('@/app/api/rsvp-invitations/validate/route')
         const malformed = await POST(validationRequest({ token: 'bad' }))

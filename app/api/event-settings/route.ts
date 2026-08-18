@@ -7,6 +7,7 @@ import {
   LEGACY_PRESENTATION_DEFAULTS,
   normalizeEventPresentation,
 } from '@/lib/event-presentation'
+import { isStripeConfigured } from '@/lib/stripe'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,6 +78,13 @@ export async function GET(request: NextRequest) {
             amount: event.priceAmount || 0,
             currency: event.priceCurrency || 'MXN'
           },
+          // ISSUE-010/EPIC-004: paymentRequired read here so the admin UI (and
+          // ISSUE-020's InvitationLinkManager) can stop treating priceEnabled
+          // as a proxy for "this event charges to confirm". stripeConfigured
+          // exposes only the boolean from lib/stripe.ts's isStripeConfigured()
+          // — never the secret key itself.
+          paymentRequired: event.paymentRequired || false,
+          stripeConfigured: isStripeConfigured(),
           capacity: {
             enabled: event.capacityEnabled || false,
             limit: event.capacityLimit || 0
@@ -135,6 +143,8 @@ export async function GET(request: NextRequest) {
           amount: 0,
           currency: 'MXN'
         },
+        paymentRequired: false,
+        stripeConfigured: isStripeConfigured(),
         capacity: {
           enabled: false,
           limit: 0
