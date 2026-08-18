@@ -529,8 +529,12 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Get RSVPs using the slug (as stored in eventId field)
-      const rsvps = await getRSVPsByEvent(eventSlug)
+      // Get RSVPs using the slug (as stored in eventId field). ISSUE-013:
+      // only join rsvp_payments when this event actually requires payment —
+      // a free event's DTO must never carry payment-shaped noise.
+      const rsvps = event?.paymentRequired === true
+        ? await getRSVPsByEvent(eventSlug, { includePayments: true })
+        : await getRSVPsByEvent(eventSlug)
 
       return NextResponse.json({
         success: true,

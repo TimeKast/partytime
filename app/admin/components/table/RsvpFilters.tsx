@@ -3,9 +3,11 @@
 import { useState } from 'react'
 import styles from '../../admin.module.css'
 import {
+  rsvpPaymentStatusLabels,
   rsvpSortLabels,
   type RsvpEmailFilter,
   type RsvpPageSize,
+  type RsvpPaymentFilter,
   type RsvpPlusOneFilter,
   type RsvpSort,
   type RsvpStatusFilter,
@@ -37,6 +39,12 @@ interface RsvpFiltersProps {
   bulkCount: number
   bulkDisabled: boolean
   eventPast: boolean
+  // ISSUE-013 (EPIC-004): the payment filter only ever renders for a
+  // payment_required event — a free event's rows never carry a
+  // paymentStatus to filter by (see lib/queries.ts getRSVPsByEvent).
+  showPaymentFilter: boolean
+  displayFilterPayment: RsvpPaymentFilter
+  onDisplayFilterPaymentChange: (value: RsvpPaymentFilter) => void
 }
 
 export function RsvpFilters({
@@ -64,6 +72,9 @@ export function RsvpFilters({
   bulkCount,
   bulkDisabled,
   eventPast,
+  showPaymentFilter,
+  displayFilterPayment,
+  onDisplayFilterPaymentChange,
 }: RsvpFiltersProps) {
   const [displayFiltersExpanded, setDisplayFiltersExpanded] = useState(false)
   const [emailFiltersExpanded, setEmailFiltersExpanded] = useState(false)
@@ -72,6 +83,7 @@ export function RsvpFilters({
     displayFilterStatus !== 'all',
     displayFilterPlusOne !== 'all',
     displayFilterEmail !== 'all',
+    showPaymentFilter && displayFilterPayment !== 'all',
   ].filter(Boolean).length
 
   return (
@@ -121,6 +133,19 @@ export function RsvpFilters({
               <option value="pending_verification">Pendientes de verificación</option>
               <option value="expired">Expirados</option>
             </select>
+
+            {showPaymentFilter && (
+              <select
+                aria-label="Filtrar por estado de pago"
+                value={displayFilterPayment}
+                onChange={(e) => onDisplayFilterPaymentChange(e.target.value as RsvpPaymentFilter)}
+              >
+                <option value="all">Todos los pagos</option>
+                {Object.entries(rsvpPaymentStatusLabels).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            )}
 
             <select aria-label="Filtrar por acompañante" value={displayFilterPlusOne} onChange={(e) => onDisplayFilterPlusOneChange(e.target.value as RsvpPlusOneFilter)}>
               <option value="all">Todos</option>

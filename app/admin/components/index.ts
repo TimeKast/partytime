@@ -17,7 +17,7 @@ export { default as ChangePasswordForm, ForcedPasswordChangeDialog } from './Cha
 // lib/rsvp-list.ts RsvpStatus — kept in sync there, not imported from
 // lib/queries.ts to avoid pulling the server-only DB client into the client
 // bundle).
-import type { RsvpStatus } from '@/lib/rsvp-list'
+import type { RsvpPaymentStatus, RsvpStatus } from '@/lib/rsvp-list'
 
 export interface RSVP {
     id: string
@@ -29,6 +29,13 @@ export interface RSVP {
     createdAt: string
     status: RsvpStatus
     emailSent?: string
+    // ISSUE-013: only ever present when GET /api/rsvp joined rsvp_payments —
+    // i.e. only for a payment_required event (see lib/queries.ts
+    // getRSVPsByEvent's includePayments).
+    paymentStatus?: RsvpPaymentStatus | null
+    paidAt?: string | null
+    amountCents?: number | null
+    currency?: string | null
 }
 
 export interface AdminStats {

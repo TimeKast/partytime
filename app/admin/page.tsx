@@ -19,11 +19,16 @@ import {
 import { buildEventExportMetadataRows, createEventExportFilename } from '@/lib/event-export'
 import {
   buildRsvpListView,
+  describePaymentsCollected,
   describeRsvpListView,
   filterAndSortRsvps,
+  formatAmountsCollected,
+  formatCentsAsCurrency,
+  rsvpPaymentStatusLabel,
   rsvpStatusLabel,
   type RsvpEmailFilter,
   type RsvpPageSize,
+  type RsvpPaymentFilter,
   type RsvpPlusOneFilter,
   type RsvpSort,
   type RsvpStatusFilter,
@@ -126,6 +131,9 @@ export default function AdminDashboard() {
   const [displayFilterStatus, setDisplayFilterStatus] = useState<RsvpStatusFilter>('all')
   const [displayFilterPlusOne, setDisplayFilterPlusOne] = useState<RsvpPlusOneFilter>('all')
   const [displayFilterEmail, setDisplayFilterEmail] = useState<RsvpEmailFilter>('all')
+  // ISSUE-013: only ever surfaced in the UI for a payment_required event —
+  // see configForm.paymentRequired below.
+  const [displayFilterPayment, setDisplayFilterPayment] = useState<RsvpPaymentFilter>('all')
   const [rsvpSort, setRsvpSort] = useState<RsvpSort>('name-asc')
   const [rsvpPageSize, setRsvpPageSize] = useState<RsvpPageSize>(25)
   const [rsvpPage, setRsvpPage] = useState(1)
@@ -145,6 +153,7 @@ export default function AdminDashboard() {
     sort: rsvpSort,
     page: rsvpPage,
     pageSize: rsvpPageSize,
+    paymentStatus: displayFilterPayment,
   }), [
     searchTerm,
     displayFilterStatus,
@@ -153,6 +162,7 @@ export default function AdminDashboard() {
     rsvpSort,
     rsvpPage,
     rsvpPageSize,
+    displayFilterPayment,
   ])
 
   const rsvpListView = useMemo(
@@ -448,6 +458,7 @@ export default function AdminDashboard() {
     displayFilterStatus,
     displayFilterPlusOne,
     displayFilterEmail,
+    displayFilterPayment,
     rsvpSort,
     rsvpPageSize,
   ])
@@ -477,16 +488,19 @@ export default function AdminDashboard() {
       || displayFilterStatus !== 'all'
       || displayFilterPlusOne !== 'all'
       || displayFilterEmail !== 'all'
+      || displayFilterPayment !== 'all'
     navigatingToRsvpRef.current = willResetDisplayFilters
     setSearchTerm('')
     setDisplayFilterStatus('all')
     setDisplayFilterPlusOne('all')
     setDisplayFilterEmail('all')
+    setDisplayFilterPayment('all')
     setRsvpPage(Math.floor(targetIndex / rsvpPageSize) + 1)
     setPendingRsvpTarget(rsvpId)
     setHighlightedRsvpId(rsvpId)
   }, [
     displayFilterEmail,
+    displayFilterPayment,
     displayFilterPlusOne,
     displayFilterStatus,
     rsvpPageSize,
@@ -1164,6 +1178,10 @@ export default function AdminDashboard() {
     const exportSummary = describeRsvpListView(rsvpListOptions)
     const metadataRows = buildEventExportMetadataRows(configForm).map(stripEmojis)
     const headerHeight = Math.max(40, 20 + (metadataRows.length - 1) * 8)
+    // ISSUE-013: the three payment columns (and the "Pagados" figure in the
+    // stats line below) only ever appear for a payment_required event — a
+    // free event's export stays byte-for-byte what it was before this issue.
+    const showPaymentColumns = configForm.paymentRequired
 
     // Header elegante
     doc.setFillColor(102, 102, 234) // Color morado del tema
@@ -1181,8 +1199,11 @@ export default function AdminDashboard() {
     doc.setTextColor(0, 0, 0)
     doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
+    const paymentsStatsFragment = showPaymentColumns
+      ? ` - Pagados: ${rsvpListView.paidPaymentsCount} (${formatAmountsCollected(rsvpListView.amountCollectedByCurrency)})`
+      : ''
     doc.text(
-      `Resultados: ${exportRsvps.length} - Confirmados: ${rsvpListView.confirmedTotal} - Pend. pago: ${rsvpListView.pendingPaymentTotal} - Pend. verificación: ${rsvpListView.pendingVerificationTotal} - Cancelados: ${rsvpListView.cancelledTotal} - Expirados: ${rsvpListView.expiredTotal}`,
+      `Resultados: ${exportRsvps.length} - Confirmados: ${rsvpListView.confirmedTotal} - Pend. pago: ${rsvpListView.pendingPaymentTotal} - Pend. verificación: ${rsvpListView.pendingVerificationTotal} - Cancelados: ${rsvpListView.cancelledTotal} - Expirados: ${rsvpListView.expiredTotal}${paymentsStatsFragment}`,
       14,
       statsY,
     )
@@ -1196,7 +1217,7 @@ export default function AdminDashboard() {
     const tableData: (string | number)[][] = []
     exportRsvps.forEach((rsvp, index) => {
       // Fila principal del invitado
-      tableData.push([
+      const row: (string | number)[] = [
         index + 1,
         rsvpStatusLabel(rsvp.status),
         stripEmojis(rsvp.name),
@@ -1204,10 +1225,22 @@ export default function AdminDashboard() {
         rsvp.phone,
         rsvp.plusOne ? 'Si (+1)' : 'No',
         rsvp.emailSent ? new Date(rsvp.emailSent).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : 'No enviado'
-      ])
+      ]
+      if (showPaymentColumns) {
+        row.push(
+          rsvp.paymentStatus ? stripEmojis(rsvpPaymentStatusLabel(rsvp.paymentStatus)) : 'Sin cargo',
+          rsvp.paymentStatus && rsvp.amountCents != null && rsvp.currency
+            ? stripEmojis(formatCentsAsCurrency(rsvp.amountCents, rsvp.currency))
+            : '—',
+          rsvp.paidAt
+            ? new Date(rsvp.paidAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
+            : '—',
+        )
+      }
+      tableData.push(row)
       // Si tiene +1 con nombre, agregar fila indentada
       if (rsvp.plusOne && rsvp.plusOneName) {
-        tableData.push([
+        const plusOneRow: (string | number)[] = [
           '',
           '',
           `   + ${stripEmojis(rsvp.plusOneName)}`,
@@ -1215,13 +1248,42 @@ export default function AdminDashboard() {
           '',
           'Acomp.',
           ''
-        ])
+        ]
+        if (showPaymentColumns) plusOneRow.push('', '', '')
+        tableData.push(plusOneRow)
       }
     })
 
+    const tableHead = showPaymentColumns
+      ? ['#', 'Estado', 'Nombre', 'Email', 'Teléfono', '+1', 'Email', 'Estado de pago', 'Monto', 'Fecha de pago']
+      : ['#', 'Estado', 'Nombre', 'Email', 'Teléfono', '+1', 'Email']
+
+    const columnStyles = showPaymentColumns
+      ? {
+        0: { halign: 'center' as const, cellWidth: 8 },
+        1: { cellWidth: 18 },
+        2: { cellWidth: 26 },
+        3: { cellWidth: 32 },
+        4: { cellWidth: 20 },
+        5: { halign: 'center' as const, cellWidth: 10 },
+        6: { halign: 'center' as const, cellWidth: 14 },
+        7: { cellWidth: 18 },
+        8: { halign: 'right' as const, cellWidth: 16 },
+        9: { halign: 'center' as const, cellWidth: 16 },
+      }
+      : {
+        0: { halign: 'center' as const, cellWidth: 10 },
+        1: { cellWidth: 24 },
+        2: { cellWidth: 34 },
+        3: { cellWidth: 42 },
+        4: { cellWidth: 28 },
+        5: { halign: 'center' as const, cellWidth: 18 },
+        6: { halign: 'center' as const, cellWidth: 26 }
+      }
+
     autoTable(doc, {
       startY: statsY + 9 + summaryLines.length * 4,
-      head: [['#', 'Estado', 'Nombre', 'Email', 'Teléfono', '+1', 'Email']],
+      head: [tableHead],
       body: tableData,
       theme: 'grid',
       headStyles: {
@@ -1235,15 +1297,7 @@ export default function AdminDashboard() {
         fontSize: 9,
         cellPadding: 3
       },
-      columnStyles: {
-        0: { halign: 'center', cellWidth: 10 },
-        1: { cellWidth: 24 },
-        2: { cellWidth: 34 },
-        3: { cellWidth: 42 },
-        4: { cellWidth: 28 },
-        5: { halign: 'center', cellWidth: 18 },
-        6: { halign: 'center', cellWidth: 26 }
-      },
+      columnStyles,
       alternateRowStyles: {
         fillColor: [245, 245, 250]
       }
@@ -1272,17 +1326,26 @@ export default function AdminDashboard() {
   const exportExcelList = () => {
     const exportRsvps = rsvpListView.filteredAndSorted
     const exportSummary = describeRsvpListView(rsvpListOptions)
+    // ISSUE-013: same gate as the PDF export above — a free event's Excel
+    // export stays exactly what it was before this issue.
+    const showPaymentColumns = configForm.paymentRequired
+    const paymentsStatsFragment = showPaymentColumns
+      ? ` - Pagados: ${rsvpListView.paidPaymentsCount} (${formatAmountsCollected(rsvpListView.amountCollectedByCurrency)})`
+      : ''
 
     // Crear datos para la hoja
     const wsData = [
       // Header rows con info del evento
       ...buildEventExportMetadataRows(configForm).map(row => [row]),
       [],
-      [`Resultados: ${exportRsvps.length} - Confirmados: ${rsvpListView.confirmedTotal} - Pend. pago: ${rsvpListView.pendingPaymentTotal} - Pend. verificación: ${rsvpListView.pendingVerificationTotal} - Cancelados: ${rsvpListView.cancelledTotal} - Expirados: ${rsvpListView.expiredTotal}`],
+      [`Resultados: ${exportRsvps.length} - Confirmados: ${rsvpListView.confirmedTotal} - Pend. pago: ${rsvpListView.pendingPaymentTotal} - Pend. verificación: ${rsvpListView.pendingVerificationTotal} - Cancelados: ${rsvpListView.cancelledTotal} - Expirados: ${rsvpListView.expiredTotal}${paymentsStatsFragment}`],
       [exportSummary],
       [],
       // Header de tabla - con columna de Nombre del +1
-      ['#', 'Estado', 'Nombre', 'Email', 'Teléfono', '+1', 'Nombre +1', 'Email Enviado'],
+      [
+        '#', 'Estado', 'Nombre', 'Email', 'Teléfono', '+1', 'Nombre +1', 'Email Enviado',
+        ...(showPaymentColumns ? ['Estado de pago', 'Monto', 'Fecha de pago'] : []),
+      ],
       // Datos
       ...exportRsvps.map((rsvp, index) => [
         index + 1,
@@ -1292,7 +1355,16 @@ export default function AdminDashboard() {
         rsvp.phone,
         rsvp.plusOne ? 'Sí' : 'No',
         rsvp.plusOneName || '',
-        rsvp.emailSent ? new Date(rsvp.emailSent).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : 'No enviado'
+        rsvp.emailSent ? new Date(rsvp.emailSent).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : 'No enviado',
+        ...(showPaymentColumns ? [
+          rsvp.paymentStatus ? rsvpPaymentStatusLabel(rsvp.paymentStatus) : 'Sin cargo',
+          rsvp.paymentStatus && rsvp.amountCents != null && rsvp.currency
+            ? formatCentsAsCurrency(rsvp.amountCents, rsvp.currency)
+            : '—',
+          rsvp.paidAt
+            ? new Date(rsvp.paidAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
+            : '—',
+        ] : []),
       ])
     ]
 
@@ -1309,7 +1381,12 @@ export default function AdminDashboard() {
       { wch: 18 },  // Teléfono
       { wch: 8 },   // +1
       { wch: 25 },  // Nombre +1
-      { wch: 15 }   // Email Enviado
+      { wch: 15 },  // Email Enviado
+      ...(showPaymentColumns ? [
+        { wch: 18 }, // Estado de pago
+        { wch: 14 }, // Monto
+        { wch: 14 }, // Fecha de pago
+      ] : []),
     ]
 
     // Agregar hoja al libro
@@ -1398,6 +1475,15 @@ export default function AdminDashboard() {
           {/* H-008 FIX: Use extracted StatsCards component */}
           <StatsCards stats={stats} />
 
+          {/* ISSUE-013: "N pagados · $X,XXX MXN recaudados" — only for a
+              payment_required event, computed from the CURRENT filtered set
+              (same scope as rsvpListView's other *Total counters). */}
+          {configForm.paymentRequired && (
+            <p className={styles.paymentsCollectedSummary}>
+              {describePaymentsCollected(rsvpListView.paidPaymentsCount, rsvpListView.amountCollectedByCurrency)}
+            </p>
+          )}
+
           {/* Controles */}
           <RsvpFilters
             searchTerm={searchTerm}
@@ -1424,6 +1510,9 @@ export default function AdminDashboard() {
             bulkCount={emailTargetRsvps.length}
             bulkDisabled={loading || emailTargetRsvps.length === 0 || isEventPast()}
             eventPast={isEventPast()}
+            showPaymentFilter={configForm.paymentRequired}
+            displayFilterPayment={displayFilterPayment}
+            onDisplayFilterPaymentChange={setDisplayFilterPayment}
           />
 
           {canManageSelectedEvent && selectedEventId && (
@@ -1453,6 +1542,7 @@ export default function AdminDashboard() {
               onSendEmail={sendEmail}
               onEdit={openEditModal}
               onToggleStatus={toggleStatus}
+              showPayment={configForm.paymentRequired}
             />
 
             <RsvpTable
@@ -1466,6 +1556,7 @@ export default function AdminDashboard() {
               onSendEmail={sendEmail}
               onEdit={openEditModal}
               onToggleStatus={toggleStatus}
+              showPayment={configForm.paymentRequired}
             />
 
             {/* ISSUE-006: pending/expired rows were previously fetched into
@@ -1485,6 +1576,7 @@ export default function AdminDashboard() {
               onSendEmail={sendEmail}
               onEdit={openEditModal}
               onToggleStatus={toggleStatus}
+              showPayment={configForm.paymentRequired}
             />
 
             <RsvpTable
@@ -1498,6 +1590,7 @@ export default function AdminDashboard() {
               onSendEmail={sendEmail}
               onEdit={openEditModal}
               onToggleStatus={toggleStatus}
+              showPayment={configForm.paymentRequired}
             />
 
             <RsvpTable
@@ -1511,6 +1604,7 @@ export default function AdminDashboard() {
               onSendEmail={sendEmail}
               onEdit={openEditModal}
               onToggleStatus={toggleStatus}
+              showPayment={configForm.paymentRequired}
             />
 
             {rsvpListView.total === 0 && (

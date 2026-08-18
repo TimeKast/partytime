@@ -1342,6 +1342,15 @@
   outline-offset: -3px;
 }
 
+/* ISSUE-013: PAYMENT_WITHOUT_SEAT — a paid rsvp_payments row attached to an
+   expired/cancelled RSVP. Stripe already collected the money; nobody holds
+   the seat. Same visual language as the highlighted-row state above, red
+   instead of the primary theme color to read as "needs manual action". */
+.rsvpRow[data-payment-without-seat='true'] {
+  background: #fef2f2;
+  box-shadow: inset 4px 0 0 #dc2626;
+}
+
 .confirmed {
   color: #059669;
   font-weight: 600;
@@ -1664,6 +1673,72 @@
   white-space: nowrap;
 }
 
+/* ISSUE-013: payment badge column — applies to both mobile and desktop. */
+.paymentCell {
+  white-space: nowrap;
+}
+
+.paymentBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.paymentBadgePaid {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.paymentBadgePending {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.paymentBadgeExpired {
+  background: #e5e7eb;
+  color: #6b7280;
+}
+
+.paymentBadgeRefunded {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.paymentBadgeNone {
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.paymentAmount {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #374151;
+}
+
+.paymentWithoutSeatWarning {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #b91c1c;
+}
+
+/* ISSUE-013: the "N pagados · $X,XXX MXN recaudados" aggregate, shown right
+   under StatsCards for a payment_required event only. */
+.paymentsCollectedSummary {
+  margin: 0 0 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
 /* Desktop-specific styles */
 .nameCell {
   font-weight: 600;
@@ -1742,6 +1817,7 @@
       "name name"
       "phone email"
       "date emailsent"
+      "payment payment"
       "actions actions";
   }
 
@@ -1854,11 +1930,17 @@
     text-align: right;
   }
 
+  /* ISSUE-013: payment badge - full-width row above actions */
+  .paymentCell {
+    grid-area: payment;
+  }
+
   /* Adjust badge sizes for mobile */
   .confirmedBadge,
   .cancelledBadge,
   .emailSentBadge,
-  .emailNotSentBadge {
+  .emailNotSentBadge,
+  .paymentBadge {
     font-size: 11px;
     padding: 3px 6px;
   }

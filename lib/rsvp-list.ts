@@ -16,6 +16,13 @@ export type RsvpEmailFilter = 'all' | 'sent' | 'not-sent'
 export type RsvpSort = 'name-asc' | 'name-desc' | 'newest' | 'oldest'
 export type RsvpPageSize = 10 | 25 | 50 | 100
 
+// ISSUE-013 (EPIC-004): the four canonical rsvp_payments.status values, kept
+// in sync with lib/queries.ts RSVP_PAYMENT_STATUS the same way RsvpStatus
+// above is kept in sync with RSVP_STATUS — this module cannot import the
+// server-only lib/queries.ts (see the comment on RsvpStatus).
+export type RsvpPaymentStatus = 'created' | 'paid' | 'expired' | 'refunded'
+export type RsvpPaymentFilter = 'all' | RsvpPaymentStatus
+
 export interface RsvpListItem {
   id: string
   name: string
@@ -25,6 +32,14 @@ export interface RsvpListItem {
   createdAt: string
   status: RsvpStatus
   emailSent?: string | null
+  // ISSUE-013: only ever present when the admin GET joined rsvp_payments for
+  // a payment_required event (lib/queries.ts getRSVPsByEvent's
+  // `includePayments`) — absent, not just null, on a free event's rows, by
+  // construction of that join.
+  paymentStatus?: RsvpPaymentStatus | null
+  paidAt?: string | null
+  amountCents?: number | null
+  currency?: string | null
 }
 
 export interface RsvpListOptions {
@@ -35,6 +50,10 @@ export interface RsvpListOptions {
   sort: RsvpSort
   page: number
   pageSize: RsvpPageSize
+  // ISSUE-013: optional so every pre-existing caller/test (built against the
+  // pre-ISSUE-013 shape) keeps compiling and behaving identically — omitted
+  // or 'all' never filters.
+  paymentStatus?: RsvpPaymentFilter
 }
 
 export interface RsvpListView<T extends RsvpListItem> {
@@ -53,6 +72,14 @@ export interface RsvpListView<T extends RsvpListItem> {
   pendingPaymentTotal: number
   pendingVerificationTotal: number
   expiredTotal: number
+  // ISSUE-013: aggregated from `paid` rows within the CURRENT
+  // filtered/sorted set — same scope as confirmedTotal/cancelledTotal above,
+  // so the export summary line and this figure always describe the same
+  // rows. Grouped by currency (cents) rather than a single sum: an event's
+  // price/currency can change over its lifetime, so historical payments are
+  // never assumed to share one currency.
+  paidPaymentsCount: number
+  amountCollectedByCurrency: Record<string, number>
 }
 
 const nameCollator = new Intl.Collator('es-MX', {
@@ -75,7 +102,7 @@ function normalizeSearchValue(value: string): string {
 
 export function filterAndSortRsvps<T extends RsvpListItem>(
   rsvps: readonly T[],
-  options: Pick<RsvpListOptions, 'searchTerm' | 'status' | 'plusOne' | 'email' | 'sort'>,
+  options: Pick<RsvpListOptions, 'searchTerm' | 'status' | 'plusOne' | 'email' | 'sort' | 'paymentStatus'>,
 ): T[] {
   const term = normalizeSearchValue(options.searchTerm.trim())
 
@@ -86,6 +113,8 @@ export function filterAndSortRsvps<T extends RsvpListItem>(
       if (options.plusOne === 'no' && rsvp.plusOne) return false
       if (options.email === 'sent' && !rsvp.emailSent) return false
       if (options.email === 'not-sent' && rsvp.emailSent) return false
+      // ISSUE-013: undefined/'all' never filters — see the field's doc comment.
+      if (options.paymentStatus && options.paymentStatus !== 'all' && rsvp.paymentStatus !== options.paymentStatus) return false
 
       if (!term) return true
 
@@ -134,6 +163,18 @@ export function buildRsvpListView<T extends RsvpListItem>(
   const startIndex = (page - 1) * options.pageSize
   const pageItems = filteredAndSorted.slice(startIndex, startIndex + options.pageSize)
 
+  // ISSUE-013: centavos, summed per currency — never converted to a float
+  // major-unit sum here (that happens once, at display time, in
+  // formatCentsAsCurrency below).
+  let paidPaymentsCount = 0
+  const amountCollectedByCurrency: Record<string, number> = {}
+  for (const rsvp of filteredAndSorted) {
+    if (rsvp.paymentStatus !== 'paid') continue
+    paidPaymentsCount += 1
+    const currency = rsvp.currency || 'MXN'
+    amountCollectedByCurrency[currency] = (amountCollectedByCurrency[currency] ?? 0) + (rsvp.amountCents ?? 0)
+  }
+
   return {
     filteredAndSorted,
     pageItems,
@@ -148,6 +189,8 @@ export function buildRsvpListView<T extends RsvpListItem>(
     pendingPaymentTotal: filteredAndSorted.filter((rsvp) => rsvp.status === 'pending_payment').length,
     pendingVerificationTotal: filteredAndSorted.filter((rsvp) => rsvp.status === 'pending_verification').length,
     expiredTotal: filteredAndSorted.filter((rsvp) => rsvp.status === 'expired').length,
+    paidPaymentsCount,
+    amountCollectedByCurrency,
   }
 }
 
@@ -166,6 +209,48 @@ export const rsvpStatusLabels: Record<RsvpStatus, string> = {
 
 export function rsvpStatusLabel(status: RsvpStatus): string {
   return rsvpStatusLabels[status]
+}
+
+// ISSUE-013: per-row payment badge copy — used by the guest table badge and
+// the PDF/Excel "Estado de pago" export column, so both always agree.
+export const rsvpPaymentStatusLabels: Record<RsvpPaymentStatus, string> = {
+  paid: 'Pagado',
+  created: 'Pendiente de pago',
+  expired: 'Expirado',
+  refunded: 'Reembolsado',
+}
+
+export function rsvpPaymentStatusLabel(status: RsvpPaymentStatus): string {
+  return rsvpPaymentStatusLabels[status]
+}
+
+// ISSUE-013: the single place amount_cents becomes a displayed amount —
+// never a raw `/ 100` at a call site, so every surface (table badge,
+// PDF/Excel export, aggregated total) rounds/groups identically.
+export function formatCentsAsCurrency(amountCents: number, currency: string): string {
+  const amount = amountCents / 100
+  const formatted = new Intl.NumberFormat('es-MX', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount)
+  return `$${formatted} ${currency}`
+}
+
+// ISSUE-013: the amount-only half of the aggregate counter — reused by
+// describePaymentsCollected below and by the standalone StatsCards-style
+// figure in app/admin/page.tsx, so both read from the same grouping logic.
+export function formatAmountsCollected(amountsByCurrency: Record<string, number>): string {
+  const currencies = Object.keys(amountsByCurrency).sort()
+  if (currencies.length === 0) return formatCentsAsCurrency(0, 'MXN')
+  return currencies.map((currency) => formatCentsAsCurrency(amountsByCurrency[currency], currency)).join(' + ')
+}
+
+// ISSUE-013: "N pagados · $X,XXX MXN recaudados" — the admin dashboard's
+// aggregate counter and the PDF/Excel export summary line both render this
+// exact sentence, computed once here from RsvpListView.paidPaymentsCount/
+// amountCollectedByCurrency.
+export function describePaymentsCollected(paidCount: number, amountsByCurrency: Record<string, number>): string {
+  return `${paidCount} pagados · ${formatAmountsCollected(amountsByCurrency)} recaudados`
 }
 
 const statusLabels: Record<RsvpStatusFilter, string> = {
@@ -197,7 +282,7 @@ export const rsvpSortLabels: Record<RsvpSort, string> = {
 }
 
 export function describeRsvpListView(
-  options: Pick<RsvpListOptions, 'searchTerm' | 'status' | 'plusOne' | 'email' | 'sort'>,
+  options: Pick<RsvpListOptions, 'searchTerm' | 'status' | 'plusOne' | 'email' | 'sort' | 'paymentStatus'>,
 ): string {
   const parts = [
     options.searchTerm.trim() ? `Búsqueda: “${options.searchTerm.trim()}”` : 'Búsqueda: ninguna',
@@ -206,6 +291,14 @@ export function describeRsvpListView(
     `Email: ${emailLabels[options.email]}`,
     `Orden: ${rsvpSortLabels[options.sort]}`,
   ]
+
+  // ISSUE-013: omitted entirely (not just "Pago: Todos") when the caller
+  // never passed it or left it at 'all' — a free event's callers never set
+  // this, and the exact pre-ISSUE-013 sentence must stay byte-for-byte
+  // unchanged for them (see tests/rsvp-list.test.ts).
+  if (options.paymentStatus && options.paymentStatus !== 'all') {
+    parts.push(`Pago: ${rsvpPaymentStatusLabels[options.paymentStatus]}`)
+  }
 
   return parts.join(' · ')
 }

@@ -2,8 +2,8 @@
 
 import styles from '../../admin.module.css'
 import type { RSVP } from '../index'
-import type { RsvpStatus } from '@/lib/rsvp-list'
-import { CheckCircle, Mail, MessageCircle, Phone, Pencil, XCircle } from '../ui/icons'
+import { formatCentsAsCurrency, rsvpPaymentStatusLabel, type RsvpPaymentStatus, type RsvpStatus } from '@/lib/rsvp-list'
+import { AlertTriangle, CheckCircle, Mail, MessageCircle, Phone, Pencil, XCircle } from '../ui/icons'
 
 type RsvpTableVariant = RsvpStatus
 
@@ -18,6 +18,28 @@ interface RsvpTableProps {
   onSendEmail: (rsvp: RSVP) => void
   onEdit: (rsvp: RSVP) => void
   onToggleStatus: (rsvp: RSVP) => void
+  // ISSUE-013 (EPIC-004): only rendered for a payment_required event — a
+  // free event's rows never carry paymentStatus at all (see
+  // lib/queries.ts getRSVPsByEvent), so there is nothing to show here.
+  showPayment: boolean
+}
+
+// ISSUE-013: badge color per rsvp_payments.status — Pagado (green), Pendiente
+// de pago (amber, the 'created' checkout-session row), Expirado (gray),
+// Reembolsado (red).
+const PAYMENT_BADGE_CLASS: Record<RsvpPaymentStatus, string> = {
+  paid: styles.paymentBadgePaid,
+  created: styles.paymentBadgePending,
+  expired: styles.paymentBadgeExpired,
+  refunded: styles.paymentBadgeRefunded,
+}
+
+// ISSUE-012/013: a `paid` payment attached to an RSVP that never kept its
+// seat (expired — capacity/TTL raced the payment; cancelled — the guest
+// cancelled after paying) is money Stripe collected with nobody left to
+// honor it. Flagged here for a human, never auto-refunded.
+function isPaymentWithoutSeat(rsvp: RSVP): boolean {
+  return rsvp.paymentStatus === 'paid' && (rsvp.status === 'expired' || rsvp.status === 'cancelled')
 }
 
 // ISSUE-006: section title + empty-state copy per status. confirmed/cancelled
@@ -43,6 +65,7 @@ export function RsvpTable({
   onSendEmail,
   onEdit,
   onToggleStatus,
+  showPayment,
 }: RsvpTableProps) {
   if (totalCount === 0) return null
 
@@ -76,6 +99,7 @@ export function RsvpTable({
             <th scope="col">Email</th>
             <th scope="col">Teléfono</th>
             <th scope="col">Fecha Registro</th>
+            {showPayment && <th scope="col">Pago</th>}
           </tr>
         </thead>
         <tbody>
@@ -86,6 +110,7 @@ export function RsvpTable({
               className={styles.rsvpRow}
               data-read-only={isReadOnly ? 'true' : undefined}
               data-highlighted={highlightedRsvpId === rsvp.id ? 'true' : undefined}
+              data-payment-without-seat={showPayment && isPaymentWithoutSeat(rsvp) ? 'true' : undefined}
               tabIndex={-1}
             >
               {!isReadOnly && (
@@ -152,6 +177,30 @@ export function RsvpTable({
               <td className={styles.dateCell}>
                 Registro: {new Date(rsvp.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
               </td>
+              {showPayment && (
+                <td className={styles.paymentCell}>
+                  {rsvp.paymentStatus ? (
+                    <>
+                      <span className={`${styles.paymentBadge} ${PAYMENT_BADGE_CLASS[rsvp.paymentStatus]}`}>
+                        {rsvpPaymentStatusLabel(rsvp.paymentStatus)}
+                      </span>
+                      {rsvp.paymentStatus === 'paid' && rsvp.amountCents != null && rsvp.currency && (
+                        <span className={styles.paymentAmount}>
+                          {formatCentsAsCurrency(rsvp.amountCents, rsvp.currency)}
+                        </span>
+                      )}
+                      {isPaymentWithoutSeat(rsvp) && (
+                        <span className={styles.paymentWithoutSeatWarning}>
+                          <AlertTriangle size={13} />
+                          Pagó sin lugar — requiere reembolso manual en Stripe
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className={styles.paymentBadgeNone}>—</span>
+                  )}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

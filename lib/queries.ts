@@ -1254,18 +1254,80 @@ export async function markRsvpPaymentRefunded(stripePaymentIntentId: string): Pr
     return !!updated
 }
 
+// ISSUE-013 (EPIC-004): payment fields joined onto an RSVP row for the admin
+// list — only ever populated when the caller passes `includePayments: true`
+// (the route only does so for a `payment_required` event — never a free
+// one, so a free event's DTO never carries these keys at all, see
+// getRSVPsByEvent below). Sourced from the MOST RECENT rsvp_payments row per
+// rsvp_id; deliberately never includes stripe_session_id/
+// stripe_payment_intent_id, which stay internal to lib/queries.ts/the
+// webhook — the admin list has no use for either and they are not safe to
+// hand to the browser.
+export interface RsvpWithPayment extends RSVP {
+    paymentStatus: RsvpPaymentStatus | null
+    paidAt: Date | null
+    amountCents: number | null
+    currency: string | null
+}
+
+function mapRsvpRowWithPayment(row: Record<string, unknown>): RsvpWithPayment {
+    return {
+        ...mapRsvpRow(row),
+        paymentStatus: row.payment_status == null ? null : String(row.payment_status) as RsvpPaymentStatus,
+        paidAt: row.paid_at == null ? null : new Date(String(row.paid_at)),
+        amountCents: row.amount_cents == null ? null : Number(row.amount_cents),
+        currency: row.currency == null ? null : String(row.currency),
+    }
+}
+
 /**
- * Get all RSVPs for an event
+ * Get all RSVPs for an event. ISSUE-013: when `includePayments` is true each
+ * row is additionally joined — via a LATERAL join, the cheapest way to
+ * express "latest payment per rsvp" without a second round trip or a window
+ * function the neon-http driver would have to buffer client-side — to its
+ * most recent `rsvp_payments` row (`ORDER BY created_at DESC LIMIT 1`).
+ * `includePayments` defaults to false and is byte-for-byte the pre-ISSUE-013
+ * query: a plain drizzle select with no payment columns at all, so every
+ * existing caller (send-bulk-email, send-bulk-reminder, reminder-status,
+ * stats) and every free event keeps seeing exactly the RSVP shape it always
+ * has.
  */
-export async function getRSVPsByEvent(eventId: string): Promise<RSVP[]> {
+export async function getRSVPsByEvent(eventId: string, options?: { includePayments?: false }): Promise<RSVP[]>
+export async function getRSVPsByEvent(eventId: string, options: { includePayments: true }): Promise<RsvpWithPayment[]>
+export async function getRSVPsByEvent(
+    eventId: string,
+    options?: { includePayments?: boolean },
+): Promise<RSVP[] | RsvpWithPayment[]> {
     if (!db) throw new Error('Database not configured')
 
-    const result = await db.select()
-        .from(rsvps)
-        .where(eq(rsvps.eventId, eventId))
-        .orderBy(desc(rsvps.createdAt))
+    if (!options?.includePayments) {
+        const result = await db.select()
+            .from(rsvps)
+            .where(eq(rsvps.eventId, eventId))
+            .orderBy(desc(rsvps.createdAt))
 
-    return result
+        return result
+    }
+
+    const result = await db.execute(sql`
+        SELECT rsvps.*,
+               latest_payment.status AS payment_status,
+               latest_payment.paid_at AS paid_at,
+               latest_payment.amount_cents AS amount_cents,
+               latest_payment.currency AS currency
+        FROM rsvps
+        LEFT JOIN LATERAL (
+            SELECT status, paid_at, amount_cents, currency
+            FROM rsvp_payments
+            WHERE rsvp_payments.rsvp_id = rsvps.id
+            ORDER BY created_at DESC
+            LIMIT 1
+        ) latest_payment ON true
+        WHERE rsvps.event_id = ${eventId}
+        ORDER BY rsvps.created_at DESC
+    `)
+
+    return (result.rows as Record<string, unknown>[]).map(mapRsvpRowWithPayment)
 }
 
 /**
