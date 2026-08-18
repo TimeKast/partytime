@@ -335,6 +335,19 @@ export async function saveRsvpWithInvitation(
     const emailLower = email.toLowerCase()
     const verificationTokenHash = input.verificationCandidate.tokenHash
     const verificationExpiresAt = input.verificationCandidate.expiresAt
+    // ISSUE-009 (EPIC-003): reactivated_rsvp's verified_at is set NULL
+    // unconditionally below, unlike saveRSVPOnce's public-flow reactivation
+    // above (which has a CASE preserving it for an already-verified,
+    // case-insensitively identical email). An invite can bypass straight to
+    // confirmed via skip_verification, so a carried-over verified_at here
+    // would misrepresent an address that was never checked on THIS attempt.
+    // existing_rsvp above only ever matches a row whose lower(email) already
+    // equals this submission's (same rsvps_event_email_unique reasoning as
+    // saveRSVPOnce's reachability note), so "the email changed" is never a
+    // genuinely different identity here either — just a possible case
+    // change — which is exactly why there is no invite-flow parallel to the
+    // public flow's "same guest already proved it" grace case: this path
+    // can confirm without ever asking, so nothing should ever look verified.
     let result
     try {
         result = await withDeadlockRetry(() => db!.execute(sql`
@@ -606,6 +619,9 @@ async function saveRSVPOnce(
     const verificationExpiresAt = verification?.expiresAt ?? null
     // Same TTL drives both columns — see PendingVerificationIssuance.
     const pendingExpiresAt = verification?.expiresAt ?? null
+    // ISSUE-009: whether THIS event/attempt requires verification at all —
+    // gates the "preserve verified_at on identical email" exception below.
+    const requiresVerification = verification !== undefined
 
     // A2-H05: case-insensitive lookup so "Foo@x.com" and "foo@x.com" are the
     // same guest and do not create duplicate confirmations.
@@ -628,34 +644,67 @@ async function saveRSVPOnce(
         // otherwise reject a fresh insert) rather than erroring. The
         // predicate requires status STILL `prev.status` so two concurrent
         // re-submits don't both win: the loser gets an empty result and is
-        // treated as a duplicate. verified_at is cleared unconditionally —
-        // a fresh submission always re-establishes verification state
-        // (PLAN-EPICS-002-005.md §3.2).
-        let reactivated
+        // treated as a duplicate.
+        //
+        // ISSUE-009 (EPIC-003): a fresh submission resets verification state
+        // (PLAN-EPICS-002-005.md §3.2) EXCEPT for the one case where the
+        // guest re-registers under the EXACT same (case-insensitive) email
+        // that already completed verification — that guest already proved
+        // ownership, so re-sending a token would only add friction. Whether
+        // that exception applies is decided fresh from the row's OWN stored
+        // `email`/`verified_at` columns inside this single UPDATE (matching
+        // ISSUE-007's `requires_verification` CTE pattern for
+        // saveRsvpWithInvitation below) rather than from `prev` — which was
+        // read by a separate SELECT moments earlier — closing the same class
+        // of TOCTOU that pattern closes. Postgres evaluates every SET
+        // expression against the PRE-update row, so `email`/`verified_at` in
+        // the CASE below always see the value before this statement's own
+        // `email = ...` assignment lands.
+        //
+        // Reachability note (see tests/verification-reactivation.test.ts):
+        // the unique (event_id, lower(email)) index (rsvps_event_email_unique)
+        // means `prev` is only ever found because `lower(prev.email)` already
+        // equals `emailLower` — a genuinely DIFFERENT email can never
+        // reactivate this row through this lookup; it either matches no row
+        // (fresh insert, unrelated to any prior verification) or a different
+        // row already keyed to that other email. So the "case-insensitive
+        // identical email" bucket below is the ONLY reachable "same row"
+        // case; the `lower(email) = ${emailLower}` comparison is kept anyway
+        // as the SQL-level source of truth (not a redundant JS check), so a
+        // future change to the SELECT above can't silently reopen the TOCTOU
+        // this closes.
+        const preservesVerification = sql`(${requiresVerification} AND lower(email) = ${emailLower} AND verified_at IS NOT NULL)`
+        let raw
         try {
-            [reactivated] = await db.update(rsvps)
-                .set({
-                    name: rsvpData.name,
-                    email,
-                    phone: rsvpData.phone,
-                    plusOne: rsvpData.plusOne,
-                    plusOneName: rsvpData.plusOneName || null,
-                    status: initialStatus,
-                    verifiedAt: null,
-                    verificationTokenHash,
-                    verificationExpiresAt,
-                    pendingExpiresAt,
-                })
-                .where(and(eq(rsvps.id, prev.id), eq(rsvps.status, prev.status)))
-                .returning()
+            raw = await db.execute(sql`
+                UPDATE rsvps
+                SET name = ${rsvpData.name},
+                    email = ${email},
+                    phone = ${rsvpData.phone},
+                    plus_one = ${rsvpData.plusOne},
+                    plus_one_name = ${rsvpData.plusOneName || null},
+                    status = CASE WHEN ${preservesVerification}
+                                  THEN ${RSVP_STATUS.CONFIRMED} ELSE ${initialStatus} END,
+                    verified_at = CASE WHEN ${preservesVerification}
+                                  THEN verified_at ELSE NULL END,
+                    verification_token_hash = CASE WHEN ${preservesVerification}
+                                  THEN NULL ELSE ${verificationTokenHash} END,
+                    verification_expires_at = CASE WHEN ${preservesVerification}
+                                  THEN NULL ELSE ${verificationExpiresAt} END,
+                    pending_expires_at = CASE WHEN ${preservesVerification}
+                                  THEN NULL ELSE ${pendingExpiresAt} END
+                WHERE id = ${prev.id} AND status = ${prev.status}
+                RETURNING *
+            `)
         } catch (err: any) {
             if (isCapacityFullError(err)) throw new Error(CAPACITY_FULL_MESSAGE)
             throw err
         }
-        if (!reactivated) {
+        const reactivatedRow = raw.rows[0] as Record<string, unknown> | undefined
+        if (!reactivatedRow) {
             throw new Error('Ya existe un RSVP con este email para este evento')
         }
-        return reactivated
+        return mapRsvpRow(reactivatedRow)
     }
 
     try {
@@ -718,7 +767,10 @@ export async function getRSVPById(rsvpId: string): Promise<RSVP | null> {
  */
 export async function updateRSVP(
     rsvpId: string,
-    data: Partial<Pick<RSVP, 'name' | 'email' | 'phone' | 'plusOne' | 'plusOneName' | 'status'>>
+    // ISSUE-009: 'verifiedAt' is settable so the cancel-token update route
+    // can clear it (to null) when the guest changes their email — never to
+    // set it, there is no verification flow on this path.
+    data: Partial<Pick<RSVP, 'name' | 'email' | 'phone' | 'plusOne' | 'plusOneName' | 'status' | 'verifiedAt'>>
 ): Promise<RSVP> {
     if (!db) throw new Error('Database not configured')
 

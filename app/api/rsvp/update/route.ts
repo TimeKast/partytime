@@ -46,12 +46,25 @@ export async function POST(request: NextRequest) {
     }
 
     // Preparar datos a actualizar
+    const trimmedEmail = email.trim()
     const updateData: any = {
       name,
-      email,
+      email: trimmedEmail,
       phone,
       plusOne: plusOne || false,
       plusOneName: plusOne ? (plusOneName?.trim() || null) : null
+    }
+
+    // ISSUE-009 (EPIC-003): this route DOES allow the guest to change their
+    // email via the cancel-token link. A changed email invalidates whatever
+    // ownership proof `verified_at` represented — the person clicking the
+    // verification link may not be the owner of the NEW address. MVP
+    // decision (see docs/backlog/ISSUE-009-verification-reactivation-reset.md):
+    // do NOT degrade an already-confirmed RSVP back to pending here, only
+    // clear verified_at. Compared case-insensitively so re-saving the same
+    // address with different casing does not spuriously reset it.
+    if (trimmedEmail.toLowerCase() !== currentRSVP.email.trim().toLowerCase()) {
+      updateData.verifiedAt = null
     }
 
     // Si se está reconfirmando, cambiar status a 'confirmed'

@@ -151,15 +151,10 @@ function mockInsertReturning(rows: unknown[]) {
     })
 }
 
-function mockUpdateReturning(rows: unknown[]) {
-    updateMock.mockReturnValueOnce({
-        set: vi.fn(() => ({
-            where: vi.fn(() => ({
-                returning: vi.fn(async () => rows),
-            })),
-        })),
-    })
-}
+// ISSUE-009: db.update() is no longer used by the reactivation branch (it
+// now issues one raw db.execute UPDATE — see the CASE-based statement
+// asserted below), so `updateMock` is only ever asserted as NOT called in
+// this file. No `mockUpdateReturning` helper is needed anymore.
 
 const verification = { tokenHash: 'b'.repeat(64), expiresAt: new Date('2026-08-19T00:00:00.000Z') }
 
@@ -218,6 +213,12 @@ describe('saveRSVP with verification issuance (ISSUE-007)', () => {
     // ISSUE-007 Gherkin: "Given re-submit del mismo email con fila pendiente
     // propia / When llega el segundo POST /api/rsvp / Then se refresca el
     // token en la misma fila (no hay duplicado ni CAPACITY_FULL falso)".
+    // ISSUE-009 (EPIC-003): the reactivation branch now issues a single raw
+    // UPDATE (db.execute), not drizzle's typed db.update — see
+    // tests/verification-reactivation.test.ts for the full reset/preserve
+    // matrix this statement implements. These three tests keep pinning the
+    // ISSUE-007 behaviors they were written for, updated to the new mocking
+    // shape.
     it('re-submit on an existing pending_verification row refreshes the SAME row with a new token (no duplicate error)', async () => {
         const previousRow = camelRsvp({
             id: 'rsvp-1',
@@ -227,13 +228,13 @@ describe('saveRSVP with verification issuance (ISSUE-007)', () => {
             pendingExpiresAt: new Date('2026-08-18T12:00:00.000Z'),
         })
         mockSelectExisting([previousRow])
-        mockUpdateReturning([camelRsvp({
+        executeMock.mockResolvedValueOnce({ rows: [rawRsvpRow({
             id: 'rsvp-1',
             status: RSVP_STATUS.PENDING_VERIFICATION,
-            verificationTokenHash: verification.tokenHash,
-            verificationExpiresAt: verification.expiresAt,
-            pendingExpiresAt: verification.expiresAt,
-        })])
+            verification_token_hash: verification.tokenHash,
+            verification_expires_at: verification.expiresAt.toISOString(),
+            pending_expires_at: verification.expiresAt.toISOString(),
+        })] })
 
         const rsvp = await saveRSVP({
             name: 'Alex', email: 'alex@example.com', phone: '+525500000000',
@@ -242,25 +243,32 @@ describe('saveRSVP with verification issuance (ISSUE-007)', () => {
 
         expect(rsvp.id).toBe('rsvp-1')
         expect(insertMock).not.toHaveBeenCalled()
-        expect(updateMock).toHaveBeenCalledTimes(1)
-        const updatedValues = (updateMock.mock.results[0]!.value.set as ReturnType<typeof vi.fn>).mock.calls[0][0]
-        expect(updatedValues).toMatchObject({
-            status: RSVP_STATUS.PENDING_VERIFICATION,
-            verificationTokenHash: verification.tokenHash,
-            verificationExpiresAt: verification.expiresAt,
-            pendingExpiresAt: verification.expiresAt,
-            verifiedAt: null,
-        })
+        expect(updateMock).not.toHaveBeenCalled()
+        expect(executeMock).toHaveBeenCalledTimes(1)
+
+        const statement = sqlTextOf(executeMock.mock.calls[0][0])
+        expect(statement.match(/UPDATE rsvps/g)).toHaveLength(1)
+        expect(statement).toContain('RETURNING *')
+        expect(statement).toContain(verification.tokenHash)
+
+        expect(rsvp.status).toBe(RSVP_STATUS.PENDING_VERIFICATION)
+        expect(rsvp.verificationTokenHash).toBe(verification.tokenHash)
+        expect(rsvp.verificationExpiresAt).toEqual(verification.expiresAt)
+        expect(rsvp.pendingExpiresAt).toEqual(verification.expiresAt)
+        expect(rsvp.verifiedAt).toBeNull()
     })
 
     it.each([RSVP_STATUS.CANCELLED, RSVP_STATUS.EXPIRED])(
-        'reactivates an existing %s row into pending_verification on re-submit',
+        'reactivates an existing %s row (never verified) into pending_verification on re-submit',
         async previousStatus => {
+            // camelRsvp() defaults verifiedAt to null — the "never verified"
+            // half of the ISSUE-009 matrix; the "was verified" half is
+            // covered by tests/verification-reactivation.test.ts.
             mockSelectExisting([camelRsvp({ status: previousStatus })])
-            mockUpdateReturning([camelRsvp({
+            executeMock.mockResolvedValueOnce({ rows: [rawRsvpRow({
                 status: RSVP_STATUS.PENDING_VERIFICATION,
-                verificationTokenHash: verification.tokenHash,
-            })])
+                verification_token_hash: verification.tokenHash,
+            })] })
 
             const rsvp = await saveRSVP({
                 name: 'Alex', email: 'alex@example.com', phone: '+525500000000',
@@ -269,6 +277,7 @@ describe('saveRSVP with verification issuance (ISSUE-007)', () => {
 
             expect(rsvp.status).toBe(RSVP_STATUS.PENDING_VERIFICATION)
             expect(insertMock).not.toHaveBeenCalled()
+            expect(updateMock).not.toHaveBeenCalled()
         },
     )
 
@@ -282,11 +291,12 @@ describe('saveRSVP with verification issuance (ISSUE-007)', () => {
 
         expect(updateMock).not.toHaveBeenCalled()
         expect(insertMock).not.toHaveBeenCalled()
+        expect(executeMock).not.toHaveBeenCalled()
     })
 
     it('two concurrent re-submits: the loser (predicate no longer matches) is treated as a duplicate', async () => {
         mockSelectExisting([camelRsvp({ status: RSVP_STATUS.PENDING_VERIFICATION })])
-        mockUpdateReturning([]) // optimistic predicate lost the race — 0 rows
+        executeMock.mockResolvedValueOnce({ rows: [] }) // optimistic predicate lost the race — 0 rows
 
         await expect(saveRSVP({
             name: 'Alex', email: 'alex@example.com', phone: '+525500000000',
