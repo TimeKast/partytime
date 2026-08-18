@@ -47,6 +47,7 @@ const link = {
     expiresAt: futureExpiry,
     usedAt: null,
     usedRsvpId: null,
+    usedRsvpName: null,
     revokedAt: null,
     revokedBy: null,
     createdBy: 'admin-1',
@@ -151,6 +152,29 @@ describe('/api/admin/rsvp-invitations', () => {
         expect(mocks.revokeRsvpInvitationLink).toHaveBeenCalledWith('link-1', 'fiesta', 'admin-1')
         expect(info.mock.calls.flat().join(' ')).toContain('rsvp_invitation.revoked')
         info.mockRestore()
+    })
+
+    it('returns the consuming guest reference only through the authorized admin listing', async () => {
+        mocks.listRsvpInvitationLinks.mockResolvedValueOnce([{
+            ...link,
+            usedAt: new Date('2026-08-18T12:00:00.000Z'),
+            usedRsvpId: 'rsvp-1',
+            usedRsvpName: 'Ana Invitada',
+        }])
+        const { GET } = await import('@/app/api/admin/rsvp-invitations/route')
+
+        const response = await GET(new NextRequest(
+            'http://localhost:3000/api/admin/rsvp-invitations?eventSlug=fiesta',
+        ))
+        const payload = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(payload.links[0]).toMatchObject({
+            status: 'used',
+            usedRsvpId: 'rsvp-1',
+            usedRsvpName: 'Ana Invitada',
+        })
+        expect(payload.links[0]).not.toHaveProperty('tokenHash')
     })
 
     it('rejects unknown input keys and expiry beyond 365 days', async () => {

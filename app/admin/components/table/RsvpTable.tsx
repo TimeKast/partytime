@@ -11,6 +11,7 @@ interface RsvpTableProps {
   isReadOnly: boolean
   loading: boolean
   isEventPast: boolean
+  highlightedRsvpId: string | null
   onSendEmail: (rsvp: RSVP) => void
   onEdit: (rsvp: RSVP) => void
   onToggleStatus: (rsvp: RSVP) => void
@@ -23,6 +24,7 @@ export function RsvpTable({
   isReadOnly,
   loading,
   isEventPast,
+  highlightedRsvpId,
   onSendEmail,
   onEdit,
   onToggleStatus,
@@ -55,7 +57,14 @@ export function RsvpTable({
         </thead>
         <tbody>
           {rsvps.map((rsvp) => (
-            <tr key={rsvp.id} className={styles.rsvpRow} data-read-only={isReadOnly ? 'true' : undefined}>
+            <tr
+              key={rsvp.id}
+              id={`rsvp-guest-${rsvp.id}`}
+              className={styles.rsvpRow}
+              data-read-only={isReadOnly ? 'true' : undefined}
+              data-highlighted={highlightedRsvpId === rsvp.id ? 'true' : undefined}
+              tabIndex={-1}
+            >
               {!isReadOnly && (
                 <td className={styles.actionCell}>
                   <div className={styles.actionCluster} role="group" aria-label={`Acciones para ${rsvp.name}`}>

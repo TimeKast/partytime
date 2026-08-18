@@ -10,6 +10,8 @@ interface InvitationLink {
   eventId: string
   expiresAt: string
   usedAt: string | null
+  usedRsvpId: string | null
+  usedRsvpName?: string | null
   revokedAt: string | null
   createdBy: string
   createdAt: string
@@ -18,6 +20,7 @@ interface InvitationLink {
 
 interface InvitationLinkManagerProps {
   eventSlug: string
+  onNavigateToRsvp?: (rsvpId: string) => void
 }
 
 const STATUS_LABELS: Record<InvitationLinkStatus, string> = {
@@ -57,7 +60,7 @@ function formatDate(value: string): string {
   }).format(new Date(value))
 }
 
-export default function InvitationLinkManager({ eventSlug }: InvitationLinkManagerProps) {
+export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: InvitationLinkManagerProps) {
   const activeEventSlug = useRef(eventSlug)
   const [expiresAt, setExpiresAt] = useState(defaultExpiration)
   const [links, setLinks] = useState<InvitationLink[]>([])
@@ -67,6 +70,7 @@ export default function InvitationLinkManager({ eventSlug }: InvitationLinkManag
   const [revokingId, setRevokingId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [feedback, setFeedback] = useState('')
+  const [linksExpanded, setLinksExpanded] = useState(false)
 
   activeEventSlug.current = eventSlug
 
@@ -77,6 +81,7 @@ export default function InvitationLinkManager({ eventSlug }: InvitationLinkManag
     setGeneratedUrl(null)
     setError('')
     setFeedback('')
+    setLinksExpanded(false)
     setCreating(false)
     setRevokingId(null)
     setLoadingLinks(true)
@@ -176,6 +181,10 @@ export default function InvitationLinkManager({ eventSlug }: InvitationLinkManag
     }
   }
 
+  const navigateToUsedRsvp = (rsvpId: string | null) => {
+    if (rsvpId && onNavigateToRsvp) onNavigateToRsvp(rsvpId)
+  }
+
   const handleRevoke = async (id: string) => {
     const requestEventSlug = eventSlug
     setRevokingId(id)
@@ -257,37 +266,70 @@ export default function InvitationLinkManager({ eventSlug }: InvitationLinkManag
       </div>
 
       <div className={styles.invitationLinkList}>
-        <h4>Links emitidos</h4>
-        {loadingLinks ? (
-          <p className={styles.invitationEmpty} role="status">Cargando links…</p>
-        ) : sortedLinks.length === 0 ? (
-          <p className={styles.invitationEmpty}>Aún no hay links para este evento.</p>
-        ) : (
-          <ul>
-            {sortedLinks.map(link => (
-              <li key={link.id}>
-                <div className={styles.invitationLinkDates}>
-                  <span>Creado <time dateTime={link.createdAt}>{formatDate(link.createdAt)}</time></span>
-                  <span>Vence <time dateTime={link.expiresAt}>{formatDate(link.expiresAt)}</time></span>
-                </div>
-                <span className={`${styles.invitationStatus} ${styles[`invitationStatus_${link.status}`]}`}>
-                  {STATUS_LABELS[link.status]}
-                </span>
-                {link.status === 'active' && (
-                  <button
-                    className={styles.invitationRevokeAction}
-                    type="button"
-                    onClick={() => void handleRevoke(link.id)}
-                    disabled={revokingId === link.id}
-                    aria-label={`Revocar link creado el ${formatDate(link.createdAt)}`}
-                  >
-                    {revokingId === link.id ? 'Revocando…' : 'Revocar'}
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        <button
+          type="button"
+          className={styles.invitationListToggle}
+          aria-expanded={linksExpanded}
+          aria-controls="issued-invitation-links"
+          onClick={() => setLinksExpanded(current => !current)}
+        >
+          <span>
+            <strong>Links emitidos</strong>
+            <small>
+              {loadingLinks
+                ? 'Cargando…'
+                : `${sortedLinks.length} ${sortedLinks.length === 1 ? 'link' : 'links'}`}
+            </small>
+          </span>
+          <span className={styles.filterToggleIcon} aria-hidden="true">⌄</span>
+        </button>
+
+        <div id="issued-invitation-links" hidden={!linksExpanded}>
+          {loadingLinks ? (
+            <p className={styles.invitationEmpty} role="status">Cargando links…</p>
+          ) : sortedLinks.length === 0 ? (
+            <p className={styles.invitationEmpty}>Aún no hay links para este evento.</p>
+          ) : (
+            <ul>
+              {sortedLinks.map(link => (
+                <li key={link.id}>
+                  <div className={styles.invitationLinkDates}>
+                    <span>Creado <time dateTime={link.createdAt}>{formatDate(link.createdAt)}</time></span>
+                    <span>Vence <time dateTime={link.expiresAt}>{formatDate(link.expiresAt)}</time></span>
+                    {link.usedAt && (
+                      <span>Usado <time dateTime={link.usedAt}>{formatDate(link.usedAt)}</time></span>
+                    )}
+                    {link.status === 'used' && link.usedRsvpId && link.usedRsvpName && onNavigateToRsvp ? (
+                      <button
+                        type="button"
+                        className={styles.invitationRsvpLink}
+                        onClick={() => navigateToUsedRsvp(link.usedRsvpId)}
+                      >
+                        Invitado: {link.usedRsvpName}
+                      </button>
+                    ) : link.status === 'used' ? (
+                      <span>Invitado: {link.usedRsvpName || 'Registro no disponible'}</span>
+                    ) : null}
+                  </div>
+                  <span className={`${styles.invitationStatus} ${styles[`invitationStatus_${link.status}`]}`}>
+                    {STATUS_LABELS[link.status]}
+                  </span>
+                  {link.status === 'active' && (
+                    <button
+                      className={styles.invitationRevokeAction}
+                      type="button"
+                      onClick={() => void handleRevoke(link.id)}
+                      disabled={revokingId === link.id}
+                      aria-label={`Revocar link creado el ${formatDate(link.createdAt)}`}
+                    >
+                      {revokingId === link.id ? 'Revocando…' : 'Revocar'}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </section>
   )

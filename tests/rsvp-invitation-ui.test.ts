@@ -10,7 +10,7 @@ describe('admin one-time invitation link UI contract', () => {
 
   it('is manager-only and reloads a secret-free link list for the selected event', () => {
     expect(adminPage).toContain('canManageSelectedEvent && selectedEventId')
-    expect(adminPage).toContain('<InvitationLinkManager eventSlug={selectedEventId} />')
+    expect(adminPage).toContain('<InvitationLinkManager eventSlug={selectedEventId} onNavigateToRsvp={navigateToRsvp} />')
     expect(manager).toContain('/api/admin/rsvp-invitations?eventSlug=')
     expect(manager).toContain('}, [eventSlug])')
     expect(manager).not.toContain('localStorage')
@@ -36,6 +36,30 @@ describe('admin one-time invitation link UI contract', () => {
     expect(manager).toContain("method: 'DELETE'")
     expect(manager).toContain('aria-live="polite"')
     expect(adminCss).toMatch(/\.invitationPrimaryAction[\s\S]*?min-height:\s*44px/)
+  })
+
+  it('keeps issued links collapsed by default and links a consumed RSVP to its guest row', () => {
+    expect(manager).toContain('const [linksExpanded, setLinksExpanded] = useState(false)')
+    expect(manager).toContain('aria-expanded={linksExpanded}')
+    expect(manager).toContain('aria-controls="issued-invitation-links"')
+    expect(manager).toContain('hidden={!linksExpanded}')
+    expect(manager).toContain('usedRsvpId: string | null')
+    expect(manager).toContain('usedRsvpName?: string | null')
+    expect(manager).toContain('navigateToUsedRsvp(link.usedRsvpId)')
+    expect(adminPage).toContain('filterAndSortRsvps(rsvps')
+    expect(adminPage).toContain("window.matchMedia('(prefers-reduced-motion: reduce)').matches")
+    expect(adminPage).toContain("behavior: reducedMotion ? 'auto' : 'smooth'")
+    expect(adminPage).toContain('target.scrollIntoView')
+    expect(adminPage).toContain('target.focus({ preventScroll: true })')
+  })
+
+  it('uses a content-hugging responsive form and bounds the native date input', () => {
+    expect(adminCss).toMatch(/\.invitationLinkManager\s*\{[\s\S]*?max-width:\s*100%;[\s\S]*?min-width:\s*0;[\s\S]*?box-sizing:\s*border-box;/)
+    expect(adminCss).toMatch(/\.invitationLinkForm\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) auto;/)
+    expect(adminCss).toMatch(/\.invitationExpiryField\s*\{[\s\S]*?min-width:\s*0;/)
+    expect(adminCss).toMatch(/\.invitationExpiryField input,[\s\S]*?max-width:\s*100%;[\s\S]*?min-width:\s*0;[\s\S]*?box-sizing:\s*border-box;/)
+    expect(adminCss).not.toMatch(/\.invitationExpiryField\s*\{[\s\S]*?flex:\s*1 1 280px;/)
+    expect(adminCss).toMatch(/@media \(max-width: 640px\)[\s\S]*?\.invitationLinkForm\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\);/)
   })
 })
 

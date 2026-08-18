@@ -20,6 +20,7 @@ import { buildEventExportMetadataRows, createEventExportFilename } from '@/lib/e
 import {
   buildRsvpListView,
   describeRsvpListView,
+  filterAndSortRsvps,
   type RsvpEmailFilter,
   type RsvpPageSize,
   type RsvpPlusOneFilter,
@@ -38,7 +39,7 @@ import {
   type RSVP,
 } from './components'
 import { AdminShell } from './components/shell'
-import { RsvpTable, RsvpFilters } from './components/table'
+import { RsvpFilters, RsvpPagination, RsvpTable } from './components/table'
 import { Button, ImagePreview } from './components/ui'
 import { Settings } from './components/ui/icons'
 import { ConfigNav } from './components/config/ConfigNav'
@@ -114,6 +115,9 @@ export default function AdminDashboard() {
   const [rsvpSort, setRsvpSort] = useState<RsvpSort>('name-asc')
   const [rsvpPageSize, setRsvpPageSize] = useState<RsvpPageSize>(25)
   const [rsvpPage, setRsvpPage] = useState(1)
+  const [pendingRsvpTarget, setPendingRsvpTarget] = useState<string | null>(null)
+  const [highlightedRsvpId, setHighlightedRsvpId] = useState<string | null>(null)
+  const navigatingToRsvpRef = useRef(false)
 
   // Filtros para ENVIAR emails (default: solo confirmados sin email)
   const [emailFilterStatus, setEmailFilterStatus] = useState<RsvpStatusFilter>('confirmed')
@@ -416,6 +420,10 @@ export default function AdminDashboard() {
 
   // Regresar a la primera página cuando cambia la vista preparada.
   useEffect(() => {
+    if (navigatingToRsvpRef.current) {
+      navigatingToRsvpRef.current = false
+      return
+    }
     setRsvpPage(1)
   }, [
     selectedEventId,
@@ -433,6 +441,59 @@ export default function AdminDashboard() {
       setRsvpPage(rsvpListView.page)
     }
   }, [rsvpPage, rsvpListView.page])
+
+  const navigateToRsvp = useCallback((rsvpId: string) => {
+    const orderedRsvps = filterAndSortRsvps(rsvps, {
+      searchTerm: '',
+      status: 'all',
+      plusOne: 'all',
+      email: 'all',
+      sort: rsvpSort,
+    })
+    const targetIndex = orderedRsvps.findIndex(rsvp => rsvp.id === rsvpId)
+    if (targetIndex < 0) {
+      setMessage('El invitado asociado ya no está disponible en este evento.')
+      return
+    }
+
+    const willResetDisplayFilters = searchTerm !== ''
+      || displayFilterStatus !== 'all'
+      || displayFilterPlusOne !== 'all'
+      || displayFilterEmail !== 'all'
+    navigatingToRsvpRef.current = willResetDisplayFilters
+    setSearchTerm('')
+    setDisplayFilterStatus('all')
+    setDisplayFilterPlusOne('all')
+    setDisplayFilterEmail('all')
+    setRsvpPage(Math.floor(targetIndex / rsvpPageSize) + 1)
+    setPendingRsvpTarget(rsvpId)
+    setHighlightedRsvpId(rsvpId)
+  }, [
+    displayFilterEmail,
+    displayFilterPlusOne,
+    displayFilterStatus,
+    rsvpPageSize,
+    rsvpSort,
+    rsvps,
+    searchTerm,
+  ])
+
+  useEffect(() => {
+    if (!pendingRsvpTarget) return
+    const target = document.getElementById(`rsvp-guest-${pendingRsvpTarget}`)
+    if (!target) return
+
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' })
+    target.focus({ preventScroll: true })
+    setPendingRsvpTarget(null)
+  }, [pendingRsvpTarget, rsvpListView.pageItems])
+
+  useEffect(() => {
+    if (!highlightedRsvpId) return
+    const highlightTimer = window.setTimeout(() => setHighlightedRsvpId(null), 3000)
+    return () => window.clearTimeout(highlightTimer)
+  }, [highlightedRsvpId])
 
   // Filtrar RSVPs para ENVIAR emails
   useEffect(() => {
@@ -1323,13 +1384,6 @@ export default function AdminDashboard() {
             onSortChange={setRsvpSort}
             pageSize={rsvpPageSize}
             onPageSizeChange={setRsvpPageSize}
-            page={rsvpListView.page}
-            pageCount={rsvpListView.pageCount}
-            rangeStart={rsvpListView.rangeStart}
-            rangeEnd={rsvpListView.rangeEnd}
-            resultCount={rsvpListView.total}
-            onPreviousPage={() => setRsvpPage((page) => Math.max(1, page - 1))}
-            onNextPage={() => setRsvpPage((page) => Math.min(rsvpListView.pageCount, page + 1))}
             onExportPdf={exportInformativeList}
             onExportExcel={exportExcelList}
             exportDisabled={rsvpListView.total === 0}
@@ -1345,38 +1399,64 @@ export default function AdminDashboard() {
           />
 
           {canManageSelectedEvent && selectedEventId && (
-            <InvitationLinkManager eventSlug={selectedEventId} />
+            <InvitationLinkManager eventSlug={selectedEventId} onNavigateToRsvp={navigateToRsvp} />
           )}
 
-          <RsvpTable
-            variant="confirmed"
-            rsvps={rsvpListView.pageItems.filter(r => r.status === 'confirmed')}
-            totalCount={rsvpListView.confirmedTotal}
-            isReadOnly={isReadOnly}
-            loading={loading}
-            isEventPast={isEventPast()}
-            onSendEmail={sendEmail}
-            onEdit={openEditModal}
-            onToggleStatus={toggleStatus}
-          />
+          <section className={styles.rsvpList} aria-label="Lista de invitados">
+            <RsvpPagination
+              position="top"
+              page={rsvpListView.page}
+              pageCount={rsvpListView.pageCount}
+              rangeStart={rsvpListView.rangeStart}
+              rangeEnd={rsvpListView.rangeEnd}
+              resultCount={rsvpListView.total}
+              onPreviousPage={() => setRsvpPage((page) => Math.max(1, page - 1))}
+              onNextPage={() => setRsvpPage((page) => Math.min(rsvpListView.pageCount, page + 1))}
+            />
 
-          <RsvpTable
-            variant="cancelled"
-            rsvps={rsvpListView.pageItems.filter(r => r.status === 'cancelled')}
-            totalCount={rsvpListView.cancelledTotal}
-            isReadOnly={isReadOnly}
-            loading={loading}
-            isEventPast={isEventPast()}
-            onSendEmail={sendEmail}
-            onEdit={openEditModal}
-            onToggleStatus={toggleStatus}
-          />
+            <RsvpTable
+              variant="confirmed"
+              rsvps={rsvpListView.pageItems.filter(r => r.status === 'confirmed')}
+              totalCount={rsvpListView.confirmedTotal}
+              isReadOnly={isReadOnly}
+              loading={loading}
+              isEventPast={isEventPast()}
+              highlightedRsvpId={highlightedRsvpId}
+              onSendEmail={sendEmail}
+              onEdit={openEditModal}
+              onToggleStatus={toggleStatus}
+            />
 
-          {rsvpListView.total === 0 && (
-            <div className={styles.tableContainer}>
-              <p className={styles.noData}>No hay RSVPs que coincidan con los filtros</p>
-            </div>
-          )}
+            <RsvpTable
+              variant="cancelled"
+              rsvps={rsvpListView.pageItems.filter(r => r.status === 'cancelled')}
+              totalCount={rsvpListView.cancelledTotal}
+              isReadOnly={isReadOnly}
+              loading={loading}
+              isEventPast={isEventPast()}
+              highlightedRsvpId={highlightedRsvpId}
+              onSendEmail={sendEmail}
+              onEdit={openEditModal}
+              onToggleStatus={toggleStatus}
+            />
+
+            {rsvpListView.total === 0 && (
+              <div className={styles.tableContainer}>
+                <p className={styles.noData}>No hay RSVPs que coincidan con los filtros</p>
+              </div>
+            )}
+
+            <RsvpPagination
+              position="bottom"
+              page={rsvpListView.page}
+              pageCount={rsvpListView.pageCount}
+              rangeStart={rsvpListView.rangeStart}
+              rangeEnd={rsvpListView.rangeEnd}
+              resultCount={rsvpListView.total}
+              onPreviousPage={() => setRsvpPage((page) => Math.max(1, page - 1))}
+              onNextPage={() => setRsvpPage((page) => Math.min(rsvpListView.pageCount, page + 1))}
+            />
+          </section>
         </>
       )}
 

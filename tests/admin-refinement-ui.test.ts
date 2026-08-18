@@ -44,6 +44,37 @@ describe('admin refinement UI contracts', () => {
     expect(css).toMatch(/\.actionCluster\s*\{[\s\S]*?grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);[\s\S]*?width:\s*100%;/)
   })
 
+  it('keeps filters collapsed by default with accessible state and a visible active summary', () => {
+    const filters = read('app/admin/components/table/RsvpFilters.tsx')
+    const css = read('app/admin/admin.module.css')
+
+    expect(filters).toContain('useState(false)')
+    expect(filters).toContain('aria-expanded={displayFiltersExpanded}')
+    expect(filters).toContain('aria-controls="rsvp-display-filters"')
+    expect(filters).toContain('hidden={!displayFiltersExpanded}')
+    expect(filters).toContain('activeDisplayFilterCount')
+    expect(filters).toContain('Sin filtros activos')
+    expect(css).toMatch(/\.filterToggle,\s*\.invitationListToggle\s*\{[\s\S]*?min-height:\s*44px;/)
+    expect(css).toMatch(/\.filterCollapsible\[hidden\]\s*\{[\s\S]*?display:\s*none;/)
+  })
+
+  it('renders pagination immediately above and below the guest list instead of inside filters', () => {
+    const page = read('app/admin/page.tsx')
+    const filters = read('app/admin/components/table/RsvpFilters.tsx')
+    const pagination = read('app/admin/components/table/RsvpPagination.tsx')
+    const listStart = page.indexOf('<section className={styles.rsvpList}')
+    const listEnd = page.indexOf('</section>', listStart)
+    const guestList = page.slice(listStart, listEnd)
+
+    expect(filters).not.toContain('styles.paginationBar')
+    expect(guestList).toContain('position="top"')
+    expect(guestList).toContain('position="bottom"')
+    expect(guestList.indexOf('position="top"')).toBeLessThan(guestList.indexOf('<RsvpTable'))
+    expect(guestList.lastIndexOf('position="bottom"')).toBeGreaterThan(guestList.lastIndexOf('<RsvpTable'))
+    expect(pagination).toContain('data-pagination-position={position}')
+    expect(pagination).toContain('Paginación ${positionLabel} de invitados')
+  })
+
   it('tracks the visible configuration section and respects accessible motion preferences', () => {
     const configNav = read('app/admin/components/config/ConfigNav.tsx')
     const navCss = read('app/admin/components/config/ConfigNav.module.css')

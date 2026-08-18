@@ -90,6 +90,7 @@ export interface RsvpInvitationLinkAdminDto {
     expiresAt: Date
     usedAt: Date | null
     usedRsvpId: string | null
+    usedRsvpName: string | null
     revokedAt: Date | null
     revokedBy: string | null
     createdBy: string
@@ -134,7 +135,7 @@ export async function createRsvpInvitationLink(input: {
         createdAt: rsvpInvitationLinks.createdAt,
     })
 
-    return created
+    return { ...created, usedRsvpName: null }
 }
 
 export async function listRsvpInvitationLinks(eventId: string): Promise<RsvpInvitationLinkAdminDto[]> {
@@ -146,12 +147,17 @@ export async function listRsvpInvitationLinks(eventId: string): Promise<RsvpInvi
         expiresAt: rsvpInvitationLinks.expiresAt,
         usedAt: rsvpInvitationLinks.usedAt,
         usedRsvpId: rsvpInvitationLinks.usedRsvpId,
+        usedRsvpName: rsvps.name,
         revokedAt: rsvpInvitationLinks.revokedAt,
         revokedBy: rsvpInvitationLinks.revokedBy,
         createdBy: rsvpInvitationLinks.createdBy,
         createdAt: rsvpInvitationLinks.createdAt,
     })
         .from(rsvpInvitationLinks)
+        .leftJoin(rsvps, and(
+            eq(rsvps.id, rsvpInvitationLinks.usedRsvpId),
+            eq(rsvps.eventId, rsvpInvitationLinks.eventId),
+        ))
         .where(eq(rsvpInvitationLinks.eventId, eventId))
         .orderBy(desc(rsvpInvitationLinks.createdAt))
 }

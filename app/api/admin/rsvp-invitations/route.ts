@@ -61,6 +61,7 @@ function linkDto(link: {
     expiresAt: Date
     usedAt: Date | null
     usedRsvpId: string | null
+    usedRsvpName: string | null
     revokedAt: Date | null
     revokedBy: string | null
     createdBy: string
