@@ -3,7 +3,7 @@
 - **Epic:** EPIC-004
 - **Priority:** P1
 - **Story points:** 5
-- **Status:** Pending
+- **Status:** Completed (2026-08-18)
 - **Dependencies:** ISSUE-012, ISSUE-013
 - **User stories:** US-008, US-009
 - **Agents:** quality-engineer, security-auditor

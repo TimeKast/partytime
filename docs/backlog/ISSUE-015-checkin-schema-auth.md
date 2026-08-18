@@ -3,7 +3,7 @@
 - **Epic:** EPIC-005
 - **Priority:** P0
 - **Story points:** 5
-- **Status:** Pending
+- **Status:** Completed (2026-08-18)
 - **Dependencies:** ISSUE-005 (solo por orden de migraciones; ejecutable en paralelo con EPIC-003/004 salvo `lib/schema.ts`)
 - **User stories:** US-011, US-012
 - **Agents:** backend-specialist, security-auditor

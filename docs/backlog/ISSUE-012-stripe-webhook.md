@@ -3,7 +3,7 @@
 - **Epic:** EPIC-004
 - **Priority:** P0
 - **Story points:** 8
-- **Status:** Pending
+- **Status:** Completed (2026-08-18)
 - **Dependencies:** ISSUE-011
 - **User stories:** US-009
 - **Agents:** backend-specialist, security-auditor

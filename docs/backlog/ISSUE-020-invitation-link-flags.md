@@ -3,7 +3,7 @@
 - **Epic:** EPIC-002
 - **Priority:** P0
 - **Story points:** 3
-- **Status:** Pending
+- **Status:** Completed (2026-08-18)
 - **Dependencies:** ISSUE-005 (columnas), PRE-1 (trabajo en vuelo del keyring aterrizado)
 - **User stories:** US-008, US-006
 - **Agents:** backend-specialist, frontend-specialist

@@ -3,7 +3,7 @@
 - **Epic:** EPIC-005
 - **Priority:** P1
 - **Story points:** 3
-- **Status:** Pending
+- **Status:** Completed (2026-08-18)
 - **Dependencies:** ISSUE-015, ISSUE-017; secuenciar con ISSUE-013 (ambos tocan admin/exports)
 - **User stories:** US-011, US-013
 - **Agents:** frontend-specialist

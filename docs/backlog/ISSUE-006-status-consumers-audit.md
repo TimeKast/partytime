@@ -3,7 +3,7 @@
 - **Epic:** EPIC-002
 - **Priority:** P0
 - **Story points:** 3
-- **Status:** Pending
+- **Status:** Completed (2026-08-18)
 - **Dependencies:** ISSUE-005
 - **User stories:** habilitador de US-006..US-010
 - **Agents:** backend-specialist, code-archaeologist

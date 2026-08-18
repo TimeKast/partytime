@@ -3,7 +3,7 @@
 - **Epic:** EPIC-002
 - **Priority:** P0
 - **Story points:** 5
-- **Status:** Pending
+- **Status:** Completed (2026-08-18)
 - **Dependencies:** PRE-1 (aterrizar trabajo en vuelo del keyring de invitaciones)
 - **User stories:** habilitador de US-006..US-010
 - **Agents:** backend-specialist, database (via /database)

@@ -3,7 +3,7 @@
 - **Epic:** EPIC-005
 - **Priority:** P0
 - **Story points:** 5
-- **Status:** Pending
+- **Status:** Completed (2026-08-18)
 - **Dependencies:** ISSUE-016
 - **User stories:** US-012
 - **Agents:** frontend-specialist, ui-critic (review)

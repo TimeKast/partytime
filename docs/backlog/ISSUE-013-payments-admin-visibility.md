@@ -3,7 +3,7 @@
 - **Epic:** EPIC-004
 - **Priority:** P1
 - **Story points:** 3
-- **Status:** Pending
+- **Status:** Completed (2026-08-18)
 - **Dependencies:** ISSUE-012
 - **User stories:** US-010
 - **Agents:** frontend-specialist, backend-specialist
