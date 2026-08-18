@@ -18,11 +18,37 @@ import { buildVerificationEmailSubject, generateVerificationEmail } from '@/lib/
 import { stripe } from '@/lib/stripe'
 import { buildCheckoutSessionParams, PENDING_PAYMENT_RSVP_TTL_MS } from '@/lib/stripe-checkout'
 import { derivePaymentAmountCents } from '@/lib/payment-config'
+import { BoundedFixedWindowRateLimiter } from '@/lib/bounded-rate-limiter'
 
 export const dynamic = 'force-dynamic'
 
 // Mock storage para modo demo
 const mockRsvps: any[] = []
+
+// ISSUE-014 (EPIC-004): throttle ONLY the branch that talks to Stripe's API —
+// a spammed POST /api/rsvp must never be able to mint unbounded Checkout
+// Sessions (or repeatedly call sessions.expire on someone else's previous
+// session). Keyed by IP+event, not email/rsvp id, so rotating the email on
+// every attempt against the same event doesn't reset the budget. This is a
+// SEPARATE limiter instance from any other route's — it must never throttle
+// the free-RSVP branch above, which never reaches this check.
+const PAYMENT_BRANCH_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000
+const PAYMENT_BRANCH_RATE_LIMIT_MAX_ATTEMPTS = 5
+const PAYMENT_BRANCH_RATE_LIMIT_MAX_ENTRIES = 4096
+const paymentBranchRateLimiter = new BoundedFixedWindowRateLimiter({
+  maxAttempts: PAYMENT_BRANCH_RATE_LIMIT_MAX_ATTEMPTS,
+  windowMs: PAYMENT_BRANCH_RATE_LIMIT_WINDOW_MS,
+  maxEntries: PAYMENT_BRANCH_RATE_LIMIT_MAX_ENTRIES,
+})
+
+// Same normalization as app/api/rsvp/resend-verification/route.ts's
+// requestIpOf — first hop of X-Forwarded-For, bounded length, 'unknown' when
+// absent (never throws on a malformed/missing header).
+function requestIpOf(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for')
+  const firstHop = forwarded?.split(',', 1)[0]?.trim()
+  return firstHop ? firstHop.slice(0, 64) : 'unknown'
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -223,6 +249,23 @@ export async function POST(request: NextRequest) {
       // ever happens via the webhook (ISSUE-012); this response is purely
       // "here's where to pay".
       if (rsvp.status === RSVP_STATUS.PENDING_PAYMENT) {
+        // ISSUE-014: gate BEFORE any Stripe call (expire-previous-session or
+        // create-new-session) — checked first in this branch so a
+        // rate-limited request never reaches the network. The rsvp row
+        // itself was already persisted/reused above (saveRSVPPendingPayment /
+        // saveRsvpWithInvitation's CTE) regardless of this check — that
+        // write path is shared with the free-RSVP branch and, on the
+        // invitation path, decided fresh inside a CTE this route must not
+        // second-guess (see verificationCandidate/paymentCandidate above) —
+        // so this limiter only protects Stripe itself, not event capacity.
+        const paymentRateLimitKey = `${requestIpOf(request)}:${eventId}`
+        if (paymentBranchRateLimiter.isLimited(paymentRateLimitKey)) {
+          return NextResponse.json(
+            { error: 'Demasiados intentos de pago para este evento. Intenta de nuevo en unos minutos.' },
+            { status: 429 },
+          )
+        }
+
         const {
           getActivePaymentForRsvp,
           expireRsvpPaymentRecord,
@@ -306,13 +349,38 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        await createRsvpPaymentRecord({
+        const paymentRecord = await createRsvpPaymentRecord({
           rsvpId: rsvp.id,
           eventId,
           stripeSessionId: session.id,
           amountCents,
           currency,
         })
+
+        // Tier-4 review finding F1: two concurrent POSTs can both pass the
+        // getActivePaymentForRsvp pre-check above and each create a live
+        // Checkout session — a guest with two tabs could pay both. After
+        // inserting our own row, elect a single survivor (oldest 'created'
+        // row wins); every loser expires its own session AND its own row,
+        // and answers with a retryable error. At most one payable session
+        // ever survives, without needing a partial-unique index migration.
+        const { electSurvivingCreatedPayment } = await import('@/lib/queries')
+        const survivorId = await electSurvivingCreatedPayment(rsvp.id)
+        if (survivorId !== null && survivorId !== paymentRecord.id) {
+          try {
+            await stripe.checkout.sessions.expire(session.id)
+          } catch (expireError) {
+            console.error(
+              'Failed to expire losing concurrent checkout session (best-effort):',
+              expireError instanceof Error ? expireError.name : 'UnknownError',
+            )
+          }
+          await expireRsvpPaymentRecord(paymentRecord.id)
+          return NextResponse.json(
+            { error: 'Ya hay un pago en curso para este registro. Intenta de nuevo en unos minutos.' },
+            { status: 409 },
+          )
+        }
 
         return NextResponse.json(
           {

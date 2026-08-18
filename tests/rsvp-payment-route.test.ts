@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
     recordEmailSent: vi.fn(),
     generateCancelToken: vi.fn(),
     expireStalePendingRsvps: vi.fn(),
+    electSurvivingCreatedPayment: vi.fn(),
     send: vi.fn(),
     stripeSessionsCreate: vi.fn(),
     stripeSessionsExpire: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('@/lib/queries', () => ({
     recordEmailSent: mocks.recordEmailSent,
     generateCancelToken: mocks.generateCancelToken,
     expireStalePendingRsvps: mocks.expireStalePendingRsvps,
+    electSurvivingCreatedPayment: mocks.electSurvivingCreatedPayment,
     RSVP_STATUS: {
         CONFIRMED: 'confirmed',
         CANCELLED: 'cancelled',
@@ -94,10 +96,22 @@ const pendingPaymentRsvp = {
     createdAt: new Date('2026-08-18T00:00:00.000Z'),
 }
 
-function request(overrides: Record<string, unknown> = {}) {
+// ISSUE-014: the payment branch now carries its own IP+event rate limiter
+// (module-level singleton, persists for this file's lifetime). Every call
+// below defaults to a UNIQUE X-Forwarded-For so unrelated tests never share
+// its budget — same convention as tests/rsvp-resend-verification-route.test.ts's
+// requestSequence/uniqueEmail. Tests that specifically exercise the limiter
+// pass a shared `headers['x-forwarded-for']` on purpose.
+let requestSequence = 0
+
+function request(overrides: Record<string, unknown> = {}, headers: Record<string, string> = {}) {
     return new NextRequest('http://localhost:3000/api/rsvp', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+            'content-type': 'application/json',
+            'x-forwarded-for': `192.0.2.${++requestSequence}`,
+            ...headers,
+        },
         body: JSON.stringify({
             name: 'Alex',
             email: 'alex@example.com',
@@ -119,6 +133,33 @@ describe('POST /api/rsvp — public payment branch (ISSUE-011)', () => {
         mocks.getActivePaymentForRsvp.mockResolvedValue(null)
         mocks.stripeSessionsCreate.mockResolvedValue({ id: 'cs_new123', url: 'https://checkout.stripe.com/pay/cs_new123' })
         mocks.createRsvpPaymentRecord.mockResolvedValue({ id: 'pay-1', stripeSessionId: 'cs_new123' })
+        mocks.electSurvivingCreatedPayment.mockResolvedValue('pay-1')
+    })
+
+    // Tier-4 review finding F1: concurrent double-session guard.
+    it('loses the post-insert survivor election: expires its own session and row, responds 409 retryable', async () => {
+        mocks.electSurvivingCreatedPayment.mockResolvedValue('pay-other-older')
+        mocks.stripeSessionsExpire.mockResolvedValue({})
+
+        const { POST } = await import('@/app/api/rsvp/route')
+        const response = await POST(request())
+
+        expect(response.status).toBe(409)
+        expect(mocks.stripeSessionsExpire).toHaveBeenCalledWith('cs_new123')
+        expect(mocks.expireRsvpPaymentRecord).toHaveBeenCalledWith('pay-1')
+        const payload = await response.json()
+        expect(payload.checkoutUrl).toBeUndefined()
+    })
+
+    it('wins the survivor election (own row is oldest): responds 201 with the checkout URL and expires nothing', async () => {
+        mocks.electSurvivingCreatedPayment.mockResolvedValue('pay-1')
+
+        const { POST } = await import('@/app/api/rsvp/route')
+        const response = await POST(request())
+
+        expect(response.status).toBe(201)
+        expect(mocks.stripeSessionsExpire).not.toHaveBeenCalled()
+        expect(mocks.expireRsvpPaymentRecord).not.toHaveBeenCalled()
     })
 
     it('creates a Checkout Session with the derived amount/currency/email and responds pending_payment with the checkout URL', async () => {
@@ -237,8 +278,8 @@ describe('POST /api/rsvp — public payment branch (ISSUE-011)', () => {
 
 const token = 'c'.repeat(43)
 
-function invitationRequest(overrides: Record<string, unknown> = {}) {
-    return request({ invitationToken: token, ...overrides })
+function invitationRequest(overrides: Record<string, unknown> = {}, headers: Record<string, string> = {}) {
+    return request({ invitationToken: token, ...overrides }, headers)
 }
 
 describe('POST /api/rsvp — invitation payment branch (ISSUE-011)', () => {
@@ -250,6 +291,7 @@ describe('POST /api/rsvp — invitation payment branch (ISSUE-011)', () => {
         mocks.getActivePaymentForRsvp.mockResolvedValue(null)
         mocks.stripeSessionsCreate.mockResolvedValue({ id: 'cs_invite1', url: 'https://checkout.stripe.com/pay/cs_invite1' })
         mocks.createRsvpPaymentRecord.mockResolvedValue({ id: 'pay-2', stripeSessionId: 'cs_invite1' })
+        mocks.electSurvivingCreatedPayment.mockResolvedValue('pay-2')
     })
 
     it('a non-courtesy link on a paid event redirects to Stripe (link already consumed atomically by the CTE)', async () => {
@@ -291,6 +333,122 @@ describe('POST /api/rsvp — invitation payment branch (ISSUE-011)', () => {
         expect(response.status).toBe(502)
         expect(mocks.expirePendingPaymentRsvp).toHaveBeenCalledWith('rsvp-1')
         errorSpy.mockRestore()
+    })
+})
+
+describe('POST /api/rsvp — payment branch rate limit (ISSUE-014)', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.databaseConfigured = true
+        mocks.getEventBySlug.mockResolvedValue(paidEvent)
+        mocks.expireStalePendingRsvps.mockResolvedValue([])
+        mocks.saveRSVPPendingPayment.mockResolvedValue(pendingPaymentRsvp)
+        mocks.getActivePaymentForRsvp.mockResolvedValue(null)
+        mocks.stripeSessionsCreate.mockResolvedValue({ id: 'cs_new123', url: 'https://checkout.stripe.com/pay/cs_new123' })
+        mocks.createRsvpPaymentRecord.mockResolvedValue({ id: 'pay-1', stripeSessionId: 'cs_new123' })
+        mocks.electSurvivingCreatedPayment.mockResolvedValue('pay-1')
+    })
+
+    // Budget is 5 attempts / 10 minutes, keyed by IP+event (see
+    // app/api/rsvp/route.ts's paymentBranchRateLimiter — a module-level
+    // singleton that persists for this whole test file). Every scenario
+    // below that exhausts a budget MUST use an IP unique to that test, or an
+    // earlier test's spent budget silently bleeds into this describe's
+    // later tests (same hazard called out by uniqueEmail() in
+    // tests/rsvp-resend-verification-route.test.ts).
+    let rateLimitIpSeq = 0
+    function freshIpHeaders(): Record<string, string> {
+        return { 'x-forwarded-for': `203.0.113.${++rateLimitIpSeq}` }
+    }
+
+    it('cuts the 6th payment-branch request from the same IP+event before it ever reaches Stripe, with a retryable 429', async () => {
+        const ipHeaders = freshIpHeaders()
+        const { POST } = await import('@/app/api/rsvp/route')
+
+        for (let i = 0; i < 5; i++) {
+            const response = await POST(request({}, ipHeaders))
+            expect(response.status).toBe(201)
+        }
+        expect(mocks.stripeSessionsCreate).toHaveBeenCalledTimes(5)
+
+        const sixth = await POST(request({}, ipHeaders))
+        const payload = await sixth.json()
+
+        expect(sixth.status).toBe(429)
+        expect(payload.error).toBeTruthy()
+        // Rate-limited BEFORE any further Stripe/DB work in this branch.
+        expect(mocks.stripeSessionsCreate).toHaveBeenCalledTimes(5)
+        expect(mocks.getActivePaymentForRsvp).toHaveBeenCalledTimes(5)
+        expect(mocks.createRsvpPaymentRecord).toHaveBeenCalledTimes(5)
+    })
+
+    it('rate-limits the invitation-path payment branch too, sharing the same IP+event budget as the public path', async () => {
+        const ipHeaders = freshIpHeaders()
+        mocks.saveRsvpWithInvitation.mockResolvedValue({ ...pendingPaymentRsvp, status: 'pending_payment' })
+        const { POST } = await import('@/app/api/rsvp/route')
+
+        for (let i = 0; i < 5; i++) {
+            const response = await POST(request({}, ipHeaders))
+            expect(response.status).toBe(201)
+        }
+
+        // Same IP, same event slug, but the invitation path this time — still
+        // shares the budget already spent above (keyed by IP+event, not by
+        // caller path or rsvp id). The CTE that consumes the invitation link
+        // and decides pending_payment necessarily still runs (the route can't
+        // know the outcome ahead of calling it — see the comment on the rate
+        // limit check itself); what the budget guards is the Stripe call.
+        expect(mocks.stripeSessionsCreate).toHaveBeenCalledTimes(5)
+        const sixth = await POST(invitationRequest({}, ipHeaders))
+        expect(sixth.status).toBe(429)
+        expect(mocks.saveRsvpWithInvitation).toHaveBeenCalledTimes(1)
+        // Still 5 — the 6th (invitation-path) request never reaches Stripe.
+        expect(mocks.stripeSessionsCreate).toHaveBeenCalledTimes(5)
+    })
+
+    it('does not rate-limit a different requester IP against the same event', async () => {
+        const exhaustedIp = freshIpHeaders()
+        const otherIp = freshIpHeaders()
+        const { POST } = await import('@/app/api/rsvp/route')
+
+        for (let i = 0; i < 5; i++) {
+            await POST(request({}, exhaustedIp))
+        }
+        mocks.stripeSessionsCreate.mockClear()
+
+        const otherIpResponse = await POST(request({}, otherIp))
+        expect(otherIpResponse.status).toBe(201)
+        expect(mocks.stripeSessionsCreate).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not rate-limit a different event slug from the same IP', async () => {
+        const ipHeaders = freshIpHeaders()
+        const otherEvent = { ...paidEvent, slug: 'otra-fiesta' }
+        mocks.getEventBySlug.mockImplementation((slug: string) =>
+            Promise.resolve(slug === 'otra-fiesta' ? otherEvent : paidEvent))
+        const { POST } = await import('@/app/api/rsvp/route')
+
+        for (let i = 0; i < 5; i++) {
+            await POST(request({}, ipHeaders))
+        }
+        mocks.stripeSessionsCreate.mockClear()
+
+        const otherEventResponse = await POST(request({ eventSlug: 'otra-fiesta' }, ipHeaders))
+        expect(otherEventResponse.status).toBe(201)
+        expect(mocks.stripeSessionsCreate).toHaveBeenCalledTimes(1)
+    })
+
+    it('never rate-limits the free RSVP branch, which never reaches this limiter', async () => {
+        const ipHeaders = freshIpHeaders()
+        mocks.getEventBySlug.mockResolvedValue({ ...paidEvent, paymentRequired: false })
+        mocks.saveRSVP.mockResolvedValue({ ...pendingPaymentRsvp, status: 'confirmed' })
+        const { POST } = await import('@/app/api/rsvp/route')
+
+        for (let i = 0; i < 8; i++) {
+            const response = await POST(request({}, ipHeaders))
+            expect(response.status).toBe(201)
+        }
+        expect(mocks.stripeSessionsCreate).not.toHaveBeenCalled()
     })
 })
 

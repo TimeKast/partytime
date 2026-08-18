@@ -5,7 +5,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { db, isDatabaseConfigured, rsvps, events, appSettings, rsvpInvitationLinks, rsvpPayments } from './db'
-import { eq, desc, and, isNull, lte, gt, gte, sql } from 'drizzle-orm'
+import { eq, desc, asc, and, isNull, lte, gt, gte, sql } from 'drizzle-orm'
 import type { Event, NewEvent, RSVP, NewRSVP, RsvpPayment } from './schema'
 
 // ============================================
@@ -962,6 +962,29 @@ export async function getActivePaymentForRsvp(rsvpId: string): Promise<RsvpPayme
         .limit(1)
 
     return result || null
+}
+
+/**
+ * Tier-4 review finding F1 (EPIC-004): two concurrent payment POSTs for the
+ * same guest can both pass getActivePaymentForRsvp's pre-check before either
+ * has inserted its rsvp_payments row, leaving TWO live Checkout sessions the
+ * guest could pay twice. There is no partial-unique index on
+ * (rsvp_id) WHERE status='created', so the invariant is enforced by
+ * post-insert election instead: after inserting its own row, each request
+ * asks which 'created' row is the survivor (oldest wins, id as tiebreaker for
+ * equal timestamps). Exactly one request can ever see its own id first; every
+ * loser expires its session and returns a retryable error.
+ */
+export async function electSurvivingCreatedPayment(rsvpId: string): Promise<string | null> {
+    if (!db) throw new Error('Database not configured')
+
+    const [result] = await db.select({ id: rsvpPayments.id })
+        .from(rsvpPayments)
+        .where(and(eq(rsvpPayments.rsvpId, rsvpId), eq(rsvpPayments.status, RSVP_PAYMENT_STATUS.CREATED)))
+        .orderBy(asc(rsvpPayments.createdAt), asc(rsvpPayments.id))
+        .limit(1)
+
+    return result?.id ?? null
 }
 
 /**
