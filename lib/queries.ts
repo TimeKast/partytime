@@ -3,10 +3,11 @@
  * Replaces Firestore functions with Drizzle ORM + Neon
  */
 
-import { randomUUID } from 'node:crypto'
+import { randomUUID, createHash, createHmac } from 'node:crypto'
 import { db, isDatabaseConfigured, rsvps, events, appSettings, rsvpInvitationLinks, rsvpPayments } from './db'
 import { eq, desc, asc, and, isNull, lte, gt, gte, inArray, sql } from 'drizzle-orm'
 import type { Event, NewEvent, RSVP, NewRSVP, RsvpPayment } from './schema'
+import { timingSafeEqualStr } from './timing-safe'
 
 // ============================================
 // RSVP Functions
@@ -1628,16 +1629,79 @@ export async function markCheckinGuest(input: MarkCheckinInput): Promise<MarkChe
 // Token Functions
 // ============================================
 
+// ISSUE-019: distinct sentinel so the three cancel-token routes
+// (app/api/rsvp/{get,update,cancel}) can map a missing CANCEL_TOKEN_SECRET to
+// 503 (fail-closed) instead of the generic 500/403 path — an operator
+// misconfiguration must never be indistinguishable from "wrong token" to a
+// guest, and it must never silently fall back to a hardcoded secret.
+export const CANCEL_TOKEN_SECRET_MISSING_MESSAGE = 'CANCEL_TOKEN_SECRET_NOT_CONFIGURED'
+
+const LEGACY_CANCEL_TOKEN_LENGTH = 32
+const LEGACY_CANCEL_TOKEN_PATTERN = /^[a-f0-9]{32}$/
+
+/**
+ * Current scheme: HMAC-SHA256(CANCEL_TOKEN_SECRET, `${rsvpId}:${email.toLowerCase()}`),
+ * full 64 hex chars — not truncated. Reads the secret at CALL time (never
+ * cached at module scope), so a missing env var only breaks the request that
+ * needed it, not the whole module at import time (same posture as
+ * lib/checkin-session.ts's loadSecret()). Throws — never falls back to a
+ * hardcoded secret — so callers must fail closed (503) rather than mint a
+ * token an attacker could also compute.
+ */
 export function generateCancelToken(rsvpId: string, email: string): string {
-    const secret = process.env.CANCEL_TOKEN_SECRET || 'default-secret'
-    const data = `${rsvpId}-${email}-${secret}`
-    const nodeCrypto = require('crypto')
-    return nodeCrypto.createHash('sha256').update(data).digest('hex').substring(0, 32)
+    const secret = process.env.CANCEL_TOKEN_SECRET
+    if (!secret) {
+        throw new Error(CANCEL_TOKEN_SECRET_MISSING_MESSAGE)
+    }
+    return createHmac('sha256', secret).update(`${rsvpId}:${email.toLowerCase()}`).digest('hex')
 }
 
+/**
+ * Pre-ISSUE-019 scheme: sha256(`${rsvpId}-${email}-${secret}`), truncated to
+ * 32 hex chars. Guests who already received a cancel-link email before
+ * 2026-08-18 carry a token in this format — validateCancelToken below still
+ * accepts it (timing-safe), but only while CANCEL_TOKEN_SECRET is
+ * configured; the old `'default-secret'` fallback that used to back this
+ * scheme is gone, so any token minted against that literal no longer
+ * validates.
+ *
+ * TODO(2026-08-18): retire this function and the legacy branch in
+ * validateCancelToken after the next mass event — by then every
+ * still-active guest will have received a new-format (HMAC) link via the
+ * normal reminder/re-invitation flow, and no legacy link needs to keep
+ * working.
+ */
+function legacyCancelToken(rsvpId: string, email: string, secret: string): string {
+    return createHash('sha256')
+        .update(`${rsvpId}-${email}-${secret}`)
+        .digest('hex')
+        .substring(0, LEGACY_CANCEL_TOKEN_LENGTH)
+}
+
+/**
+ * Timing-safe (lib/timing-safe.ts) against both the current HMAC token and,
+ * for exactly-32-hex-char input, the legacy token — never a plain strict
+ * equality check on a token string. Throws (fail-closed, 503 for the
+ * calling route) when CANCEL_TOKEN_SECRET is unset, same as
+ * generateCancelToken.
+ */
 export function validateCancelToken(token: string, rsvpId: string, email: string): boolean {
+    const secret = process.env.CANCEL_TOKEN_SECRET
+    if (!secret) {
+        throw new Error(CANCEL_TOKEN_SECRET_MISSING_MESSAGE)
+    }
+
     const expectedToken = generateCancelToken(rsvpId, email)
-    return token === expectedToken
+    if (timingSafeEqualStr(token, expectedToken)) return true
+
+    // Only attempt the legacy scheme for input that is actually shaped like
+    // a legacy token (32 lowercase hex chars) — the current HMAC token is 64
+    // chars, so this never runs extra work on the common case.
+    if (LEGACY_CANCEL_TOKEN_PATTERN.test(token)) {
+        return timingSafeEqualStr(token, legacyCancelToken(rsvpId, email, secret))
+    }
+
+    return false
 }
 
 // ============================================

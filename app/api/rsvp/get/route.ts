@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getRSVPById, validateCancelToken, RSVP_STATUS } from '@/lib/queries'
+import { getRSVPById, validateCancelToken, CANCEL_TOKEN_SECRET_MISSING_MESSAGE, RSVP_STATUS } from '@/lib/queries'
 import { buildRsvpGetDto } from './dto'
 
 export const dynamic = 'force-dynamic'
@@ -58,6 +58,16 @@ export async function GET(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Error en GET /api/rsvp/get:', error)
+
+    // ISSUE-019: an unconfigured CANCEL_TOKEN_SECRET must fail closed with a
+    // distinct status, not look like a generic 500 or a "token inválido" 403.
+    if (error.message === CANCEL_TOKEN_SECRET_MISSING_MESSAGE) {
+      return NextResponse.json(
+        { error: 'Servicio no disponible' },
+        { status: 503 }
+      )
+    }
+
     return NextResponse.json(
       { error: 'Error al obtener RSVP', details: error.message },
       { status: 500 }

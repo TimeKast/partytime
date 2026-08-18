@@ -3,7 +3,7 @@
 - **Epic:** — (hardening transversal; Wave 3 del PLAN)
 - **Priority:** P1
 - **Story points:** 2
-- **Status:** Pending
+- **Status:** Completed (2026-08-18)
 - **Dependencies:** ninguna dura; ejecutar después de EPIC-004 para no cruzar diffs
 - **User stories:** —
 - **Agents:** security-auditor, backend-specialist
@@ -51,3 +51,20 @@ Then las rutas de cancel-token responden 503 y ningún token 'default-secret' va
 Given comparación de tokens
 Then no existe ningún `===` sobre strings de token en lib/queries.ts
 ```
+
+## Status: Completed (2026-08-18)
+
+Implementado tal como especificado: `generateCancelToken` genera
+HMAC-SHA256(`CANCEL_TOKEN_SECRET`, `${rsvpId}:${email.toLowerCase()}`) en hex
+completo (64 chars, sin truncar); sin `CANCEL_TOKEN_SECRET` configurado
+ambas funciones lanzan (`CANCEL_TOKEN_SECRET_NOT_CONFIGURED`), y las tres
+rutas que dependen directamente del cancel-token (`app/api/rsvp/get`,
+`app/api/rsvp/update`, `app/api/rsvp/cancel`) mapean ese error a 503
+fail-closed; el literal `'default-secret'` fue eliminado por completo.
+`validateCancelToken` compara siempre vía `timingSafeEqualStr`
+(`lib/timing-safe.ts`) — cero `===` sobre strings de token en
+`lib/queries.ts` — y acepta, solo con el secret configurado, el esquema
+legacy de 32 hex chars para no invalidar links ya enviados; ese camino
+legacy queda con TODO fechado 2026-08-18 para retirarse tras el siguiente
+evento masivo. Cubre B2-resto del framework de auditoría multi-sesión
+(HMAC cancel-token).

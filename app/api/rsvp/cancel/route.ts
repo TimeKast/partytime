@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cancelRSVP, RSVP_ALREADY_CANCELLED_MESSAGE } from '@/lib/queries'
+import { cancelRSVP, RSVP_ALREADY_CANCELLED_MESSAGE, CANCEL_TOKEN_SECRET_MISSING_MESSAGE } from '@/lib/queries'
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,6 +24,15 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Error en POST /api/rsvp/cancel:', error)
+
+    // ISSUE-019: an unconfigured CANCEL_TOKEN_SECRET must fail closed with a
+    // distinct status, not look like a generic 500 or a "token inválido" 403.
+    if (error.message === CANCEL_TOKEN_SECRET_MISSING_MESSAGE) {
+      return NextResponse.json(
+        { error: 'Servicio no disponible' },
+        { status: 503 }
+      )
+    }
 
     if (error.message === 'Token inválido') {
       return NextResponse.json(

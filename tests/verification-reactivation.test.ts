@@ -45,7 +45,7 @@
  *     case is reachable ONLY via a `cancelled` row that was previously
  *     `confirmed` with verified_at set.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
 const { executeMock, selectMock, insertMock, updateMock } = vi.hoisted(() => ({
@@ -142,11 +142,22 @@ function mockUpdateOnce(rows: unknown[]) {
 const verification = { tokenHash: 'b'.repeat(64), expiresAt: new Date('2026-08-19T00:00:00.000Z') }
 const verifiedAt = new Date('2026-08-10T00:00:00.000Z')
 
+// ISSUE-019: the last describe block below calls the REAL generateCancelToken
+// (via the real app/api/rsvp/update route), which now throws without
+// CANCEL_TOKEN_SECRET configured (no more 'default-secret' fallback).
+const originalCancelTokenSecret = process.env.CANCEL_TOKEN_SECRET
+
 beforeEach(() => {
     executeMock.mockReset()
     selectMock.mockReset()
     insertMock.mockReset()
     updateMock.mockReset()
+    process.env.CANCEL_TOKEN_SECRET = 'test-cancel-token-secret'
+})
+
+afterEach(() => {
+    if (originalCancelTokenSecret === undefined) delete process.env.CANCEL_TOKEN_SECRET
+    else process.env.CANCEL_TOKEN_SECRET = originalCancelTokenSecret
 })
 
 describe('saveRSVPOnce reactivation — verification reset matrix (ISSUE-009)', () => {

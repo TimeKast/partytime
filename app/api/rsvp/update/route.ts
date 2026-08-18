@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { updateRSVP, validateCancelToken, getRSVPById, getEventBySlug, isSeatAddingChange, RSVP_STATUS } from '@/lib/queries'
+import { updateRSVP, validateCancelToken, CANCEL_TOKEN_SECRET_MISSING_MESSAGE, getRSVPById, getEventBySlug, isSeatAddingChange, RSVP_STATUS } from '@/lib/queries'
 
 export async function POST(request: NextRequest) {
   try {
@@ -97,6 +97,15 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Error en POST /api/rsvp/update:', error)
+
+    // ISSUE-019: an unconfigured CANCEL_TOKEN_SECRET must fail closed with a
+    // distinct status, not look like a generic 500 or a "token inválido" 403.
+    if (error.message === CANCEL_TOKEN_SECRET_MISSING_MESSAGE) {
+      return NextResponse.json(
+        { error: 'Servicio no disponible' },
+        { status: 503 }
+      )
+    }
 
     // A2-H02: reconfirmar o añadir +1 en un evento lleno lo rechaza el
     // trigger de capacidad — 409 con mensaje claro, no un 500 genérico.
