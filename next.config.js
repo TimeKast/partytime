@@ -45,6 +45,20 @@ const nextConfig = {
           { key: 'Cache-Control', value: 'private, no-store, max-age=0' },
         ],
       },
+      {
+        // ISSUE-012: belt-and-suspenders only — the route handler already
+        // sets its own `Cache-Control: no-store` on every response (same
+        // pattern as app/api/rsvp/payment-status/route.ts), which is what
+        // actually matters for a POST-only, never-cached-by-design webhook
+        // receiver. This header config exists purely for parity with the
+        // other no-store surfaces above (`/invite`, `/verify`, `/:slug/pago`)
+        // so a future intermediary/CDN rule keyed off `next.config.js`
+        // headers alone still gets it right.
+        source: '/api/webhooks/stripe',
+        headers: [
+          { key: 'Cache-Control', value: 'private, no-store, max-age=0' },
+        ],
+      },
     ]
   },
 }

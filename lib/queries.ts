@@ -1026,6 +1026,234 @@ export async function getRsvpPaymentStatusBySessionId(stripeSessionId: string): 
     return result ? (result.status as RsvpPaymentStatus) : null
 }
 
+// ISSUE-012: no PII (no email/name), and never the raw Stripe session object
+// — only internal ids, so this is safe to send to any log sink. Emitted when
+// Stripe already collected money but the RSVP could not land on `confirmed`
+// (seat lost to capacity, or the guest cancelled while the payment was in
+// flight) — the payment row stays `paid` regardless, this is purely a signal
+// for manual reconciliation/refund.
+function logPaymentWithoutSeat(input: { rsvpId: string; stripeSessionId: string }): void {
+    console.error(JSON.stringify({
+        event: 'PAYMENT_WITHOUT_SEAT',
+        rsvpId: input.rsvpId,
+        stripeSessionId: input.stripeSessionId,
+    }))
+}
+
+export type FulfillPaidRsvpOutcome = 'confirmed' | 'replay' | 'payment_without_seat'
+
+export interface FulfillPaidRsvpResult {
+    outcome: FulfillPaidRsvpOutcome
+    // Only populated when outcome === 'confirmed' — the row the caller (the
+    // webhook route) needs to send the confirmation email.
+    rsvp: RSVP | null
+}
+
+/**
+ * ISSUE-012 (EPIC-004): the webhook's `checkout.session.completed` /
+ * `checkout.session.async_payment_succeeded` handler — the ONLY writer of
+ * `rsvp_payments.status = 'paid'` and the ONLY thing that ever confirms an
+ * RSVP that went through Stripe. One CTE statement (neon-http has no
+ * interactive transactions, same pattern as saveRsvpWithInvitation above):
+ *   1. UPDATE rsvp_payments ... WHERE stripe_session_id = $1 AND status =
+ *      'created' — the status condition IS the idempotency: a replayed
+ *      webhook (or a losing concurrent delivery) matches zero rows here and
+ *      the whole statement returns nothing further down.
+ *   2. Chained off payment_id via WHERE id IN (SELECT rsvp_id FROM
+ *      paid_payment): UPDATE rsvps ... WHERE status IN ('pending_payment',
+ *      'expired') — the 'expired' branch is what re-confirms a guest whose
+ *      pending row was lazily expired (or expired by the webhook's own
+ *      `checkout.session.expired` handler below) moments before the
+ *      still-valid payment webhook arrived. The capacity trigger
+ *      (enforce_event_capacity) runs on this UPDATE and can reject it with
+ *      CAPACITY_FULL (P0001) if the seat is genuinely gone by now.
+ *   3. A LEFT JOIN (not an INNER JOIN/plain SELECT off step 2) is required so
+ *      "payment step matched, rsvp step matched zero rows" is distinguishable
+ *      from "payment step matched zero rows" (replay) purely from
+ *      `result.rows.length` / the joined row's nullability — no separate
+ *      round trip needed to tell the two apart.
+ *
+ * Two distinct paths land on 'payment_without_seat' — money collected, no
+ * seat, always logged, NEVER thrown as an error the webhook route would turn
+ * into a 5xx (Stripe must not retry an outcome that will never change):
+ *   (a) the UPDATE ... rsvps above matches zero rows without an exception
+ *       (e.g. the guest cancelled their own pending_payment row via the
+ *       cancel-token while the Checkout session was still open) — visible
+ *       right here as a joined row with only payment_id/payment_rsvp_id set.
+ *   (b) the capacity trigger aborts the WHOLE statement with CAPACITY_FULL —
+ *       caught below, and because the abort rolled back the payment UPDATE
+ *       too, `fulfillPaymentWithoutSeat` repeats ONLY that UPDATE in a fresh,
+ *       single-table statement (nothing else in it left to abort).
+ */
+export async function fulfillPaidRsvp(
+    stripeSessionId: string,
+    stripePaymentIntentId: string | null,
+): Promise<FulfillPaidRsvpResult> {
+    if (!db) throw new Error('Database not configured')
+
+    let result
+    try {
+        result = await withDeadlockRetry(() => db!.execute(sql`
+        WITH paid_payment AS (
+            UPDATE rsvp_payments
+            SET status = ${RSVP_PAYMENT_STATUS.PAID},
+                paid_at = now(),
+                stripe_payment_intent_id = ${stripePaymentIntentId}
+            WHERE stripe_session_id = ${stripeSessionId}
+              AND status = ${RSVP_PAYMENT_STATUS.CREATED}
+            RETURNING id AS payment_id, rsvp_id AS payment_rsvp_id
+        ),
+        confirmed_rsvp AS (
+            UPDATE rsvps
+            SET status = ${RSVP_STATUS.CONFIRMED},
+                verified_at = now(),
+                pending_expires_at = NULL,
+                verification_token_hash = NULL,
+                verification_expires_at = NULL
+            WHERE id IN (SELECT payment_rsvp_id FROM paid_payment)
+              AND status IN (${RSVP_STATUS.PENDING_PAYMENT}, ${RSVP_STATUS.EXPIRED})
+            RETURNING *
+        )
+        SELECT paid_payment.payment_id, paid_payment.payment_rsvp_id, confirmed_rsvp.*
+        FROM paid_payment
+        LEFT JOIN confirmed_rsvp ON confirmed_rsvp.id = paid_payment.payment_rsvp_id
+        `))
+    } catch (err: any) {
+        if (isCapacityFullError(err)) {
+            return fulfillPaymentWithoutSeat(stripeSessionId, stripePaymentIntentId)
+        }
+        throw err
+    }
+
+    const row = result.rows[0] as Record<string, unknown> | undefined
+    if (!row) {
+        // Replay, or lost a race against a concurrent delivery of the same
+        // event — the payment step already matched zero rows.
+        return { outcome: 'replay', rsvp: null }
+    }
+
+    if (row.id == null) {
+        // Path (a) above: the payment IS paid (this statement just committed
+        // it), but the rsvp update matched nothing.
+        logPaymentWithoutSeat({ rsvpId: String(row.payment_rsvp_id), stripeSessionId })
+        return { outcome: 'payment_without_seat', rsvp: null }
+    }
+
+    return { outcome: 'confirmed', rsvp: mapRsvpRow(row) }
+}
+
+/**
+ * ISSUE-012: path (b) of fulfillPaidRsvp's PAYMENT_WITHOUT_SEAT handling —
+ * see that function's docstring. Reached only after the combined CTE above
+ * aborted entirely (CAPACITY_FULL), which rolled back its rsvp_payments
+ * UPDATE along with everything else in that statement. Stripe already
+ * charged the guest; leaving the payment row stuck on 'created' would hide a
+ * real charge from reconciliation, so this repeats ONLY the payment-side
+ * UPDATE, alone in its own statement (nothing left in it for the trigger —
+ * which only fires on the rsvps table — to abort).
+ */
+async function fulfillPaymentWithoutSeat(
+    stripeSessionId: string,
+    stripePaymentIntentId: string | null,
+): Promise<FulfillPaidRsvpResult> {
+    if (!db) throw new Error('Database not configured')
+
+    const result = await db.execute(sql`
+        UPDATE rsvp_payments
+        SET status = ${RSVP_PAYMENT_STATUS.PAID},
+            paid_at = now(),
+            stripe_payment_intent_id = ${stripePaymentIntentId}
+        WHERE stripe_session_id = ${stripeSessionId}
+          AND status = ${RSVP_PAYMENT_STATUS.CREATED}
+        RETURNING id, rsvp_id
+    `)
+
+    const row = result.rows[0] as Record<string, unknown> | undefined
+    if (!row) {
+        // Lost a race against another delivery that already marked this
+        // 'paid' (via this same fallback, or — impossible in practice, since
+        // a capacity abort never leaves a committed 'paid' row, but kept as a
+        // defensive no-op either way).
+        return { outcome: 'replay', rsvp: null }
+    }
+
+    logPaymentWithoutSeat({ rsvpId: String(row.rsvp_id), stripeSessionId })
+    return { outcome: 'payment_without_seat', rsvp: null }
+}
+
+/**
+ * ISSUE-012: the webhook's `checkout.session.expired` handler. Mirrors
+ * expirePendingPaymentRsvp's link-restoration shape above (same predicate:
+ * not revoked, not itself expired) but is NOT a thin wrapper around it —
+ * expirePendingPaymentRsvp never touches rsvp_payments, and folding the
+ * payment-row write in here too must stay inside the SAME statement so a
+ * replayed event is idempotent by construction (the `status = 'created'`
+ * guard on rsvp_payments is what makes a second delivery match zero rows and
+ * no-op, same pattern as fulfillPaidRsvp above). Idempotent for every
+ * ordering: a session already superseded by a re-submit
+ * (expireRsvpPaymentRecord, called synchronously from app/api/rsvp/route.ts)
+ * or already paid (fulfillPaidRsvp) never re-mutates here either, because in
+ * both cases the payment row is no longer 'created'.
+ */
+export async function expireRsvpPaymentBySessionId(stripeSessionId: string): Promise<RSVP | null> {
+    if (!db) throw new Error('Database not configured')
+
+    const result = await withDeadlockRetry(() => db!.execute(sql`
+        WITH expired_payment AS (
+            UPDATE rsvp_payments
+            SET status = ${RSVP_PAYMENT_STATUS.EXPIRED}
+            WHERE stripe_session_id = ${stripeSessionId}
+              AND status = ${RSVP_PAYMENT_STATUS.CREATED}
+            RETURNING id, rsvp_id
+        ),
+        expired_rsvp AS (
+            UPDATE rsvps
+            SET status = ${RSVP_STATUS.EXPIRED}, pending_expires_at = NULL
+            WHERE id IN (SELECT rsvp_id FROM expired_payment)
+              AND status = ${RSVP_STATUS.PENDING_PAYMENT}
+            RETURNING *
+        ),
+        restored_link AS (
+            UPDATE rsvp_invitation_links
+            SET used_at = NULL,
+                used_rsvp_id = NULL
+            WHERE used_rsvp_id IN (SELECT id FROM expired_rsvp)
+              AND revoked_at IS NULL
+              AND (expires_at IS NULL OR expires_at > now())
+            RETURNING id
+        )
+        SELECT expired_rsvp.*
+        FROM expired_payment
+        LEFT JOIN expired_rsvp ON expired_rsvp.id = expired_payment.rsvp_id
+    `))
+
+    const row = result.rows[0] as Record<string, unknown> | undefined
+    return row && row.id != null ? mapRsvpRow(row) : null
+}
+
+/**
+ * ISSUE-012: the webhook's `charge.refunded` handler. Single-table, so a
+ * plain UPDATE is already one atomic statement — no CTE needed (same
+ * reasoning as expireRsvpPaymentRecord above). Scoped to `status = 'paid'` so
+ * a duplicate refund event (Stripe redelivers, or a second partial refund on
+ * the same charge) never re-stamps `refunded_at`. Deliberately does NOT touch
+ * `rsvps` — a refund is the organizer's call on whether to also cancel the
+ * guest's seat (PLAN-EPICS-002-005.md §3.3), never automatic here.
+ */
+export async function markRsvpPaymentRefunded(stripePaymentIntentId: string): Promise<boolean> {
+    if (!db) throw new Error('Database not configured')
+
+    const [updated] = await db.update(rsvpPayments)
+        .set({ status: RSVP_PAYMENT_STATUS.REFUNDED, refundedAt: new Date() })
+        .where(and(
+            eq(rsvpPayments.stripePaymentIntentId, stripePaymentIntentId),
+            eq(rsvpPayments.status, RSVP_PAYMENT_STATUS.PAID),
+        ))
+        .returning({ id: rsvpPayments.id })
+
+    return !!updated
+}
+
 /**
  * Get all RSVPs for an event
  */

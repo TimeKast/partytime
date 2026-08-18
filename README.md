@@ -82,7 +82,14 @@ CANCEL_TOKEN_SECRET=tu-secret-aleatorio
 
 # Secret para cron jobs (recordatorios automáticos)
 CRON_SECRET=tu-cron-secret
+
+# Cobro con Stripe (opcional, solo eventos con payment_required)
+STRIPE_SECRET_KEY=sk_test_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx
 ```
+
+Para configurar el webhook de Stripe (dashboard en producción, Stripe CLI en
+local) ver [`docs/SETUP_GUIDE.md`](docs/SETUP_GUIDE.md).
 
 ### 3. Preparar la Base de Datos
 
@@ -174,6 +181,12 @@ El archivo `vercel.json` ya está configurado para ejecutar el cron cada 12 hora
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
 | GET | `/api/cron/send-reminders` | Enviar recordatorios programados |
+
+### Webhooks
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/api/webhooks/stripe` | Confirma/expira/reembolsa RSVPs pagados con Stripe — ver [`docs/SETUP_GUIDE.md`](docs/SETUP_GUIDE.md) |
 
 ---
 
