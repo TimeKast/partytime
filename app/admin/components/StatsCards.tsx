@@ -10,6 +10,11 @@ interface StatsCardsProps {
         plusOne: number
         totalGuests: number
         emailsSent: number
+        // ISSUE-006: optional so existing callers/tests that still pass the
+        // pre-pending-states shape keep working.
+        pendingPayment?: number
+        pendingVerification?: number
+        expired?: number
     }
 }
 
@@ -39,6 +44,18 @@ export default function StatsCards({ stats }: StatsCardsProps) {
             <div className={styles.statCard}>
                 <h3>{stats.cancelled}</h3>
                 <p>❌ Cancelados</p>
+            </div>
+            <div className={styles.statCard}>
+                <h3>{stats.pendingPayment ?? 0}</h3>
+                <p>💳 Pend. de pago</p>
+            </div>
+            <div className={styles.statCard}>
+                <h3>{stats.pendingVerification ?? 0}</h3>
+                <p>📩 Pend. de verificación</p>
+            </div>
+            <div className={styles.statCard}>
+                <h3>{stats.expired ?? 0}</h3>
+                <p>⏳ Expirados</p>
             </div>
             <div className={styles.statCard}>
                 <h3>{stats.emailsSent}</h3>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { updateRSVP, validateCancelToken, getRSVPById, getEventBySlug, isSeatAddingChange } from '@/lib/queries'
+import { updateRSVP, validateCancelToken, getRSVPById, getEventBySlug, isSeatAddingChange, RSVP_STATUS } from '@/lib/queries'
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,6 +33,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // ISSUE-006: an expired pending row has nothing left to update via this
+    // guest-facing cancel-token link — the seat (and any invitation link) was
+    // already released/restored by expireStalePendingRsvps. cancelled stays
+    // editable (reconfirm flow below) and pending_* rows keep accepting plain
+    // contact edits, unchanged from before.
+    if (currentRSVP.status === RSVP_STATUS.EXPIRED) {
+      return NextResponse.json(
+        { error: 'RSVP no encontrado' },
+        { status: 404 }
+      )
+    }
+
     // Preparar datos a actualizar
     const updateData: any = {
       name,
@@ -43,8 +55,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Si se está reconfirmando, cambiar status a 'confirmed'
-    if (reconfirm && currentRSVP.status === 'cancelled') {
-      updateData.status = 'confirmed'
+    if (reconfirm && currentRSVP.status === RSVP_STATUS.CANCELLED) {
+      updateData.status = RSVP_STATUS.CONFIRMED
     }
 
     // A2-H04: este endpoint era ciego al evento — con un link válido se podía

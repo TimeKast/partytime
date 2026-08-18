@@ -117,6 +117,9 @@ export function RsvpFilters({
               <option value="all">Todos los estados</option>
               <option value="confirmed">Confirmados</option>
               <option value="cancelled">Cancelados</option>
+              <option value="pending_payment">Pendientes de pago</option>
+              <option value="pending_verification">Pendientes de verificación</option>
+              <option value="expired">Expirados</option>
             </select>
 
             <select aria-label="Filtrar por acompañante" value={displayFilterPlusOne} onChange={(e) => onDisplayFilterPlusOneChange(e.target.value as RsvpPlusOneFilter)}>

@@ -53,7 +53,8 @@ export async function POST(request: NextRequest) {
             getEventBySlug,
             getRSVPsByEvent,
             generateCancelToken,
-            recordEmailSent
+            recordEmailSent,
+            RSVP_STATUS
         } = await import('@/lib/queries')
 
         // Get event data
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
                     continue
                 }
 
-                if (rsvp.status !== 'confirmed') {
+                if (rsvp.status !== RSVP_STATUS.CONFIRMED) {
                     errors.push(`${rsvp.email}: No confirmado`)
                     failed++
                     continue

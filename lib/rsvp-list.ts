@@ -1,4 +1,16 @@
-export type RsvpStatusFilter = 'all' | 'confirmed' | 'cancelled'
+// ISSUE-005/ISSUE-006 (EPIC-002): the five canonical rsvps.status values.
+// This module cannot import lib/queries.ts's RSVP_STATUS (server-only —
+// pulls in the Neon/drizzle client into every client bundle that uses this
+// file, e.g. app/admin/page.tsx), so it keeps its own literal-typed union,
+// same pattern this file already used pre-ISSUE-006. Keep the literals in
+// sync with lib/queries.ts RSVP_STATUS.
+export type RsvpStatus =
+  | 'confirmed'
+  | 'cancelled'
+  | 'pending_payment'
+  | 'pending_verification'
+  | 'expired'
+export type RsvpStatusFilter = 'all' | RsvpStatus
 export type RsvpPlusOneFilter = 'all' | 'yes' | 'no'
 export type RsvpEmailFilter = 'all' | 'sent' | 'not-sent'
 export type RsvpSort = 'name-asc' | 'name-desc' | 'newest' | 'oldest'
@@ -11,7 +23,7 @@ export interface RsvpListItem {
   phone: string
   plusOne: boolean
   createdAt: string
-  status: 'confirmed' | 'cancelled'
+  status: RsvpStatus
   emailSent?: string | null
 }
 
@@ -36,6 +48,11 @@ export interface RsvpListView<T extends RsvpListItem> {
   rangeEnd: number
   confirmedTotal: number
   cancelledTotal: number
+  // ISSUE-006: pending states are never folded into confirmedTotal — the
+  // admin dashboard and exports need them as their own counters.
+  pendingPaymentTotal: number
+  pendingVerificationTotal: number
+  expiredTotal: number
 }
 
 const nameCollator = new Intl.Collator('es-MX', {
@@ -128,13 +145,36 @@ export function buildRsvpListView<T extends RsvpListItem>(
     rangeEnd: Math.min(startIndex + options.pageSize, total),
     confirmedTotal: filteredAndSorted.filter((rsvp) => rsvp.status === 'confirmed').length,
     cancelledTotal: filteredAndSorted.filter((rsvp) => rsvp.status === 'cancelled').length,
+    pendingPaymentTotal: filteredAndSorted.filter((rsvp) => rsvp.status === 'pending_payment').length,
+    pendingVerificationTotal: filteredAndSorted.filter((rsvp) => rsvp.status === 'pending_verification').length,
+    expiredTotal: filteredAndSorted.filter((rsvp) => rsvp.status === 'expired').length,
   }
+}
+
+// Singular, per-row status label — used in the guest table, PDF/Excel
+// exports and anywhere a single RSVP's status needs Spanish copy. Kept
+// distinct from the plural filter/section labels below (statusLabels):
+// "Cancelado" describes one row, "Cancelados" describes a filter/section of
+// many — the existing describeRsvpListView contract expects the plural form.
+export const rsvpStatusLabels: Record<RsvpStatus, string> = {
+  confirmed: 'Confirmado',
+  cancelled: 'Cancelado',
+  pending_payment: 'Pendiente de pago',
+  pending_verification: 'Pendiente de verificación',
+  expired: 'Expirado',
+}
+
+export function rsvpStatusLabel(status: RsvpStatus): string {
+  return rsvpStatusLabels[status]
 }
 
 const statusLabels: Record<RsvpStatusFilter, string> = {
   all: 'Todos',
   confirmed: 'Confirmados',
   cancelled: 'Cancelados',
+  pending_payment: 'Pendientes de pago',
+  pending_verification: 'Pendientes de verificación',
+  expired: 'Expirados',
 }
 
 const plusOneLabels: Record<RsvpPlusOneFilter, string> = {

@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     // Check if database is configured
     if (isDatabaseConfigured()) {
-      const { saveRSVP, saveRsvpWithInvitation, getEventBySlug } = await import('@/lib/queries')
+      const { saveRSVP, saveRsvpWithInvitation, getEventBySlug, RSVP_STATUS } = await import('@/lib/queries')
 
       // Resolve the target event on EVERY path — the explicit eventSlug, or the
       // configured default. Resolving unconditionally means the isActive /
@@ -144,8 +144,13 @@ export async function POST(request: NextRequest) {
         }))
       }
 
-      // Check if automatic confirmation email is enabled for this event
-      if (eventForEmail && eventForEmail.emailConfirmationEnabled) {
+      // Check if automatic confirmation email is enabled for this event.
+      // ISSUE-006: confirmation emails only go out once the RSVP is actually
+      // `confirmed` — saveRSVP/saveRsvpWithInvitation only ever return that
+      // status today (pending_payment/pending_verification are wired in
+      // ISSUE-007/011), but this guard makes the invariant explicit instead
+      // of implicit so it keeps holding once those flows land.
+      if (eventForEmail && eventForEmail.emailConfirmationEnabled && rsvp.status === RSVP_STATUS.CONFIRMED) {
         try {
           const { generateCancelToken, recordEmailSent } = await import('@/lib/queries')
           

@@ -13,6 +13,12 @@ export { default as InvitationLinkManager } from './InvitationLinkManager'
 export { default as ChangePasswordForm, ForcedPasswordChangeDialog } from './ChangePasswordForm'
 
 // Types for admin components
+// ISSUE-006: status widened to the five canonical rsvps.status values (see
+// lib/rsvp-list.ts RsvpStatus — kept in sync there, not imported from
+// lib/queries.ts to avoid pulling the server-only DB client into the client
+// bundle).
+import type { RsvpStatus } from '@/lib/rsvp-list'
+
 export interface RSVP {
     id: string
     name: string
@@ -21,7 +27,7 @@ export interface RSVP {
     plusOne: boolean
     plusOneName?: string | null
     createdAt: string
-    status: 'confirmed' | 'cancelled'
+    status: RsvpStatus
     emailSent?: string
 }
 
@@ -32,4 +38,8 @@ export interface AdminStats {
     plusOne: number
     totalGuests: number
     emailsSent: number
+    // ISSUE-006: separate pending counters (never folded into confirmed).
+    pendingPayment: number
+    pendingVerification: number
+    expired: number
 }

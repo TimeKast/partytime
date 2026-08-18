@@ -21,6 +21,7 @@ import {
   buildRsvpListView,
   describeRsvpListView,
   filterAndSortRsvps,
+  rsvpStatusLabel,
   type RsvpEmailFilter,
   type RsvpPageSize,
   type RsvpPlusOneFilter,
@@ -1158,7 +1159,7 @@ export default function AdminDashboard() {
     doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
     doc.text(
-      `Resultados: ${exportRsvps.length} - Confirmados: ${rsvpListView.confirmedTotal} - Cancelados: ${rsvpListView.cancelledTotal}`,
+      `Resultados: ${exportRsvps.length} - Confirmados: ${rsvpListView.confirmedTotal} - Pend. pago: ${rsvpListView.pendingPaymentTotal} - Pend. verificación: ${rsvpListView.pendingVerificationTotal} - Cancelados: ${rsvpListView.cancelledTotal} - Expirados: ${rsvpListView.expiredTotal}`,
       14,
       statsY,
     )
@@ -1174,7 +1175,7 @@ export default function AdminDashboard() {
       // Fila principal del invitado
       tableData.push([
         index + 1,
-        rsvp.status === 'confirmed' ? 'Confirmado' : 'Cancelado',
+        rsvpStatusLabel(rsvp.status),
         stripEmojis(rsvp.name),
         rsvp.email,
         rsvp.phone,
@@ -1254,7 +1255,7 @@ export default function AdminDashboard() {
       // Header rows con info del evento
       ...buildEventExportMetadataRows(configForm).map(row => [row]),
       [],
-      [`Resultados: ${exportRsvps.length} - Confirmados: ${rsvpListView.confirmedTotal} - Cancelados: ${rsvpListView.cancelledTotal}`],
+      [`Resultados: ${exportRsvps.length} - Confirmados: ${rsvpListView.confirmedTotal} - Pend. pago: ${rsvpListView.pendingPaymentTotal} - Pend. verificación: ${rsvpListView.pendingVerificationTotal} - Cancelados: ${rsvpListView.cancelledTotal} - Expirados: ${rsvpListView.expiredTotal}`],
       [exportSummary],
       [],
       // Header de tabla - con columna de Nombre del +1
@@ -1262,7 +1263,7 @@ export default function AdminDashboard() {
       // Datos
       ...exportRsvps.map((rsvp, index) => [
         index + 1,
-        rsvp.status === 'confirmed' ? 'Confirmado' : 'Cancelado',
+        rsvpStatusLabel(rsvp.status),
         rsvp.name,
         rsvp.email,
         rsvp.phone,
@@ -1306,6 +1307,10 @@ export default function AdminDashboard() {
     total: rsvps.length,
     confirmed: confirmedRsvps.length,
     cancelled: rsvps.filter(r => r.status === 'cancelled').length,
+    // ISSUE-006: separate counters — never folded into confirmed.
+    pendingPayment: rsvps.filter(r => r.status === 'pending_payment').length,
+    pendingVerification: rsvps.filter(r => r.status === 'pending_verification').length,
+    expired: rsvps.filter(r => r.status === 'expired').length,
     plusOne: confirmedRsvps.filter(r => r.plusOne).length, // Solo +1 confirmados
     totalGuests: confirmedRsvps.length + confirmedRsvps.filter(r => r.plusOne).length,
     emailsSent: rsvps.filter(r => r.emailSent).length,
@@ -1431,6 +1436,51 @@ export default function AdminDashboard() {
               variant="cancelled"
               rsvps={rsvpListView.pageItems.filter(r => r.status === 'cancelled')}
               totalCount={rsvpListView.cancelledTotal}
+              isReadOnly={isReadOnly}
+              loading={loading}
+              isEventPast={isEventPast()}
+              highlightedRsvpId={highlightedRsvpId}
+              onSendEmail={sendEmail}
+              onEdit={openEditModal}
+              onToggleStatus={toggleStatus}
+            />
+
+            {/* ISSUE-006: pending/expired rows were previously fetched into
+                `rsvps` but never rendered anywhere — silently invisible to
+                admins even though they hold a reserved seat. Read-only
+                actions (see RsvpTable's hasStatusActions): no send-email, no
+                confirm/cancel toggle, since those flows belong to
+                ISSUE-007/011 and must not be bypassed from here. */}
+            <RsvpTable
+              variant="pending_payment"
+              rsvps={rsvpListView.pageItems.filter(r => r.status === 'pending_payment')}
+              totalCount={rsvpListView.pendingPaymentTotal}
+              isReadOnly={isReadOnly}
+              loading={loading}
+              isEventPast={isEventPast()}
+              highlightedRsvpId={highlightedRsvpId}
+              onSendEmail={sendEmail}
+              onEdit={openEditModal}
+              onToggleStatus={toggleStatus}
+            />
+
+            <RsvpTable
+              variant="pending_verification"
+              rsvps={rsvpListView.pageItems.filter(r => r.status === 'pending_verification')}
+              totalCount={rsvpListView.pendingVerificationTotal}
+              isReadOnly={isReadOnly}
+              loading={loading}
+              isEventPast={isEventPast()}
+              highlightedRsvpId={highlightedRsvpId}
+              onSendEmail={sendEmail}
+              onEdit={openEditModal}
+              onToggleStatus={toggleStatus}
+            />
+
+            <RsvpTable
+              variant="expired"
+              rsvps={rsvpListView.pageItems.filter(r => r.status === 'expired')}
+              totalCount={rsvpListView.expiredTotal}
               isReadOnly={isReadOnly}
               loading={loading}
               isEventPast={isEventPast()}

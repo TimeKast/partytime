@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getRSVPById, validateCancelToken } from '@/lib/queries'
+import { getRSVPById, validateCancelToken, RSVP_STATUS } from '@/lib/queries'
 import { buildRsvpGetDto } from './dto'
 
 export const dynamic = 'force-dynamic'
@@ -34,6 +34,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Token inválido o expirado' },
         { status: 403 }
+      )
+    }
+
+    // ISSUE-006: an expired pending row released its seat (and its
+    // invitation link, if any, was already restored) — there is nothing left
+    // to show the guest here, so treat it like a missing RSVP. cancelled and
+    // pending_* rows keep loading normally: cancelled is required for the
+    // existing reconfirm-via-link flow (see app/cancel/[rsvpId]/page.tsx and
+    // the admin "re-invitación" emails), and a pending guest must be able to
+    // view/cancel their own row.
+    if (rsvp.status === RSVP_STATUS.EXPIRED) {
+      return NextResponse.json(
+        { error: 'RSVP no encontrado' },
+        { status: 404 }
       )
     }
 

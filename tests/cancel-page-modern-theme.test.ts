@@ -12,6 +12,15 @@ const routeMocks = vi.hoisted(() => ({
 vi.mock('@/lib/queries', () => ({
   getRSVPById: routeMocks.getRSVPById,
   validateCancelToken: routeMocks.validateCancelToken,
+  // ISSUE-006: the real RSVP_STATUS shape — app/api/rsvp/get/route.ts now
+  // reads RSVP_STATUS.EXPIRED unconditionally once the token validates.
+  RSVP_STATUS: {
+    CONFIRMED: 'confirmed',
+    CANCELLED: 'cancelled',
+    PENDING_PAYMENT: 'pending_payment',
+    PENDING_VERIFICATION: 'pending_verification',
+    EXPIRED: 'expired',
+  },
 }))
 
 const pageSource = readFileSync('app/cancel/[rsvpId]/page.tsx', 'utf8')

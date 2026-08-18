@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { validateSession } from '@/lib/auth-utils'
 import { userHasEventAccess } from '@/lib/user-queries'
-import { getRSVPsByEvent } from '@/lib/queries'
+import { getRSVPsByEvent, RSVP_STATUS } from '@/lib/queries'
 import eventConfig from '@/event-config.json'
 
 export const dynamic = 'force-dynamic'
@@ -44,8 +44,12 @@ export async function GET(request: NextRequest) {
 
     const stats = {
       totalConfirmed: rsvps.length,
-      confirmed: rsvps.filter(r => r.status === 'confirmed').length,
-      cancelled: rsvps.filter(r => r.status === 'cancelled').length
+      confirmed: rsvps.filter(r => r.status === RSVP_STATUS.CONFIRMED).length,
+      cancelled: rsvps.filter(r => r.status === RSVP_STATUS.CANCELLED).length,
+      // ISSUE-006: separate pending counters (never folded into "confirmed").
+      pendingPayment: rsvps.filter(r => r.status === RSVP_STATUS.PENDING_PAYMENT).length,
+      pendingVerification: rsvps.filter(r => r.status === RSVP_STATUS.PENDING_VERIFICATION).length,
+      expired: rsvps.filter(r => r.status === RSVP_STATUS.EXPIRED).length,
     }
 
     return NextResponse.json({

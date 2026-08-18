@@ -212,4 +212,32 @@ describe('saveRsvpWithInvitation atomic contract', () => {
         await expect(saveRsvpWithInvitation(input)).rejects.toThrow('capacidad máxima')
         expect(executeMock).toHaveBeenCalledTimes(1)
     })
+
+    // ISSUE-006 (PLAN-EPICS-002-005.md §2.1): with the per-link flags at their
+    // DEFAULT (is_courtesy/skip_verification = true, matching `input` above,
+    // which never sets them), a private-link RSVP must land straight on
+    // `confirmed` — today's behaviour, unchanged by this issue and only
+    // meant to start branching once ISSUE-007 (verification) and ISSUE-011
+    // (payment) read those flags. Pins two things: (1) the CTE hardcodes
+    // RSVP_STATUS.CONFIRMED for both the reactivation and insert branches
+    // with no pending_payment/pending_verification path yet, and (2) it
+    // never reads rsvp_invitation_links.is_courtesy/skip_verification at
+    // all — the flags are fully inert today.
+    it('ISSUE-006: default link flags bypass straight to confirmed — the CTE does not branch on is_courtesy/skip_verification yet', async () => {
+        executeMock.mockResolvedValueOnce({ rows: [returnedRsvp] })
+
+        await expect(saveRsvpWithInvitation(input)).resolves.toMatchObject({
+            id: 'rsvp-1',
+            status: 'confirmed',
+        })
+
+        const statement = sqlTextOf(executeMock.mock.calls[0][0])
+        // Both branches (reactivated_rsvp's SET status = ..., inserted_rsvp's
+        // SELECT ...status column) resolve unconditionally to 'confirmed'.
+        expect(statement.match(/confirmed/g)).toHaveLength(2)
+        expect(statement).not.toContain('pending_payment')
+        expect(statement).not.toContain('pending_verification')
+        expect(statement).not.toContain('is_courtesy')
+        expect(statement).not.toContain('skip_verification')
+    })
 })

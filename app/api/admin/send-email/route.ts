@@ -9,7 +9,7 @@ import {
   buildEventEmailSubject,
   type EventEmailSubjectKind,
 } from '@/lib/event-email-data'
-import { generateCancelToken, recordEmailSent, getRSVPById, getEventBySlug } from '@/lib/queries'
+import { generateCancelToken, recordEmailSent, getRSVPById, getEventBySlug, RSVP_STATUS } from '@/lib/queries'
 
 export async function POST(request: NextRequest) {
   // Check auth
@@ -65,6 +65,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ISSUE-006: the only two templates this endpoint knows how to send are
+    // "confirmation/reminder" (confirmed) and "re-invitation" (cancelled).
+    // A pending_payment/pending_verification/expired row has neither
+    // confirmed nor been invited back — sending either template would tell
+    // the guest they're confirmed when they are not. Reject explicitly
+    // instead of silently mis-labeling the email.
+    if (rsvp.status !== RSVP_STATUS.CONFIRMED && rsvp.status !== RSVP_STATUS.CANCELLED) {
+      return NextResponse.json(
+        { success: false, error: 'Este RSVP está pendiente — no se puede enviar un email de confirmación o re-invitación todavía' },
+        { status: 409 }
+      )
+    }
+
     // A1-13: use displayTitle when set (matching the public page), else title —
     // resolved ONCE and used for both the email body and the subject.
     const eventData = buildEventEmailData(event)
@@ -72,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     // Recipient and email TYPE are derived from the DB row, not the body.
     const recipient = rsvp.email
-    const isCancelled = rsvp.status === 'cancelled'
+    const isCancelled = rsvp.status === RSVP_STATUS.CANCELLED
     const isReminder = !isCancelled && !!rsvp.emailSent
 
     // Cancel token is bound to the RSVP's real id + current email, so the link

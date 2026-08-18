@@ -563,6 +563,12 @@ export async function updateRSVP(
     return updated
 }
 
+// ISSUE-006: distinct sentinel so the cancel-token route can map an
+// already-cancelled RSVP to 410 Gone instead of a generic 500/no-op. Kept out
+// of the generic 'RSVP no encontrado' bucket (used for expired, see below)
+// because the two cases are semantically different for the caller.
+export const RSVP_ALREADY_CANCELLED_MESSAGE = 'RSVP_ALREADY_CANCELLED'
+
 /**
  * Cancel RSVP
  */
@@ -578,6 +584,21 @@ export async function cancelRSVP(rsvpId: string, token: string): Promise<RSVP> {
 
     if (!validateCancelToken(token, rsvpId, rsvp.email)) {
         throw new Error('Token inválido')
+    }
+
+    // ISSUE-006: an expired row already released its seat (and, if it came
+    // from an invitation link, that link was already restored by
+    // expireStalePendingRsvps) — there is nothing left for the guest's
+    // cancel-token to act on, so this is treated like "not found". An
+    // already-cancelled row has nothing further to cancel either; the route
+    // maps this to 410 Gone instead of silently no-op-returning success.
+    // pending_payment/pending_verification rows are NOT blocked here — a
+    // pending guest can still cancel (PLAN-EPICS-002-005.md ISSUE-006 ACs).
+    if (rsvp.status === RSVP_STATUS.EXPIRED) {
+        throw new Error('RSVP no encontrado')
+    }
+    if (rsvp.status === RSVP_STATUS.CANCELLED) {
+        throw new Error(RSVP_ALREADY_CANCELLED_MESSAGE)
     }
 
     const [updated] = await db.update(rsvps)
@@ -634,11 +655,20 @@ export async function getEventStats(eventId: string) {
 
     const confirmed = allRsvps.filter(r => r.status === RSVP_STATUS.CONFIRMED).length
     const cancelled = allRsvps.filter(r => r.status === RSVP_STATUS.CANCELLED).length
+    // ISSUE-006: expose the pending states separately (never folded into
+    // "confirmed") so every consumer of this helper sees the same counters
+    // the admin dashboard and /api/stats now show.
+    const pendingPayment = allRsvps.filter(r => r.status === RSVP_STATUS.PENDING_PAYMENT).length
+    const pendingVerification = allRsvps.filter(r => r.status === RSVP_STATUS.PENDING_VERIFICATION).length
+    const expired = allRsvps.filter(r => r.status === RSVP_STATUS.EXPIRED).length
 
     return {
         totalConfirmed: allRsvps.length,
         confirmed,
         cancelled,
+        pendingPayment,
+        pendingVerification,
+        expired,
     }
 }
 

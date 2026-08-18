@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cancelRSVP } from '@/lib/queries'
+import { cancelRSVP, RSVP_ALREADY_CANCELLED_MESSAGE } from '@/lib/queries'
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,6 +36,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'RSVP no encontrado' },
         { status: 404 }
+      )
+    }
+
+    // ISSUE-006: cancelling an already-cancelled RSVP is a terminal no-op —
+    // 410 Gone instead of silently succeeding again.
+    if (error.message === RSVP_ALREADY_CANCELLED_MESSAGE) {
+      return NextResponse.json(
+        { error: 'Este RSVP ya estaba cancelado' },
+        { status: 410 }
       )
     }
 

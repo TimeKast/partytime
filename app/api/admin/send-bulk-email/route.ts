@@ -9,7 +9,7 @@ import {
   buildEventEmailSubject,
   type EventEmailSubjectKind,
 } from '@/lib/event-email-data'
-import { getRSVPsByEvent, generateCancelToken, recordEmailSent, getEventBySlug } from '@/lib/queries'
+import { getRSVPsByEvent, generateCancelToken, recordEmailSent, getEventBySlug, RSVP_STATUS } from '@/lib/queries'
 import eventConfig from '@/event-config.json'
 
 export async function POST(request: NextRequest) {
@@ -85,8 +85,20 @@ export async function POST(request: NextRequest) {
     // Enviar emails uno por uno
     for (const rsvp of filteredRsvps) {
       try {
+        // ISSUE-006: this endpoint only ever sends "confirmation/reminder"
+        // (confirmed) or "re-invitation" (cancelled) — a pending_payment,
+        // pending_verification or expired row has no matching template and
+        // must never receive a "you're confirmed" style email before it
+        // actually is. Skip and count as failed, same pattern as
+        // send-bulk-reminder's "no confirmado" guard.
+        if (rsvp.status !== RSVP_STATUS.CONFIRMED && rsvp.status !== RSVP_STATUS.CANCELLED) {
+          results.failed++
+          results.errors.push(`${rsvp.email}: RSVP pendiente — no se envía`)
+          continue
+        }
+
         // Determinar tipo de email según estado
-        const isCancelled = rsvp.status === 'cancelled'
+        const isCancelled = rsvp.status === RSVP_STATUS.CANCELLED
         const isReminder = !isCancelled && !!rsvp.emailSent
 
         const cancelToken = generateCancelToken(rsvp.id!, rsvp.email)

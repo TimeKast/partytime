@@ -18,6 +18,15 @@ vi.mock('@/lib/queries', () => ({
     saveRsvpWithInvitation: mocks.saveRsvpWithInvitation,
     recordEmailSent: mocks.recordEmailSent,
     generateCancelToken: mocks.generateCancelToken,
+    // ISSUE-006: the route now destructures RSVP_STATUS from this same
+    // dynamic import to gate confirmation emails on rsvp.status === CONFIRMED.
+    RSVP_STATUS: {
+        CONFIRMED: 'confirmed',
+        CANCELLED: 'cancelled',
+        PENDING_PAYMENT: 'pending_payment',
+        PENDING_VERIFICATION: 'pending_verification',
+        EXPIRED: 'expired',
+    },
 }))
 vi.mock('@/lib/resend', () => ({
     resend: { emails: { send: vi.fn() } },
