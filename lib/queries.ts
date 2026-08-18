@@ -5,7 +5,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { db, isDatabaseConfigured, rsvps, events, appSettings, rsvpInvitationLinks, rsvpPayments } from './db'
-import { eq, desc, asc, and, isNull, lte, gt, gte, sql } from 'drizzle-orm'
+import { eq, desc, asc, and, isNull, lte, gt, gte, inArray, sql } from 'drizzle-orm'
 import type { Event, NewEvent, RSVP, NewRSVP, RsvpPayment } from './schema'
 
 // ============================================
@@ -1514,6 +1514,110 @@ export async function getEventStats(eventId: string) {
         pendingVerification,
         expired,
     }
+}
+
+// ============================================
+// Check-in Functions (ISSUE-016, EPIC-005)
+// ============================================
+
+/**
+ * Every row the check-in portal is allowed to know about for one event:
+ * `confirmed` plus the two read-only "exists but not confirmed" pending
+ * states — never `cancelled`/`expired` (lib/checkin-guests.ts
+ * CHECKIN_VISIBLE_STATUSES is the single source of truth for that list, kept
+ * in sync here). Unsorted: the caller (route) sorts once via
+ * lib/checkin-guests.ts's sortCheckinGuestsByName, the same collator-based
+ * order every other admin list in this app uses (lib/rsvp-list.ts) rather
+ * than relying on Postgres's default collation for `ORDER BY name`.
+ */
+export async function getCheckinGuestsByEvent(eventSlug: string): Promise<RSVP[]> {
+    if (!db) throw new Error('Database not configured')
+
+    return db.select()
+        .from(rsvps)
+        .where(and(
+            eq(rsvps.eventId, eventSlug),
+            inArray(rsvps.status, [RSVP_STATUS.CONFIRMED, RSVP_STATUS.PENDING_PAYMENT, RSVP_STATUS.PENDING_VERIFICATION]),
+        ))
+}
+
+export interface MarkCheckinInput {
+    rsvpId: string
+    eventSlug: string
+    target: 'guest' | 'plusOne'
+    checkedIn: boolean
+    /** The cookie's staffName — written to checked_in_by only when marking IN. */
+    staffName: string
+    /**
+     * Tri-state: `undefined` leaves checkin_note untouched, `null` clears it,
+     * a string overwrites it. The caller (route) is responsible for trimming
+     * and the 500-char bound before this is called.
+     */
+    note: string | null | undefined
+}
+
+export type MarkCheckinOutcome =
+    | { outcome: 'not_found' }
+    // The rsvpId exists but belongs to a DIFFERENT event than eventSlug — the
+    // ISSUE-016 acceptance criterion ("cookie válida del evento A ... marca
+    // un rsvp del evento B -> 403 sin datos"). Deliberately distinct from
+    // `not_found` (no row at all / cancelled / expired), which the route
+    // maps to 404 instead — this is the only outcome that maps to 403.
+    | { outcome: 'forbidden' }
+    | { outcome: 'not_confirmed' }
+    | { outcome: 'plus_one_not_allowed' }
+    | { outcome: 'marked'; rsvp: RSVP }
+
+/**
+ * ISSUE-016: validate + apply one guest/plusOne check-in toggle. Select then
+ * update (not a single atomic CTE) is deliberate — the issue's own
+ * concurrency acceptance criterion is "last-write-wins sin locks", not
+ * optimistic-concurrency rejection, so there is nothing an extra WHERE
+ * predicate on the UPDATE would buy here: two staff racing the same guest
+ * both succeed, and whichever UPDATE lands last simply wins.
+ */
+export async function markCheckinGuest(input: MarkCheckinInput): Promise<MarkCheckinOutcome> {
+    if (!db) throw new Error('Database not configured')
+
+    const [existing] = await db.select()
+        .from(rsvps)
+        .where(eq(rsvps.id, input.rsvpId))
+        .limit(1)
+
+    if (!existing) return { outcome: 'not_found' }
+    if (existing.eventId !== input.eventSlug) return { outcome: 'forbidden' }
+    if (existing.status === RSVP_STATUS.CANCELLED || existing.status === RSVP_STATUS.EXPIRED) {
+        return { outcome: 'not_found' }
+    }
+    if (existing.status !== RSVP_STATUS.CONFIRMED) {
+        // pending_payment / pending_verification: exists, but not markable yet.
+        return { outcome: 'not_confirmed' }
+    }
+    if (input.target === 'plusOne' && !existing.plusOne) {
+        return { outcome: 'plus_one_not_allowed' }
+    }
+
+    const setValues: Partial<RSVP> = {}
+    if (input.target === 'guest') {
+        setValues.checkedInAt = input.checkedIn ? new Date() : null
+    } else {
+        setValues.plusOneCheckedInAt = input.checkedIn ? new Date() : null
+    }
+    // Marking IN stamps the current staff member; unmarking intentionally
+    // leaves checked_in_by as-is (conserva el último actor, per the issue).
+    if (input.checkedIn) {
+        setValues.checkedInBy = input.staffName
+    }
+    if (input.note !== undefined) {
+        setValues.checkinNote = input.note
+    }
+
+    const [updated] = await db.update(rsvps)
+        .set(setValues)
+        .where(eq(rsvps.id, input.rsvpId))
+        .returning()
+
+    return { outcome: 'marked', rsvp: updated }
 }
 
 // ============================================
