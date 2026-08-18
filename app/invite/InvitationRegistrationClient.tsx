@@ -12,7 +12,11 @@ type InvitationState =
   | { kind: 'loading' }
   | { kind: 'invalid' }
   | { kind: 'error' }
-  | { kind: 'ready'; event: PublicEvent; token: string }
+  // ISSUE-020: requiresPayment/requiresVerification are copy-only signals
+  // from the link's flags — the confirm flow itself still lands with
+  // ISSUE-007/011. Both false for every default/pre-0009 link (zero-noise
+  // acceptance criterion).
+  | { kind: 'ready'; event: PublicEvent; token: string; requiresPayment: boolean; requiresVerification: boolean }
   | { kind: 'confirmed' }
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/
@@ -71,7 +75,9 @@ export default function InvitationRegistrationClient({
             setState({ kind: 'invalid' })
             return
           }
-          setState({ kind: 'ready', event, token })
+          const requiresPayment = 'requiresPayment' in data && data.requiresPayment === true
+          const requiresVerification = 'requiresVerification' in data && data.requiresVerification === true
+          setState({ kind: 'ready', event, token, requiresPayment, requiresVerification })
           setIsModalOpen(true)
           return
         }
@@ -137,9 +143,37 @@ export default function InvitationRegistrationClient({
 
   const registrationEvent: PublicEvent = { ...state.event, rsvpClosed: false }
   const invitationViewModel = buildEventInvitationViewModel(registrationEvent)
+  const { requiresPayment, requiresVerification } = state
 
   return (
     <>
+      {(requiresPayment || requiresVerification) && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            padding: '0.75rem 1.25rem',
+            background: 'rgba(0, 0, 0, 0.72)',
+            color: '#fff',
+            fontSize: '0.9rem',
+            textAlign: 'center',
+          }}
+        >
+          {requiresPayment && (
+            <p style={{ margin: 0 }}>
+              Tu invitación requiere pago para confirmar
+              {registrationEvent.price.enabled && registrationEvent.price.amount > 0
+                ? ` (${registrationEvent.price.currency} $${registrationEvent.price.amount}).`
+                : '.'}
+            </p>
+          )}
+          {requiresVerification && (
+            <p style={{ margin: 0 }}>Te pediremos confirmar tu correo.</p>
+          )}
+        </div>
+      )}
       <EventInvitation
         event={registrationEvent}
         viewModel={invitationViewModel}

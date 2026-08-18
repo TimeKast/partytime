@@ -10,6 +10,8 @@ interface InvitationLink {
   id: string
   eventId: string
   expiresAt: string
+  isCourtesy: boolean
+  skipVerification: boolean
   usedAt: string | null
   usedRsvpId: string | null
   usedRsvpName?: string | null
@@ -23,6 +25,16 @@ interface InvitationLink {
 interface InvitationLinkManagerProps {
   eventSlug: string
   onNavigateToRsvp?: (rsvpId: string) => void
+}
+
+// ISSUE-020: minimal event context needed to gate the two link flags. The
+// checkbox only appears when the underlying event behavior it overrides is
+// itself active — otherwise the flag would be a no-op and just add noise.
+interface InvitationEventFlags {
+  priceEnabled: boolean
+  priceAmount: number
+  priceCurrency: string
+  emailVerificationEnabled: boolean
 }
 
 const STATUS_LABELS: Record<InvitationLinkStatus, string> = {
@@ -65,6 +77,9 @@ function formatDate(value: string): string {
 export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: InvitationLinkManagerProps) {
   const activeEventSlug = useRef(eventSlug)
   const [expiresAt, setExpiresAt] = useState(defaultExpiration)
+  const [isCourtesy, setIsCourtesy] = useState(true)
+  const [skipVerification, setSkipVerification] = useState(true)
+  const [eventFlags, setEventFlags] = useState<InvitationEventFlags | null>(null)
   const [links, setLinks] = useState<InvitationLink[]>([])
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
   const [loadingLinks, setLoadingLinks] = useState(true)
@@ -80,6 +95,9 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
   useEffect(() => {
     const controller = new AbortController()
     setExpiresAt(defaultExpiration())
+    setIsCourtesy(true)
+    setSkipVerification(true)
+    setEventFlags(null)
     setLinks([])
     setGeneratedUrl(null)
     setError('')
@@ -120,7 +138,47 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
       }
     }
 
-    if (eventSlug) void loadLinks()
+    // ISSUE-020: only gates checkbox/badge visibility (event-settings is
+    // already scoped by the same viewer-or-above access check as the links
+    // endpoint above). A failed fetch just keeps both checkboxes hidden —
+    // fails closed to "no override offered", never to an unchecked default.
+    async function loadEventFlags() {
+      try {
+        const response = await fetch(
+          `/api/event-settings?eventId=${encodeURIComponent(eventSlug)}`,
+          { cache: 'no-store', signal: controller.signal },
+        )
+        const data: unknown = await response.json()
+        if (controller.signal.aborted) return
+        if (
+          typeof data === 'object'
+          && data !== null
+          && 'success' in data
+          && data.success === true
+          && 'settings' in data
+          && typeof data.settings === 'object'
+          && data.settings !== null
+        ) {
+          const settings = data.settings as {
+            price?: { enabled?: boolean; amount?: number; currency?: string }
+            emailVerificationEnabled?: boolean
+          }
+          setEventFlags({
+            priceEnabled: settings.price?.enabled ?? false,
+            priceAmount: settings.price?.amount ?? 0,
+            priceCurrency: settings.price?.currency ?? 'MXN',
+            emailVerificationEnabled: settings.emailVerificationEnabled ?? false,
+          })
+        }
+      } catch {
+        if (!controller.signal.aborted) setEventFlags(null)
+      }
+    }
+
+    if (eventSlug) {
+      void loadLinks()
+      void loadEventFlags()
+    }
     return () => controller.abort()
   }, [eventSlug])
 
@@ -146,7 +204,12 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
       const response = await fetch('/api/admin/rsvp-invitations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventSlug: requestEventSlug, expiresAt: expiration.toISOString() }),
+        body: JSON.stringify({
+          eventSlug: requestEventSlug,
+          expiresAt: expiration.toISOString(),
+          isCourtesy,
+          skipVerification,
+        }),
       })
       const data: unknown = await response.json()
       if (!response.ok) {
@@ -294,6 +357,46 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
             />
           </div>
         </div>
+
+        {(eventFlags?.priceEnabled || eventFlags?.emailVerificationEnabled) && (
+          <div className={styles.invitationFlagsRow}>
+            {eventFlags?.priceEnabled && (
+              <div className={styles.invitationFlagField}>
+                <label className={styles.invitationFlagLabel}>
+                  <input
+                    type="checkbox"
+                    checked={isCourtesy}
+                    onChange={event => setIsCourtesy(event.target.checked)}
+                    disabled={creating}
+                  />
+                  Cortesía — no paga
+                </label>
+                {!isCourtesy && (
+                  <p className={styles.invitationFlagHelp}>
+                    El invitado pagará ${eventFlags.priceAmount} {eventFlags.priceCurrency} al registrarse.
+                  </p>
+                )}
+              </div>
+            )}
+            {eventFlags?.emailVerificationEnabled && (
+              <div className={styles.invitationFlagField}>
+                <label className={styles.invitationFlagLabel}>
+                  <input
+                    type="checkbox"
+                    checked={skipVerification}
+                    onChange={event => setSkipVerification(event.target.checked)}
+                    disabled={creating}
+                  />
+                  Saltar verificación de email
+                </label>
+                {!skipVerification && (
+                  <p className={styles.invitationFlagHelp}>El invitado deberá confirmar su correo.</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <button className={styles.invitationPrimaryAction} type="submit" disabled={creating || !expiresAt}>
           {creating ? 'Generando…' : 'Generar link'}
         </button>
@@ -369,6 +472,16 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
                     <span className={`${styles.invitationStatus} ${styles[`invitationStatus_${link.status}`]}`}>
                       {STATUS_LABELS[link.status]}
                     </span>
+                    {eventFlags?.priceEnabled && (
+                      <span className={styles.invitationFlagBadge}>
+                        {link.isCourtesy ? 'Cortesía' : 'Paga'}
+                      </span>
+                    )}
+                    {eventFlags?.emailVerificationEnabled && (
+                      <span className={styles.invitationFlagBadge}>
+                        {link.skipVerification ? 'Sin verificación' : 'Verifica'}
+                      </span>
+                    )}
                     {link.status === 'active' && (
                       <>
                         {link.urlAvailability === 'available' && (

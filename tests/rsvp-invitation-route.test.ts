@@ -44,7 +44,7 @@ vi.mock('@/lib/public-event', () => ({
     }),
 }))
 
-const event = { id: 'event-uuid', slug: 'fiesta', title: 'Fiesta privada' }
+const event = { id: 'event-uuid', slug: 'fiesta', title: 'Fiesta privada', emailVerificationEnabled: false }
 const originalTokenKeys = process.env.RSVP_INVITATION_TOKEN_KEYS
 const tokenKeys = `v1:${'11'.repeat(32)}`
 const futureExpiry = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
@@ -54,6 +54,8 @@ const link = {
     eventId: 'fiesta',
     tokenHash: hashRsvpInvitationToken(recoverableToken),
     expiresAt: futureExpiry,
+    isCourtesy: true,
+    skipVerification: true,
     usedAt: null,
     usedRsvpId: null,
     usedRsvpName: null,
@@ -139,8 +141,13 @@ describe('/api/admin/rsvp-invitations', () => {
             eventId: 'fiesta',
             tokenHash: hashRsvpInvitationToken(rawToken),
             createdBy: 'admin-1',
+            // ISSUE-020: omitted in the request body, both default to true —
+            // "confirmed directly" for every unflagged link.
+            isCourtesy: true,
+            skipVerification: true,
         }))
         expect(payload.link).not.toHaveProperty('tokenHash')
+        expect(payload.link).toMatchObject({ isCourtesy: true, skipVerification: true })
         expect(JSON.stringify(payload.link)).not.toContain(rawToken)
         const auditLog = info.mock.calls.flat().join(' ')
         expect(auditLog).toContain('rsvp_invitation.created')
@@ -148,6 +155,31 @@ describe('/api/admin/rsvp-invitations', () => {
         expect(auditLog).not.toContain(rawToken)
         expect(auditLog).not.toContain(hashRsvpInvitationToken(rawToken))
         info.mockRestore()
+    })
+
+    it('persists explicit isCourtesy/skipVerification overrides and rejects non-boolean flags', async () => {
+        const { POST } = await import('@/app/api/admin/rsvp-invitations/route')
+        const response = await POST(adminRequest('POST', {
+            eventSlug: 'fiesta',
+            expiresAt: futureExpiry.toISOString(),
+            isCourtesy: false,
+            skipVerification: false,
+        }))
+
+        expect(response.status).toBe(201)
+        expect(mocks.createRsvpInvitationLink).toHaveBeenCalledWith(expect.objectContaining({
+            isCourtesy: false,
+            skipVerification: false,
+        }))
+
+        const nonBoolean = await POST(adminRequest('POST', {
+            eventSlug: 'fiesta', expiresAt: futureExpiry.toISOString(), isCourtesy: 'false',
+        }))
+        const nonBooleanOther = await POST(adminRequest('POST', {
+            eventSlug: 'fiesta', expiresAt: futureExpiry.toISOString(), skipVerification: 1,
+        }))
+
+        expect([nonBoolean.status, nonBooleanOther.status]).toEqual([400, 400])
     })
 
     it('uses the authorized canonical event slug instead of the request alias in the public path', async () => {
@@ -177,6 +209,7 @@ describe('/api/admin/rsvp-invitations', () => {
         expect(listPayload.links[0]).not.toHaveProperty('tokenHash')
         expect(listPayload.links[0].status).toBe('active')
         expect(listPayload.links[0].urlAvailability).toBe('available')
+        expect(listPayload.links[0]).toMatchObject({ isCourtesy: true, skipVerification: true })
         expect(revoked.status).toBe(200)
         expect(mocks.revokeRsvpInvitationLink).toHaveBeenCalledWith('link-1', 'fiesta', 'admin-1')
         expect(info.mock.calls.flat().join(' ')).toContain('rsvp_invitation.revoked')
@@ -344,9 +377,13 @@ describe('POST /api/rsvp-invitations/validate', () => {
         vi.clearAllMocks()
         mocks.databaseConfigured = true
         mocks.getRsvpInvitationEvent.mockResolvedValue({
-            ...event,
-            hostEmail: 'private@example.com',
-            tokenHash: 'never-public',
+            event: {
+                ...event,
+                hostEmail: 'private@example.com',
+                tokenHash: 'never-public',
+            },
+            isCourtesy: true,
+            skipVerification: true,
         })
     })
 
@@ -362,9 +399,40 @@ describe('POST /api/rsvp-invitations/validate', () => {
         expect(payload).toEqual({
             success: true,
             event: { slug: 'fiesta', title: 'Fiesta privada', isActive: true, rsvpClosed: true },
+            requiresPayment: false,
+            requiresVerification: false,
         })
         expect(JSON.stringify(payload)).not.toContain('never-public')
         expect(JSON.stringify(payload)).not.toContain('private@example.com')
+        expect(JSON.stringify(payload)).not.toContain('isCourtesy')
+        expect(JSON.stringify(payload)).not.toContain('skipVerification')
+    })
+
+    it('surfaces requiresVerification only when the event verifies and the link does not skip it', async () => {
+        mocks.getRsvpInvitationEvent.mockResolvedValueOnce({
+            event: { ...event, emailVerificationEnabled: true },
+            isCourtesy: true,
+            skipVerification: false,
+        })
+        const { POST } = await import('@/app/api/rsvp-invitations/validate/route')
+        const response = await POST(validationRequest({ token: 'd'.repeat(43) }))
+        const payload = await response.json()
+
+        expect(payload.requiresPayment).toBe(false)
+        expect(payload.requiresVerification).toBe(true)
+    })
+
+    it('never surfaces requiresVerification when the link skips it, even if the event verifies', async () => {
+        mocks.getRsvpInvitationEvent.mockResolvedValueOnce({
+            event: { ...event, emailVerificationEnabled: true },
+            isCourtesy: true,
+            skipVerification: true,
+        })
+        const { POST } = await import('@/app/api/rsvp-invitations/validate/route')
+        const response = await POST(validationRequest({ token: 'e'.repeat(43) }))
+        const payload = await response.json()
+
+        expect(payload.requiresVerification).toBe(false)
     })
 
     it('uses one indistinguishable 404 for malformed, used, expired or revoked links', async () => {

@@ -53,6 +53,8 @@ async function main() {
             tokenHash: hashRsvpInvitationToken(token),
             expiresAt: new Date(Date.now() + 60 * 60 * 1_000),
             createdBy: 'codex-neon-rehearsal',
+            isCourtesy: true,
+            skipVerification: true,
         })
         linkId = link.id
 
@@ -116,6 +118,8 @@ async function main() {
             tokenHash: hashRsvpInvitationToken(concurrentToken),
             expiresAt: new Date(Date.now() + 60 * 60 * 1_000),
             createdBy: 'codex-neon-rehearsal',
+            isCourtesy: true,
+            skipVerification: true,
         })
         concurrentLinkId = concurrentLink.id
         const concurrentResults = await Promise.all(concurrentEmails.map((candidateEmail, index) =>

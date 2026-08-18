@@ -81,6 +81,27 @@ describe('admin one-time invitation link UI contract', () => {
     expect(adminCss).toMatch(/@media \(max-width: 640px\)[\s\S]*?\.invitationLinkList li\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) auto;/)
     expect(adminCss).toMatch(/@media \(max-width: 640px\)[\s\S]*?\.invitationLinkActions\s*\{[\s\S]*?align-items:\s*flex-end;/)
   })
+
+  it('ISSUE-020: gates the courtesy/verification checkboxes on the event actually having that behavior, defaults both to true and posts them', () => {
+    expect(manager).toContain('const [isCourtesy, setIsCourtesy] = useState(true)')
+    expect(manager).toContain('const [skipVerification, setSkipVerification] = useState(true)')
+    expect(manager).toContain('/api/event-settings?eventId=')
+    expect(manager).toContain('eventFlags?.priceEnabled')
+    expect(manager).toContain('eventFlags?.emailVerificationEnabled')
+    expect(manager).toContain('Cortesía — no paga')
+    expect(manager).toContain('Saltar verificación de email')
+    expect(manager).toContain('          isCourtesy,\n          skipVerification,')
+    expect(manager).not.toContain('localStorage')
+    expect(manager).not.toContain('console.')
+  })
+
+  it('ISSUE-020: shows unchecked-flag helper copy and per-link badges only when the event behavior applies', () => {
+    expect(manager).toContain('El invitado pagará')
+    expect(manager).toContain('El invitado deberá confirmar su correo.')
+    expect(manager).toContain("{link.isCourtesy ? 'Cortesía' : 'Paga'}")
+    expect(manager).toContain("{link.skipVerification ? 'Sin verificación' : 'Verifica'}")
+    expect(adminCss).toMatch(/\.invitationFlagBadge\s*\{[\s\S]*?border-radius:\s*999px;/)
+  })
 })
 
 describe('public invitation registration UI contract', () => {
@@ -116,6 +137,15 @@ describe('public invitation registration UI contract', () => {
     expect(eventPage).toContain('<InvitationRegistrationClient expectedEventSlug={slug} />')
     expect(client).toContain('expectedEventSlug?: string')
     expect(client).toContain('expectedEventSlug && event.slug !== expectedEventSlug')
+  })
+
+  it('ISSUE-020: parses requiresPayment/requiresVerification from validation and shows copy only when either is true', () => {
+    expect(client).toContain("'requiresPayment' in data && data.requiresPayment === true")
+    expect(client).toContain("'requiresVerification' in data && data.requiresVerification === true")
+    expect(client).toContain('requiresPayment: boolean; requiresVerification: boolean')
+    expect(client).toContain('{(requiresPayment || requiresVerification) && (')
+    expect(client).toContain('Tu invitación requiere pago para confirmar')
+    expect(client).toContain('Te pediremos confirmar tu correo.')
   })
 
   it('forwards the token only when provided and replaces the form after success', () => {

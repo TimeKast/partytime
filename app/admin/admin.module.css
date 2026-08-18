@@ -2165,6 +2165,45 @@
   box-shadow: var(--ad-focus-ring);
 }
 
+.invitationFlagsRow {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: var(--ad-4);
+}
+
+.invitationFlagField {
+  display: grid;
+  gap: var(--ad-1);
+}
+
+.invitationFlagLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--ad-2);
+  color: var(--ad-text);
+  font-size: var(--ad-fs-sm);
+  font-weight: var(--ad-weight-bold);
+}
+
+.invitationFlagHelp {
+  margin: 0;
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-xs);
+}
+
+.invitationFlagBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #fef0c7;
+  color: #93370d;
+  font-size: 12px;
+  font-weight: var(--ad-weight-bold);
+}
+
 .invitationPrimaryAction,
 .invitationSecretRow button,
 .invitationCopyAction,

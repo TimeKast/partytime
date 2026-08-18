@@ -12,9 +12,17 @@ const mocks = vi.hoisted(() => {
     chain.leftJoin.mockReturnValue(chain)
     chain.where.mockReturnValue(chain)
 
+    const insertChain = {
+        values: vi.fn(),
+        returning: vi.fn(),
+    }
+    insertChain.values.mockReturnValue(insertChain)
+
     return {
         chain,
+        insertChain,
         select: vi.fn(() => chain),
+        insert: vi.fn(() => insertChain),
         eq: vi.fn((left, right) => ({ left, right })),
         and: vi.fn((...conditions) => conditions),
         desc: vi.fn(value => value),
@@ -22,7 +30,7 @@ const mocks = vi.hoisted(() => {
 })
 
 vi.mock('@/lib/db', () => ({
-    db: { select: mocks.select },
+    db: { select: mocks.select, insert: mocks.insert },
     isDatabaseConfigured: true,
     appSettings: {},
     events: {},
@@ -31,6 +39,8 @@ vi.mock('@/lib/db', () => ({
         eventId: 'link.eventId',
         tokenHash: 'link.tokenHash',
         expiresAt: 'link.expiresAt',
+        isCourtesy: 'link.isCourtesy',
+        skipVerification: 'link.skipVerification',
         usedAt: 'link.usedAt',
         usedRsvpId: 'link.usedRsvpId',
         revokedAt: 'link.revokedAt',
@@ -52,7 +62,7 @@ vi.mock('drizzle-orm', async importOriginal => ({
     desc: mocks.desc,
 }))
 
-import { getRsvpInvitationLinkForAdmin, listRsvpInvitationLinks } from '@/lib/queries'
+import { createRsvpInvitationLink, getRsvpInvitationLinkForAdmin, listRsvpInvitationLinks } from '@/lib/queries'
 
 describe('RSVP invitation admin query', () => {
     beforeEach(() => {
@@ -62,6 +72,43 @@ describe('RSVP invitation admin query', () => {
         mocks.chain.where.mockReturnValue(mocks.chain)
         mocks.chain.orderBy.mockResolvedValue([])
         mocks.chain.limit.mockResolvedValue([])
+        mocks.insertChain.values.mockReturnValue(mocks.insertChain)
+        mocks.insertChain.returning.mockResolvedValue([{
+            id: 'link-1',
+            eventId: 'fiesta',
+            tokenHash: 'hash',
+            expiresAt: new Date('2026-09-01T00:00:00.000Z'),
+            isCourtesy: false,
+            skipVerification: false,
+            usedAt: null,
+            usedRsvpId: null,
+            revokedAt: null,
+            revokedBy: null,
+            createdBy: 'admin-1',
+            createdAt: new Date('2026-08-18T00:00:00.000Z'),
+        }])
+    })
+
+    it('persists both flags exactly as provided and returns them on the created record', async () => {
+        const created = await createRsvpInvitationLink({
+            id: 'link-1',
+            eventId: 'fiesta',
+            tokenHash: 'hash',
+            expiresAt: new Date('2026-09-01T00:00:00.000Z'),
+            createdBy: 'admin-1',
+            isCourtesy: false,
+            skipVerification: false,
+        })
+
+        expect(mocks.insertChain.values).toHaveBeenCalledWith(expect.objectContaining({
+            isCourtesy: false,
+            skipVerification: false,
+        }))
+        expect(mocks.insertChain.returning).toHaveBeenCalledWith(expect.objectContaining({
+            isCourtesy: 'link.isCourtesy',
+            skipVerification: 'link.skipVerification',
+        }))
+        expect(created).toMatchObject({ isCourtesy: false, skipVerification: false, usedRsvpName: null })
     })
 
     it('joins the consuming RSVP in the same event and selects its display name', async () => {
@@ -71,6 +118,8 @@ describe('RSVP invitation admin query', () => {
             tokenHash: 'link.tokenHash',
             usedRsvpId: 'link.usedRsvpId',
             usedRsvpName: 'rsvp.name',
+            isCourtesy: 'link.isCourtesy',
+            skipVerification: 'link.skipVerification',
         }))
         expect(mocks.chain.leftJoin).toHaveBeenCalledWith(
             expect.anything(),
@@ -90,6 +139,8 @@ describe('RSVP invitation admin query', () => {
 
         expect(mocks.select).toHaveBeenCalledWith(expect.objectContaining({
             tokenHash: 'link.tokenHash',
+            isCourtesy: 'link.isCourtesy',
+            skipVerification: 'link.skipVerification',
         }))
         expect(mocks.chain.where).toHaveBeenCalledWith([
             { left: 'link.id', right: 'link-1' },

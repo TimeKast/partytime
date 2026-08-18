@@ -213,17 +213,17 @@ describe('saveRsvpWithInvitation atomic contract', () => {
         expect(executeMock).toHaveBeenCalledTimes(1)
     })
 
-    // ISSUE-006 (PLAN-EPICS-002-005.md §2.1): with the per-link flags at their
-    // DEFAULT (is_courtesy/skip_verification = true, matching `input` above,
-    // which never sets them), a private-link RSVP must land straight on
-    // `confirmed` — today's behaviour, unchanged by this issue and only
-    // meant to start branching once ISSUE-007 (verification) and ISSUE-011
-    // (payment) read those flags. Pins two things: (1) the CTE hardcodes
-    // RSVP_STATUS.CONFIRMED for both the reactivation and insert branches
-    // with no pending_payment/pending_verification path yet, and (2) it
-    // never reads rsvp_invitation_links.is_courtesy/skip_verification at
-    // all — the flags are fully inert today.
-    it('ISSUE-006: default link flags bypass straight to confirmed — the CTE does not branch on is_courtesy/skip_verification yet', async () => {
+    // ISSUE-006/ISSUE-020 (PLAN-EPICS-002-005.md §2.1): with the per-link
+    // flags at their DEFAULT (is_courtesy/skip_verification = true, matching
+    // `input` above, which never sets them), a private-link RSVP must land
+    // straight on `confirmed` — today's behaviour. ISSUE-020 makes the CTE
+    // read is_courtesy/skip_verification (so ISSUE-007/011 can consume them),
+    // but does not yet BRANCH the inserted status on them — that still lands
+    // with ISSUE-007 (verification) and ISSUE-011 (payment). Pins: (1) the
+    // CTE hardcodes RSVP_STATUS.CONFIRMED for both the reactivation and
+    // insert branches with no pending_payment/pending_verification path yet,
+    // and (2) it now selects (read-only) but never conditions on those flags.
+    it('ISSUE-020: reads is_courtesy/skip_verification read-only but the CTE still bypasses straight to confirmed', async () => {
         executeMock.mockResolvedValueOnce({ rows: [returnedRsvp] })
 
         await expect(saveRsvpWithInvitation(input)).resolves.toMatchObject({
@@ -237,7 +237,16 @@ describe('saveRsvpWithInvitation atomic contract', () => {
         expect(statement.match(/confirmed/g)).toHaveLength(2)
         expect(statement).not.toContain('pending_payment')
         expect(statement).not.toContain('pending_verification')
-        expect(statement).not.toContain('is_courtesy')
-        expect(statement).not.toContain('skip_verification')
+        // ISSUE-020: now selected read-only in eligible_invitation...
+        expect(statement).toContain('candidate.is_courtesy')
+        expect(statement).toContain('candidate.skip_verification')
+        // ...but never referenced anywhere else in the statement (no WHERE/
+        // CASE/SET branches on them) — still fully inert for status today.
+        // (Each appears twice: once in the explanatory SQL comment, once in
+        // the eligible_invitation SELECT list — never in a predicate/SET.)
+        expect(statement.match(/is_courtesy/g)).toHaveLength(2)
+        expect(statement.match(/skip_verification/g)).toHaveLength(2)
+        expect(statement).not.toMatch(/WHERE[\s\S]*is_courtesy/)
+        expect(statement).not.toMatch(/SET[\s\S]*is_courtesy/)
     })
 })

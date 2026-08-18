@@ -103,6 +103,10 @@ export interface RsvpInvitationLinkAdminRecord {
     eventId: string
     tokenHash: string
     expiresAt: Date
+    // ISSUE-020/PLAN §2.1: per-link flags the organizer chooses at creation.
+    // Read-only surface here — ISSUE-007/011 honor them when consuming a link.
+    isCourtesy: boolean
+    skipVerification: boolean
     usedAt: Date | null
     usedRsvpId: string | null
     usedRsvpName: string | null
@@ -131,6 +135,8 @@ export async function createRsvpInvitationLink(input: {
     tokenHash: string
     expiresAt: Date
     createdBy: string
+    isCourtesy: boolean
+    skipVerification: boolean
 }): Promise<RsvpInvitationLinkAdminRecord> {
     if (!db) throw new Error('Database not configured')
 
@@ -140,11 +146,15 @@ export async function createRsvpInvitationLink(input: {
         tokenHash: input.tokenHash,
         expiresAt: input.expiresAt,
         createdBy: input.createdBy,
+        isCourtesy: input.isCourtesy,
+        skipVerification: input.skipVerification,
     }).returning({
         id: rsvpInvitationLinks.id,
         eventId: rsvpInvitationLinks.eventId,
         tokenHash: rsvpInvitationLinks.tokenHash,
         expiresAt: rsvpInvitationLinks.expiresAt,
+        isCourtesy: rsvpInvitationLinks.isCourtesy,
+        skipVerification: rsvpInvitationLinks.skipVerification,
         usedAt: rsvpInvitationLinks.usedAt,
         usedRsvpId: rsvpInvitationLinks.usedRsvpId,
         revokedAt: rsvpInvitationLinks.revokedAt,
@@ -164,6 +174,8 @@ export async function listRsvpInvitationLinks(eventId: string): Promise<RsvpInvi
         eventId: rsvpInvitationLinks.eventId,
         tokenHash: rsvpInvitationLinks.tokenHash,
         expiresAt: rsvpInvitationLinks.expiresAt,
+        isCourtesy: rsvpInvitationLinks.isCourtesy,
+        skipVerification: rsvpInvitationLinks.skipVerification,
         usedAt: rsvpInvitationLinks.usedAt,
         usedRsvpId: rsvpInvitationLinks.usedRsvpId,
         usedRsvpName: rsvps.name,
@@ -193,6 +205,8 @@ export async function getRsvpInvitationLinkForAdmin(
         eventId: rsvpInvitationLinks.eventId,
         tokenHash: rsvpInvitationLinks.tokenHash,
         expiresAt: rsvpInvitationLinks.expiresAt,
+        isCourtesy: rsvpInvitationLinks.isCourtesy,
+        skipVerification: rsvpInvitationLinks.skipVerification,
         usedAt: rsvpInvitationLinks.usedAt,
         usedRsvpId: rsvpInvitationLinks.usedRsvpId,
         usedRsvpName: rsvps.name,
@@ -237,15 +251,28 @@ export async function revokeRsvpInvitationLink(
     return !!revoked
 }
 
+export interface RsvpInvitationPublicEventResult {
+    event: Event
+    // ISSUE-020: the public validate route derives requiresPayment/
+    // requiresVerification from these — never expose the raw flags themselves.
+    isCourtesy: boolean
+    skipVerification: boolean
+}
+
 /**
  * Public read model for a valid capability. The select intentionally includes
- * only the event table: link ids, hashes and actor metadata never leave the
- * data layer on this path. Reading does not consume the token.
+ * only the event table plus the two link flags needed to compute the public
+ * copy: link ids, hashes and actor metadata never leave the data layer on
+ * this path. Reading does not consume the token.
  */
-export async function getRsvpInvitationEvent(tokenHash: string): Promise<Event | null> {
+export async function getRsvpInvitationEvent(tokenHash: string): Promise<RsvpInvitationPublicEventResult | null> {
     if (!db) throw new Error('Database not configured')
 
-    const [row] = await db.select({ event: events })
+    const [row] = await db.select({
+        event: events,
+        isCourtesy: rsvpInvitationLinks.isCourtesy,
+        skipVerification: rsvpInvitationLinks.skipVerification,
+    })
         .from(rsvpInvitationLinks)
         .innerJoin(events, eq(events.slug, rsvpInvitationLinks.eventId))
         .where(and(
@@ -257,7 +284,7 @@ export async function getRsvpInvitationEvent(tokenHash: string): Promise<Event |
         ))
         .limit(1)
 
-    return row?.event || null
+    return row || null
 }
 
 /**
@@ -281,7 +308,10 @@ export async function saveRsvpWithInvitation(
     try {
         result = await withDeadlockRetry(() => db!.execute(sql`
         WITH eligible_invitation AS MATERIALIZED (
-            SELECT candidate.id
+            -- ISSUE-020: is_courtesy/skip_verification ride along read-only so
+            -- ISSUE-007/011 can branch the inserted status on them without
+            -- touching this eligibility predicate.
+            SELECT candidate.id, candidate.is_courtesy, candidate.skip_verification
             FROM rsvp_invitation_links AS candidate
             INNER JOIN events AS invitation_event
                 ON invitation_event.slug = candidate.event_id

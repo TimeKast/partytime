@@ -48,13 +48,25 @@ export async function POST(request: NextRequest) {
 
     try {
         const { getRsvpInvitationEvent } = await import('@/lib/queries')
-        const event = await getRsvpInvitationEvent(hashRsvpInvitationToken(body.token))
-        if (!event) {
+        const result = await getRsvpInvitationEvent(hashRsvpInvitationToken(body.token))
+        if (!result) {
             return NextResponse.json(UNAVAILABLE, { status: 404, headers: NO_STORE_HEADERS })
         }
+        const { event, skipVerification } = result
+
+        // TODO(ISSUE-010): events.payment_required doesn't exist yet. Once it
+        // lands, this becomes `event.paymentRequired && !result.isCourtesy`.
+        // The pay supersedes verification, same as the public flow (PLAN §2.1).
+        const requiresPayment = false
+        const requiresVerification = event.emailVerificationEnabled && !skipVerification && !requiresPayment
 
         return NextResponse.json(
-            { success: true, event: buildPublicEventDto(event) },
+            {
+                success: true,
+                event: buildPublicEventDto(event),
+                requiresPayment,
+                requiresVerification,
+            },
             { headers: NO_STORE_HEADERS },
         )
     } catch {

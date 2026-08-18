@@ -101,6 +101,11 @@ export async function GET(request: NextRequest) {
             reminderScheduledAt: event.reminderScheduledAt ? event.reminderScheduledAt.toISOString() : null,
             reminderSentAt: event.reminderSentAt ? event.reminderSentAt.toISOString() : null
           },
+          // ISSUE-005/ISSUE-020: per-event verification toggle (EPIC-003).
+          // Additive, read-only here — the admin UI to change it lands with
+          // ISSUE-007; InvitationLinkManager only reads it to gate the
+          // "Saltar verificación de email" checkbox.
+          emailVerificationEnabled: event.emailVerificationEnabled || false,
           // Plus-one configuration
           requirePlusOneName: event.requirePlusOneName || false,
           // RSVP closed state (A3-01): must round-trip so that saving settings
@@ -154,6 +159,7 @@ export async function GET(request: NextRequest) {
           reminderScheduledAt: null,
           reminderSentAt: null
         },
+        emailVerificationEnabled: false,
         // Plus-one configuration (default)
         requirePlusOneName: false
       },

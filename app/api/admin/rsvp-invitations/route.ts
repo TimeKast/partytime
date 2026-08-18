@@ -32,6 +32,12 @@ function validIdentifier(value: unknown): value is string {
     return typeof value === 'string' && value.trim().length > 0 && value.length <= 200
 }
 
+/** ISSUE-020: isCourtesy/skipVerification are optional but, if present, must
+ * be strictly boolean — no truthy coercion of strings/numbers. */
+function isOptionalStrictBoolean(value: unknown): value is boolean | undefined {
+    return value === undefined || typeof value === 'boolean'
+}
+
 async function authenticate(): Promise<SessionUser | null> {
     const cookieStore = await cookies()
     const sessionToken = cookieStore.get('rp_session')?.value
@@ -63,6 +69,8 @@ function linkDto(link: {
     eventId: string
     tokenHash: string
     expiresAt: Date
+    isCourtesy: boolean
+    skipVerification: boolean
     usedAt: Date | null
     usedRsvpId: string | null
     usedRsvpName: string | null
@@ -86,6 +94,8 @@ function linkDto(link: {
         id: link.id,
         eventId: link.eventId,
         expiresAt: link.expiresAt,
+        isCourtesy: link.isCourtesy,
+        skipVerification: link.skipVerification,
         usedAt: link.usedAt,
         usedRsvpId: link.usedRsvpId,
         usedRsvpName: link.usedRsvpName,
@@ -160,7 +170,7 @@ export async function POST(request: NextRequest) {
 
     try {
         const body: unknown = await request.json()
-        if (!isRecord(body) || !hasOnlyKeys(body, ['eventSlug', 'expiresAt'])) {
+        if (!isRecord(body) || !hasOnlyKeys(body, ['eventSlug', 'expiresAt', 'isCourtesy', 'skipVerification'])) {
             return NextResponse.json({ success: false, error: 'Solicitud inválida' }, { status: 400 })
         }
         if (!validIdentifier(body.eventSlug)) {
@@ -170,6 +180,13 @@ export async function POST(request: NextRequest) {
         if (!expiresAt) {
             return NextResponse.json({ success: false, error: 'La vigencia debe ser futura y no mayor a 365 días' }, { status: 400 })
         }
+        if (!isOptionalStrictBoolean(body.isCourtesy) || !isOptionalStrictBoolean(body.skipVerification)) {
+            return NextResponse.json({ success: false, error: 'isCourtesy y skipVerification deben ser booleanos' }, { status: 400 })
+        }
+        // ISSUE-020/PLAN §2.1: both flags default to true — "confirmed
+        // directly" (today's behavior) for any link that omits them.
+        const isCourtesy = body.isCourtesy ?? true
+        const skipVerification = body.skipVerification ?? true
 
         const authorization = await authorizeEvent(currentUser, body.eventSlug.trim())
         if ('response' in authorization) return authorization.response
@@ -191,6 +208,8 @@ export async function POST(request: NextRequest) {
             tokenHash: hashRsvpInvitationToken(rawToken),
             expiresAt,
             createdBy: currentUser.id,
+            isCourtesy,
+            skipVerification,
         })
         console.info(JSON.stringify({
             event: 'rsvp_invitation.created',
