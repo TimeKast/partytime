@@ -104,7 +104,7 @@ GM-03 -> GM-04 ----/
 
 - [x] `pnpm test` — 375/375 pruebas en verde.
 - [x] `pnpm exec tsc --noEmit` — sin errores.
-- [x] `pnpm build` — compilación de producción completa; sólo 3 warnings preexistentes.
+- [x] `pnpm build` — compilación de producción completa; lint sin warnings ni errores.
 - [x] `pnpm db:preflight` y `pnpm verify:db` — `registered-current-schema` y contrato completo de `0008` en rama Neon desechable.
 - [x] Dashboard — filtros, orden, paginación y exportación fiel cubiertos por pruebas unitarias/contrato; protección de sesión y redirect verificados.
 - [x] Smoke invitación con DB migrada — validate 200, registro 201, revalidación 404 y segundo registro 409.
@@ -119,4 +119,5 @@ GM-03 -> GM-04 ----/
 - Gates integrados: 47 archivos de prueba, 375 casos, lint/typecheck/build en verde y `git diff --check` limpio.
 - Migración y smokes ensayados en una rama Neon desechable, sin fixtures residuales; la rama fue eliminada sin promover cambios al padre.
 - Auditoría de seguridad: M-01, M-02, M-03 y L-01 corregidos y verificados de forma dirigida.
-- Despliegue deliberadamente no ejecutado: promover `0008` y desplegar código en producción sigue siendo una autorización operacional separada.
+- Rollout productivo completado el 2026-08-18: código `9f615f2`, migración `0008`, preflight/`verify:db`, smokes público y administrativo, concurrencia y cleanup en verde.
+- Se conserva temporalmente la rama Neon de respaldo `br-small-violet-ahliojrr` durante la ventana post-deploy de dos horas.

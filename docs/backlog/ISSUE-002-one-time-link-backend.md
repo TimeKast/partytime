@@ -36,7 +36,8 @@ Then se confirma y el token queda usado
 - 27 pruebas focalizadas y 375/375 casos en la suite integrada.
 - `used_rsvp_id` y `revoked_by` permiten correlación sin registrar bearer, hash ni PII.
 
-## Production rollout boundary
+## Production rollout
 
 - `0008`, preflight, contrato, smoke y carrera concurrente fueron ensayados en Neon real sobre una rama desechable y quedaron verdes.
-- La rama se eliminó sin promover cambios; aplicar la migración a producción sigue el runbook y requiere autorización separada.
+- `0008` fue promovida a la rama productiva `br-small-brook-ahd23yhy` el 2026-08-18 con su hash/timestamp de journal.
+- El preflight posterior clasifica `registered-current-schema`; `verify:db`, consumo 2→1 y cleanup pasan.

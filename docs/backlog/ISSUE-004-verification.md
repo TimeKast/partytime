@@ -25,7 +25,7 @@ Then no quedan findings bloqueantes en hash, RBAC, expiración ni atomicidad
 
 - `pnpm test`: 375/375.
 - `pnpm exec tsc --noEmit`: PASS.
-- `pnpm lint`: PASS con 3 warnings preexistentes.
+- `pnpm lint`: PASS sin warnings ni errores.
 - `pnpm build`: PASS.
 - `git diff --check`: PASS.
 - Auditoría Tier 3: 0 Critical, 0 High; los 3 Medium y 1 Low originales fueron corregidos y verificados de forma dirigida.
@@ -33,8 +33,9 @@ Then no quedan findings bloqueantes en hash, RBAC, expiración ni atomicidad
 - Smoke HTTP: validate 200 → RSVP 201 → validate 404 → segundo RSVP 409.
 - Concurrencia real: 2 consumidores → 1 ganador, 1 RSVP y correlación `used_rsvp_id`; fixtures 0 al finalizar.
 
-## Production rollout boundary
+## Production rollout
 
 - No quedan gates de implementación abiertos en esta issue.
-- La rama temporal fue descartada; producción no recibió la migración ni el código.
-- Aplicar `0008`, verificar y desplegar requiere una autorización operacional separada conforme al runbook.
+- Código `9f615f2` desplegado en Vercel y migración `0008` aplicada en Neon el 2026-08-18.
+- Producción: home 200, headers seguros en `/invite`, validate inválido 404, RBAC sin sesión 401 y flujo admin autenticado 200/201/200/200.
+- Vercel error scan inmediato vacío; observaciones +15 min y +2 h programadas antes de retirar el respaldo.
