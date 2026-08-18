@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import styles from './ImagePreview.module.css'
 
 interface ImagePreviewProps {
@@ -17,7 +18,7 @@ interface ImagePreviewProps {
 export function ImagePreview({ src, alt, aspectRatio, dimensionsLabel }: ImagePreviewProps) {
   return (
     <div className={styles.frame} style={{ aspectRatio }}>
-      <img src={src} alt={alt} />
+      <Image src={src} alt={alt} fill unoptimized sizes="(max-width: 480px) 100vw, 420px" />
       {dimensionsLabel && <span className={styles.dimensions}>{dimensionsLabel}</span>}
     </div>
   )

@@ -4,6 +4,10 @@ import {
     type HistoricalSemanticState,
     type PasswordLifecycleSemanticState,
 } from '@/lib/migration-semantic-contract'
+import {
+    invalidRsvpInvitationSemantics,
+    type RsvpInvitationSemanticState,
+} from '@/lib/rsvp-invitation-migration-contract'
 
 export interface MigrationRegistryRow {
     hash: string
@@ -29,6 +33,11 @@ export interface MigrationObjectState {
     passwordLifecycleConstraints: string[]
     passwordLifecycleIndexes: string[]
     passwordLifecycleSemantics: PasswordLifecycleSemanticState
+    rsvpInvitationTables: string[]
+    rsvpInvitationColumns: string[]
+    rsvpInvitationConstraints: string[]
+    rsvpInvitationIndexes: string[]
+    rsvpInvitationSemantics: RsvpInvitationSemanticState
 }
 
 export interface MigrationPreflightInput {
@@ -37,6 +46,7 @@ export interface MigrationPreflightInput {
     expectedFoundationRegistry: MigrationRegistryRow[]
     expectedPresentationRegistry: MigrationRegistryRow[]
     expectedImagePositionRegistry: MigrationRegistryRow[]
+    expectedPasswordLifecycleRegistry?: MigrationRegistryRow[]
     expectedCurrentRegistry: MigrationRegistryRow[]
     objects: MigrationObjectState
 }
@@ -46,11 +56,13 @@ export type MigrationPreflightClassification =
     | 'unregistered-historical-schema'
     | 'unregistered-presentation-schema'
     | 'unregistered-image-position-schema'
+    | 'unregistered-password-lifecycle-schema'
     | 'unregistered-current-schema'
     | 'unregistered-inconsistent-schema'
     | 'registered-foundation-ready'
     | 'registered-presentation-ready'
     | 'registered-image-position-ready'
+    | 'registered-password-lifecycle-ready'
     | 'registered-current-schema'
     | 'registered-inconsistent-schema'
 
@@ -150,18 +162,46 @@ export const REQUIRED_PASSWORD_LIFECYCLE_OBJECTS = {
     ],
 } as const
 
+export const REQUIRED_RSVP_INVITATION_OBJECTS = {
+    tables: ['rsvp_invitation_links'],
+    columns: [
+        'rsvp_invitation_links.id',
+        'rsvp_invitation_links.event_id',
+        'rsvp_invitation_links.token_hash',
+        'rsvp_invitation_links.expires_at',
+        'rsvp_invitation_links.used_at',
+        'rsvp_invitation_links.used_rsvp_id',
+        'rsvp_invitation_links.revoked_at',
+        'rsvp_invitation_links.revoked_by',
+        'rsvp_invitation_links.created_by',
+        'rsvp_invitation_links.created_at',
+    ],
+    constraints: [
+        'rsvp_invitation_links_pkey',
+        'rsvp_invitation_links_event_id_events_slug_fk',
+        'rsvp_invitation_links_used_rsvp_id_rsvps_id_fk',
+    ],
+    indexes: [
+        'rsvp_invitation_links_event_id_idx',
+        'rsvp_invitation_links_token_hash_unique',
+    ],
+} as const
+
 export interface MigrationPreflightResult {
     classification: MigrationPreflightClassification
     canBaseline0000Through0004: boolean
     canApply0005: boolean
     canApply0006: boolean
     canApply0007: boolean
+    canApply0008: boolean
     missingHistoricalObjects: string[]
     missingPresentationObjects: string[]
     missingImagePositionObjects: string[]
     missingPasswordLifecycleObjects: string[]
+    missingRsvpInvitationObjects: string[]
     invalidHistoricalSemantics: string[]
     invalidPasswordLifecycleSemantics: string[]
+    invalidRsvpInvitationSemantics: string[]
     reasons: string[]
 }
 
@@ -200,6 +240,12 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         ...missing(REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.constraints, input.objects.passwordLifecycleConstraints),
         ...missing(REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.indexes, input.objects.passwordLifecycleIndexes),
     ]
+    const missingRsvpInvitationObjects = [
+        ...missing(REQUIRED_RSVP_INVITATION_OBJECTS.tables, input.objects.rsvpInvitationTables),
+        ...missing(REQUIRED_RSVP_INVITATION_OBJECTS.columns, input.objects.rsvpInvitationColumns),
+        ...missing(REQUIRED_RSVP_INVITATION_OBJECTS.constraints, input.objects.rsvpInvitationConstraints),
+        ...missing(REQUIRED_RSVP_INVITATION_OBJECTS.indexes, input.objects.rsvpInvitationIndexes),
+    ]
     const invalidSemanticObjects = invalidHistoricalSemantics(input.objects.historicalSemantics)
     const observedInvalidPasswordLifecycleObjects = invalidPasswordLifecycleSemantics(
         input.objects.passwordLifecycleSemantics,
@@ -223,6 +269,18 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         : observedInvalidPasswordLifecycleObjects
     const passwordLifecycleComplete = missingPasswordLifecycleObjects.length === 0
         && invalidPasswordLifecycleObjects.length === 0
+    const rsvpInvitationAbsent = input.objects.rsvpInvitationTables.length === 0
+        && input.objects.rsvpInvitationColumns.length === 0
+        && input.objects.rsvpInvitationConstraints.length === 0
+        && input.objects.rsvpInvitationIndexes.length === 0
+    const observedInvalidRsvpInvitationObjects = invalidRsvpInvitationSemantics(
+        input.objects.rsvpInvitationSemantics,
+    )
+    const invalidRsvpInvitationObjects = rsvpInvitationAbsent
+        ? []
+        : observedInvalidRsvpInvitationObjects
+    const rsvpInvitationComplete = missingRsvpInvitationObjects.length === 0
+        && invalidRsvpInvitationObjects.length === 0
     const noRegistry = input.drizzleRegistry === null && input.publicRegistry === null
     const onlyDrizzleRegistry = input.drizzleRegistry !== null && input.publicRegistry === null
     const schemaIsEmpty = input.objects.tables.length === 0
@@ -236,7 +294,9 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         classification = 'unregistered-presentation-schema'
     } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleAbsent) {
         classification = 'unregistered-image-position-schema'
-    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleComplete) {
+    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleComplete && rsvpInvitationAbsent) {
+        classification = 'unregistered-password-lifecycle-schema'
+    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleComplete && rsvpInvitationComplete) {
         classification = 'unregistered-current-schema'
     } else if (noRegistry) {
         classification = 'unregistered-inconsistent-schema'
@@ -273,6 +333,20 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         && presentationComplete
         && imagePositionComplete
         && passwordLifecycleComplete
+        && rsvpInvitationAbsent
+        && registryMatches(
+            input.drizzleRegistry!,
+            input.expectedPasswordLifecycleRegistry ?? input.expectedCurrentRegistry.slice(0, -1),
+        )
+    ) {
+        classification = 'registered-password-lifecycle-ready'
+    } else if (
+        onlyDrizzleRegistry
+        && historicalComplete
+        && presentationComplete
+        && imagePositionComplete
+        && passwordLifecycleComplete
+        && rsvpInvitationComplete
         && registryMatches(input.drizzleRegistry!, input.expectedCurrentRegistry)
     ) {
         classification = 'registered-current-schema'
@@ -299,6 +373,14 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
             reasons.push(`invalid password lifecycle semantics: ${invalidPasswordLifecycleObjects.join(', ')}`)
         }
     }
+    if (!rsvpInvitationAbsent && !rsvpInvitationComplete) {
+        if (missingRsvpInvitationObjects.length > 0) {
+            reasons.push(`missing RSVP invitation objects: ${missingRsvpInvitationObjects.join(', ')}`)
+        }
+        if (invalidRsvpInvitationObjects.length > 0) {
+            reasons.push(`invalid RSVP invitation semantics: ${invalidRsvpInvitationObjects.join(', ')}`)
+        }
+    }
     if (input.publicRegistry !== null) reasons.push('unexpected public.__drizzle_migrations registry')
     if (classification.startsWith('unregistered-')) reasons.push('migration registry is absent')
 
@@ -308,12 +390,15 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         canApply0005: classification === 'registered-foundation-ready',
         canApply0006: classification === 'registered-presentation-ready',
         canApply0007: classification === 'registered-image-position-ready',
+        canApply0008: classification === 'registered-password-lifecycle-ready',
         missingHistoricalObjects,
         missingPresentationObjects,
         missingImagePositionObjects,
         missingPasswordLifecycleObjects,
+        missingRsvpInvitationObjects,
         invalidHistoricalSemantics: invalidSemanticObjects,
         invalidPasswordLifecycleSemantics: invalidPasswordLifecycleObjects,
+        invalidRsvpInvitationSemantics: invalidRsvpInvitationObjects,
         reasons,
     }
 }

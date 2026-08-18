@@ -9,6 +9,7 @@
     "lint": "next lint",
     "test": "vitest run",
     "verify:db": "node --import tsx scripts/verify-db-contract.ts",
+    "rehearse:rsvp-invitation": "node --import tsx scripts/rehearse-rsvp-invitation.ts",
     "test:db:capacity-semantics": "bash scripts/test-capacity-function-semantics.sh",
     "db:preflight": "node --import tsx scripts/migration-preflight.ts",
     "db:generate": "drizzle-kit generate",

@@ -7,6 +7,7 @@ import { CheckCircle, Mail, MessageCircle, Phone, Pencil, XCircle } from '../ui/
 interface RsvpTableProps {
   variant: 'confirmed' | 'cancelled'
   rsvps: RSVP[]
+  totalCount: number
   isReadOnly: boolean
   loading: boolean
   isEventPast: boolean
@@ -18,6 +19,7 @@ interface RsvpTableProps {
 export function RsvpTable({
   variant,
   rsvps,
+  totalCount,
   isReadOnly,
   loading,
   isEventPast,
@@ -25,10 +27,10 @@ export function RsvpTable({
   onEdit,
   onToggleStatus,
 }: RsvpTableProps) {
-  if (rsvps.length === 0) return null
+  if (totalCount === 0) return null
 
   const isConfirmed = variant === 'confirmed'
-  const title = isConfirmed ? `Confirmados (${rsvps.length})` : `Cancelados (${rsvps.length})`
+  const title = isConfirmed ? `Confirmados (${totalCount})` : `Cancelados (${totalCount})`
   const sendTitle = isConfirmed ? 'Enviar email' : 'Enviar email de re-invitación'
   const toggleTitle = isConfirmed ? 'Cancelar asistencia' : 'Reconfirmar asistencia'
   const ToggleIcon = isConfirmed ? XCircle : CheckCircle
@@ -37,6 +39,9 @@ export function RsvpTable({
   return (
     <div className={styles.tableContainer}>
       <h2 id={titleId} className={styles.sectionTitle}>{title}</h2>
+      {rsvps.length === 0 ? (
+        <p className={styles.emptyPageSection}>No hay {isConfirmed ? 'confirmados' : 'cancelados'} en esta página.</p>
+      ) : (
       <table className={styles.table} aria-labelledby={titleId}>
         <thead>
           <tr>
@@ -115,6 +120,7 @@ export function RsvpTable({
           ))}
         </tbody>
       </table>
+      )}
     </div>
   )
 }

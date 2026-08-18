@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { PhoneInput } from 'react-international-phone'
 import 'react-international-phone/style.css'
@@ -17,11 +17,21 @@ import {
   type PresentationMode,
 } from '@/lib/event-presentation'
 import { buildEventExportMetadataRows, createEventExportFilename } from '@/lib/event-export'
+import {
+  buildRsvpListView,
+  describeRsvpListView,
+  type RsvpEmailFilter,
+  type RsvpPageSize,
+  type RsvpPlusOneFilter,
+  type RsvpSort,
+  type RsvpStatusFilter,
+} from '@/lib/rsvp-list'
 // H-008 FIX: Import extracted components to reduce monolithic file size
 import {
   ChangePasswordForm,
   EventPresentationSettings,
   ForcedPasswordChangeDialog,
+  InvitationLinkManager,
   StatsCards,
   UserManagement,
   ReminderStatusSection,
@@ -46,7 +56,6 @@ export default function AdminDashboard() {
     mustChangePassword: boolean
   } | null>(null)
   const [rsvps, setRsvps] = useState<RSVP[]>([])
-  const [filteredRsvps, setFilteredRsvps] = useState<RSVP[]>([])
   const [emailTargetRsvps, setEmailTargetRsvps] = useState<RSVP[]>([])
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -99,13 +108,39 @@ export default function AdminDashboard() {
   })
 
   // Filtros para MOSTRAR en tabla
-  const [displayFilterStatus, setDisplayFilterStatus] = useState<'all' | 'confirmed' | 'cancelled'>('all')
-  const [displayFilterPlusOne, setDisplayFilterPlusOne] = useState<'all' | 'yes' | 'no'>('all')
-  const [displayFilterEmail, setDisplayFilterEmail] = useState<'all' | 'sent' | 'not-sent'>('all')
+  const [displayFilterStatus, setDisplayFilterStatus] = useState<RsvpStatusFilter>('all')
+  const [displayFilterPlusOne, setDisplayFilterPlusOne] = useState<RsvpPlusOneFilter>('all')
+  const [displayFilterEmail, setDisplayFilterEmail] = useState<RsvpEmailFilter>('all')
+  const [rsvpSort, setRsvpSort] = useState<RsvpSort>('name-asc')
+  const [rsvpPageSize, setRsvpPageSize] = useState<RsvpPageSize>(25)
+  const [rsvpPage, setRsvpPage] = useState(1)
 
   // Filtros para ENVIAR emails (default: solo confirmados sin email)
-  const [emailFilterStatus, setEmailFilterStatus] = useState<'all' | 'confirmed' | 'cancelled'>('confirmed')
-  const [emailFilterEmail, setEmailFilterEmail] = useState<'all' | 'sent' | 'not-sent'>('not-sent')
+  const [emailFilterStatus, setEmailFilterStatus] = useState<RsvpStatusFilter>('confirmed')
+  const [emailFilterEmail, setEmailFilterEmail] = useState<RsvpEmailFilter>('not-sent')
+
+  const rsvpListOptions = useMemo(() => ({
+    searchTerm,
+    status: displayFilterStatus,
+    plusOne: displayFilterPlusOne,
+    email: displayFilterEmail,
+    sort: rsvpSort,
+    page: rsvpPage,
+    pageSize: rsvpPageSize,
+  }), [
+    searchTerm,
+    displayFilterStatus,
+    displayFilterPlusOne,
+    displayFilterEmail,
+    rsvpSort,
+    rsvpPage,
+    rsvpPageSize,
+  ])
+
+  const rsvpListView = useMemo(
+    () => buildRsvpListView(rsvps, rsvpListOptions),
+    [rsvps, rsvpListOptions],
+  )
 
   const [message, setMessage] = useState('')
 
@@ -157,7 +192,7 @@ export default function AdminDashboard() {
     checkAuth()
   }, [router])
 
-  const loadRSVPs = async (eventId?: string) => {
+  const loadRSVPs = useCallback(async (eventId?: string) => {
     setLoading(true)
     try {
       const targetEventId = eventId || selectedEventId
@@ -179,7 +214,6 @@ export default function AdminDashboard() {
 
       if (data.success && data.rsvps) {
         setRsvps(data.rsvps)
-        setFilteredRsvps(data.rsvps)
 
         // Ajustar filtro de email inteligentemente
         const notSentCount = data.rsvps.filter((r: RSVP) => !r.emailSent).length
@@ -199,7 +233,7 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedEventId])
 
   // RSVPs will be loaded by the useEffect watching selectedEventId once it's initialized
 
@@ -378,43 +412,27 @@ export default function AdminDashboard() {
     if (isAuthenticated && selectedEventId) {
       loadRSVPs(selectedEventId)
     }
-  }, [selectedEventId, isAuthenticated])
+  }, [selectedEventId, isAuthenticated, loadRSVPs])
 
-  // Filtrar RSVPs para MOSTRAR en tabla
+  // Regresar a la primera página cuando cambia la vista preparada.
   useEffect(() => {
-    let filtered = [...rsvps]
+    setRsvpPage(1)
+  }, [
+    selectedEventId,
+    searchTerm,
+    displayFilterStatus,
+    displayFilterPlusOne,
+    displayFilterEmail,
+    rsvpSort,
+    rsvpPageSize,
+  ])
 
-    // Filtro por status
-    if (displayFilterStatus !== 'all') {
-      filtered = filtered.filter(r => r.status === displayFilterStatus)
+  // Mantener la página válida si la lista cambia después de editar un RSVP.
+  useEffect(() => {
+    if (rsvpPage !== rsvpListView.page) {
+      setRsvpPage(rsvpListView.page)
     }
-
-    // Filtro por +1
-    if (displayFilterPlusOne === 'yes') {
-      filtered = filtered.filter(r => r.plusOne)
-    } else if (displayFilterPlusOne === 'no') {
-      filtered = filtered.filter(r => !r.plusOne)
-    }
-
-    // Filtro por email enviado
-    if (displayFilterEmail === 'sent') {
-      filtered = filtered.filter(r => r.emailSent)
-    } else if (displayFilterEmail === 'not-sent') {
-      filtered = filtered.filter(r => !r.emailSent)
-    }
-
-    // Búsqueda por texto
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase()
-      filtered = filtered.filter(r =>
-        r.name.toLowerCase().includes(term) ||
-        r.email.toLowerCase().includes(term) ||
-        r.phone.includes(term)
-      )
-    }
-
-    setFilteredRsvps(filtered)
-  }, [rsvps, displayFilterStatus, displayFilterPlusOne, displayFilterEmail, searchTerm])
+  }, [rsvpPage, rsvpListView.page])
 
   // Filtrar RSVPs para ENVIAR emails
   useEffect(() => {
@@ -1057,7 +1075,8 @@ export default function AdminDashboard() {
   // Exportar lista informativa (elegante con todos los detalles)
   const exportInformativeList = () => {
     const doc = new jsPDF()
-    const confirmedRsvps = rsvps.filter(r => r.status === 'confirmed')
+    const exportRsvps = rsvpListView.filteredAndSorted
+    const exportSummary = describeRsvpListView(rsvpListOptions)
     const metadataRows = buildEventExportMetadataRows(configForm).map(stripEmojis)
     const headerHeight = Math.max(40, 20 + (metadataRows.length - 1) * 8)
 
@@ -1073,19 +1092,28 @@ export default function AdminDashboard() {
     })
 
     // Stats
-    const totalGuests = confirmedRsvps.length + confirmedRsvps.filter(r => r.plusOne).length
     const statsY = headerHeight + 14
     doc.setTextColor(0, 0, 0)
     doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
-    doc.text(`Lista de Invitados - ${confirmedRsvps.length} Confirmaciones - ${totalGuests} Personas`, 14, statsY)
+    doc.text(
+      `Resultados: ${exportRsvps.length} - Confirmados: ${rsvpListView.confirmedTotal} - Cancelados: ${rsvpListView.cancelledTotal}`,
+      14,
+      statsY,
+    )
+
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    const summaryLines = doc.splitTextToSize(stripEmojis(exportSummary), 182) as string[]
+    doc.text(summaryLines, 14, statsY + 6)
 
     // Tabla con datos - incluir filas para +1 con nombre si existe
     const tableData: (string | number)[][] = []
-    confirmedRsvps.forEach((rsvp, index) => {
+    exportRsvps.forEach((rsvp, index) => {
       // Fila principal del invitado
       tableData.push([
         index + 1,
+        rsvp.status === 'confirmed' ? 'Confirmado' : 'Cancelado',
         stripEmojis(rsvp.name),
         rsvp.email,
         rsvp.phone,
@@ -1095,6 +1123,7 @@ export default function AdminDashboard() {
       // Si tiene +1 con nombre, agregar fila indentada
       if (rsvp.plusOne && rsvp.plusOneName) {
         tableData.push([
+          '',
           '',
           `   + ${stripEmojis(rsvp.plusOneName)}`,
           '',
@@ -1106,8 +1135,8 @@ export default function AdminDashboard() {
     })
 
     autoTable(doc, {
-      startY: statsY + 8,
-      head: [['#', 'Nombre', 'Email', 'Teléfono', '+1', 'Email']],
+      startY: statsY + 9 + summaryLines.length * 4,
+      head: [['#', 'Estado', 'Nombre', 'Email', 'Teléfono', '+1', 'Email']],
       body: tableData,
       theme: 'grid',
       headStyles: {
@@ -1122,12 +1151,13 @@ export default function AdminDashboard() {
         cellPadding: 3
       },
       columnStyles: {
-        0: { halign: 'center', cellWidth: 12 },
-        1: { cellWidth: 45 },
-        2: { cellWidth: 50 },
-        3: { cellWidth: 32 },
-        4: { halign: 'center', cellWidth: 18 },
-        5: { halign: 'center', cellWidth: 25 }
+        0: { halign: 'center', cellWidth: 10 },
+        1: { cellWidth: 24 },
+        2: { cellWidth: 34 },
+        3: { cellWidth: 42 },
+        4: { cellWidth: 28 },
+        5: { halign: 'center', cellWidth: 18 },
+        6: { halign: 'center', cellWidth: 26 }
       },
       alternateRowStyles: {
         fillColor: [245, 245, 250]
@@ -1155,21 +1185,23 @@ export default function AdminDashboard() {
 
   // Exportar lista en Excel
   const exportExcelList = () => {
-    const confirmedRsvps = rsvps.filter(r => r.status === 'confirmed')
-    const totalGuests = confirmedRsvps.length + confirmedRsvps.filter(r => r.plusOne).length
+    const exportRsvps = rsvpListView.filteredAndSorted
+    const exportSummary = describeRsvpListView(rsvpListOptions)
 
     // Crear datos para la hoja
     const wsData = [
       // Header rows con info del evento
       ...buildEventExportMetadataRows(configForm).map(row => [row]),
       [],
-      [`Lista de Invitados - ${confirmedRsvps.length} Confirmaciones - ${totalGuests} Personas`],
+      [`Resultados: ${exportRsvps.length} - Confirmados: ${rsvpListView.confirmedTotal} - Cancelados: ${rsvpListView.cancelledTotal}`],
+      [exportSummary],
       [],
       // Header de tabla - con columna de Nombre del +1
-      ['#', 'Nombre', 'Email', 'Teléfono', '+1', 'Nombre +1', 'Email Enviado'],
+      ['#', 'Estado', 'Nombre', 'Email', 'Teléfono', '+1', 'Nombre +1', 'Email Enviado'],
       // Datos
-      ...confirmedRsvps.map((rsvp, index) => [
+      ...exportRsvps.map((rsvp, index) => [
         index + 1,
+        rsvp.status === 'confirmed' ? 'Confirmado' : 'Cancelado',
         rsvp.name,
         rsvp.email,
         rsvp.phone,
@@ -1186,6 +1218,7 @@ export default function AdminDashboard() {
     // Ajustar anchos de columna
     ws['!cols'] = [
       { wch: 5 },   // #
+      { wch: 14 },  // Estado
       { wch: 30 },  // Nombre
       { wch: 35 },  // Email
       { wch: 18 },  // Teléfono
@@ -1286,9 +1319,20 @@ export default function AdminDashboard() {
             onDisplayFilterPlusOneChange={setDisplayFilterPlusOne}
             displayFilterEmail={displayFilterEmail}
             onDisplayFilterEmailChange={setDisplayFilterEmail}
+            sort={rsvpSort}
+            onSortChange={setRsvpSort}
+            pageSize={rsvpPageSize}
+            onPageSizeChange={setRsvpPageSize}
+            page={rsvpListView.page}
+            pageCount={rsvpListView.pageCount}
+            rangeStart={rsvpListView.rangeStart}
+            rangeEnd={rsvpListView.rangeEnd}
+            resultCount={rsvpListView.total}
+            onPreviousPage={() => setRsvpPage((page) => Math.max(1, page - 1))}
+            onNextPage={() => setRsvpPage((page) => Math.min(rsvpListView.pageCount, page + 1))}
             onExportPdf={exportInformativeList}
             onExportExcel={exportExcelList}
-            exportDisabled={stats.confirmed === 0}
+            exportDisabled={rsvpListView.total === 0}
             isReadOnly={isReadOnly}
             emailFilterStatus={emailFilterStatus}
             onEmailFilterStatusChange={setEmailFilterStatus}
@@ -1300,9 +1344,14 @@ export default function AdminDashboard() {
             eventPast={isEventPast()}
           />
 
+          {canManageSelectedEvent && selectedEventId && (
+            <InvitationLinkManager eventSlug={selectedEventId} />
+          )}
+
           <RsvpTable
             variant="confirmed"
-            rsvps={filteredRsvps.filter(r => r.status === 'confirmed')}
+            rsvps={rsvpListView.pageItems.filter(r => r.status === 'confirmed')}
+            totalCount={rsvpListView.confirmedTotal}
             isReadOnly={isReadOnly}
             loading={loading}
             isEventPast={isEventPast()}
@@ -1313,7 +1362,8 @@ export default function AdminDashboard() {
 
           <RsvpTable
             variant="cancelled"
-            rsvps={filteredRsvps.filter(r => r.status === 'cancelled')}
+            rsvps={rsvpListView.pageItems.filter(r => r.status === 'cancelled')}
+            totalCount={rsvpListView.cancelledTotal}
             isReadOnly={isReadOnly}
             loading={loading}
             isEventPast={isEventPast()}
@@ -1322,7 +1372,7 @@ export default function AdminDashboard() {
             onToggleStatus={toggleStatus}
           />
 
-          {filteredRsvps.length === 0 && (
+          {rsvpListView.total === 0 && (
             <div className={styles.tableContainer}>
               <p className={styles.noData}>No hay RSVPs que coincidan con los filtros</p>
             </div>

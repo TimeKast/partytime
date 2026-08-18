@@ -1,4 +1,4 @@
-# Runbook de migraciones 0005–0007
+# Runbook de migraciones 0005–0008
 
 Este runbook es el único procedimiento autorizado para preparar las migraciones de
 presentación, posición de imagen y ciclo de vida de contraseñas. No autoriza una escritura por sí mismo: requiere ventana aprobada,
@@ -462,10 +462,45 @@ Después:
 
 ```bash
 DATABASE_URL='<misma conexión inyectada>' npm run db:preflight -- --json
+```
+
+La clasificación debe ser `registered-password-lifecycle-ready`, con
+`canApply0008: true`. Cualquier otro resultado es un stop obligatorio. Todavía
+no ejecutes `verify:db`: el contrato actual incluye también la tabla de links
+RSVP creada por `0008`.
+
+## Ensayo obligatorio de 0008 en una rama Neon desechable
+
+Crea una rama Neon aislada desde el mismo padre revisado y verifica su identidad
+antes de escribir. Aplica `0008` únicamente en esa rama y ejecuta preflight,
+`verify:db` y el smoke create → validate → consume → segundo consume rechazado.
+Ejecuta además dos transacciones concurrentes contra el mismo token y exige un
+solo RSVP y un solo `used_at`. Conserva únicamente IDs opacos y resultados; no
+copies URLs de conexión, tokens ni PII al reporte. Elimina la rama de ensayo al
+terminar.
+
+## Aplicación transaccional de 0008
+
+`0008` es aditiva: crea la tabla hash-only de capacidades RSVP, su FK al slug de
+evento, la correlación opcional al RSVP que consumió el link (`ON DELETE SET NULL`),
+la identidad interna del actor que revoca y los índices de evento y hash único. Con el mismo checkout y destino
+revisados, y aprobación explícita de escritura, aplica y registra el hash y
+timestamp exactos:
+
+```bash
+psql "$DATABASE_URL" -X --set ON_ERROR_STOP=1 --single-transaction \
+  --file drizzle/0008_rsvp_invitation_links.sql \
+   --command "INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('1a6775a0fde8b127005a28ed45377867a8a00d935b8a839ee53a0982ed1d9753', 1787059972759)"
+```
+
+Después:
+
+```bash
+DATABASE_URL='<misma conexión inyectada>' npm run db:preflight -- --json
 DATABASE_URL='<misma conexión inyectada>' npm run verify:db
 ```
 
-La clasificación debe ser `registered-current-schema`, `canApply0007: false` y
+La clasificación debe ser `registered-current-schema`, `canApply0008: false` y
 `verify:db` debe terminar en exit 0. Solo entonces se puede desplegar la
 aplicación. El deploy sigue siendo una autorización separada.
 
@@ -473,7 +508,8 @@ aplicación. El deploy sigue siendo una autorización separada.
 
 Ante una regresión, revierte primero el código de aplicación y conserva los objetos
 aditivos, incluida la columna `must_change_password`, la tabla
-`password_reset_tokens`, sus índices y su FK. El código anterior no los usa. No
+`password_reset_tokens`, la tabla `rsvp_invitation_links`, sus índices y FKs. El
+código anterior no los usa. No
 elimines columnas o tablas durante el incidente: pueden contener estado ya
 capturado. Una eliminación posterior requiere otra
 migración revisada, aceptación explícita de pérdida de datos y su propia ventana.

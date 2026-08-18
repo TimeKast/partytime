@@ -200,6 +200,28 @@ export const passwordResetTokens = pgTable('password_reset_tokens', {
         .where(sql`${table.consumedAt} IS NULL AND ${table.issuanceSlot} IS NOT NULL`),
 }))
 
+// One-time RSVP invitation capabilities. Only the SHA-256 digest is stored;
+// the bearer token is returned once by the admin API and never persisted.
+// `createdBy` deliberately has no users FK because the environment-backed
+// super admin (`super_admin_env`) is a valid actor without a users row.
+export const rsvpInvitationLinks = pgTable('rsvp_invitation_links', {
+    id: text('id').primaryKey().$defaultFn(generateId),
+    eventId: text('event_id').notNull()
+        .references(() => events.slug, { onUpdate: 'cascade', onDelete: 'cascade' }),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    usedRsvpId: text('used_rsvp_id')
+        .references(() => rsvps.id, { onDelete: 'set null' }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedBy: text('revoked_by'),
+    createdBy: text('created_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, table => ({
+    eventIdIndex: index('rsvp_invitation_links_event_id_idx').on(table.eventId),
+    tokenHashIndex: uniqueIndex('rsvp_invitation_links_token_hash_unique').on(table.tokenHash),
+}))
+
 // User sessions for persistent login (up to 30 days)
 export const userSessions = pgTable('user_sessions', {
     id: text('id').primaryKey().$defaultFn(generateId),
@@ -235,3 +257,5 @@ export type UserEventAssignment = typeof userEventAssignments.$inferSelect
 export type NewUserEventAssignment = typeof userEventAssignments.$inferInsert
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect
 export type NewPasswordResetToken = typeof passwordResetTokens.$inferInsert
+export type RsvpInvitationLink = typeof rsvpInvitationLinks.$inferSelect
+export type NewRsvpInvitationLink = typeof rsvpInvitationLinks.$inferInsert

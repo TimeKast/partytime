@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import {
     parseStrictHexColor,
     resolveBackgroundImagePosition,
@@ -300,9 +301,12 @@ export default function EventPresentationSettings({
                         style={{ backgroundColor: parseStrictHexColor(backgroundColor) ?? '#1a0033' }}
                     >
                         {backgroundImageUrl && (
-                            <img
+                            <Image
                                 src={backgroundImageUrl}
                                 alt="Previsualización de la imagen de fondo"
+                                fill
+                                unoptimized
+                                sizes="(max-width: 768px) 240px, 320px"
                                 style={{
                                     objectFit: value.backgroundImageFit,
                                     objectPosition: resolveBackgroundImagePosition(value),

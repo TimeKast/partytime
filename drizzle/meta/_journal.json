@@ -57,6 +57,13 @@
       "when": 1784260812922,
       "tag": "0007_password_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787059972759,
+      "tag": "0008_rsvp_invitation_links",
+      "breakpoints": true
     }
   ]
 }

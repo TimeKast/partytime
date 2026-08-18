@@ -11,8 +11,10 @@ import styles from './RSVPModal.module.css'
 interface RSVPModalProps {
   isOpen: boolean
   onClose: () => void
+  onSuccess?: () => void
   variant: RsvpModalVariant
   eventSlug?: string
+  invitationToken?: string
   requirePlusOneName?: boolean
   theme?: {
     primaryColor: string
@@ -25,7 +27,16 @@ type ModalStyle = CSSProperties & {
   '--rsvp-primary'?: string
 }
 
-export default function RSVPModal({ isOpen, onClose, variant, eventSlug, requirePlusOneName, theme }: RSVPModalProps) {
+export default function RSVPModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  variant,
+  eventSlug,
+  invitationToken,
+  requirePlusOneName,
+  theme,
+}: RSVPModalProps) {
   // Configuración por defecto si no se provee el tema
   const activeTheme = theme || {
     primaryColor: '#FF1493',
@@ -120,13 +131,21 @@ export default function RSVPModal({ isOpen, onClose, variant, eventSlug, require
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ ...formData, eventSlug }),
+        body: JSON.stringify({
+          ...formData,
+          eventSlug,
+          ...(invitationToken ? { invitationToken } : {}),
+        }),
       })
 
       const data = await response.json()
 
       if (response.ok) {
         setSubmitStatus('success')
+        if (onSuccess) {
+          onSuccess()
+          return
+        }
         setTimeout(() => {
           onClose()
           setFormData({ name: '', email: '', phone: '', plusOne: false, plusOneName: '' })
@@ -181,6 +200,7 @@ export default function RSVPModal({ isOpen, onClose, variant, eventSlug, require
       >
         <button
           ref={closeButtonRef}
+          type="button"
           className={styles.closeButton}
           onClick={onClose}
           aria-label="Cerrar formulario RSVP"

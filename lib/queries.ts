@@ -3,7 +3,8 @@
  * Replaces Firestore functions with Drizzle ORM + Neon
  */
 
-import { db, isDatabaseConfigured, rsvps, events, appSettings } from './db'
+import { randomUUID } from 'node:crypto'
+import { db, isDatabaseConfigured, rsvps, events, appSettings, rsvpInvitationLinks } from './db'
 import { eq, desc, and, isNull, lte, gt, gte, sql } from 'drizzle-orm'
 import type { Event, NewEvent, RSVP, NewRSVP } from './schema'
 
@@ -81,6 +82,231 @@ export async function saveRSVP(rsvpData: {
     eventId: string
 }): Promise<RSVP> {
     return withDeadlockRetry(() => saveRSVPOnce(rsvpData))
+}
+
+export interface RsvpInvitationLinkAdminDto {
+    id: string
+    eventId: string
+    expiresAt: Date
+    usedAt: Date | null
+    usedRsvpId: string | null
+    revokedAt: Date | null
+    revokedBy: string | null
+    createdBy: string
+    createdAt: Date
+}
+
+export interface SaveRsvpWithInvitationInput {
+    tokenHash: string
+    eventId: string
+    name: string
+    email: string
+    phone: string
+    plusOne: boolean
+    plusOneName?: string | null
+}
+
+/**
+ * Persist only the digest for a newly issued bearer capability.
+ */
+export async function createRsvpInvitationLink(input: {
+    eventId: string
+    tokenHash: string
+    expiresAt: Date
+    createdBy: string
+}): Promise<RsvpInvitationLinkAdminDto> {
+    if (!db) throw new Error('Database not configured')
+
+    const [created] = await db.insert(rsvpInvitationLinks).values({
+        eventId: input.eventId,
+        tokenHash: input.tokenHash,
+        expiresAt: input.expiresAt,
+        createdBy: input.createdBy,
+    }).returning({
+        id: rsvpInvitationLinks.id,
+        eventId: rsvpInvitationLinks.eventId,
+        expiresAt: rsvpInvitationLinks.expiresAt,
+        usedAt: rsvpInvitationLinks.usedAt,
+        usedRsvpId: rsvpInvitationLinks.usedRsvpId,
+        revokedAt: rsvpInvitationLinks.revokedAt,
+        revokedBy: rsvpInvitationLinks.revokedBy,
+        createdBy: rsvpInvitationLinks.createdBy,
+        createdAt: rsvpInvitationLinks.createdAt,
+    })
+
+    return created
+}
+
+export async function listRsvpInvitationLinks(eventId: string): Promise<RsvpInvitationLinkAdminDto[]> {
+    if (!db) throw new Error('Database not configured')
+
+    return db.select({
+        id: rsvpInvitationLinks.id,
+        eventId: rsvpInvitationLinks.eventId,
+        expiresAt: rsvpInvitationLinks.expiresAt,
+        usedAt: rsvpInvitationLinks.usedAt,
+        usedRsvpId: rsvpInvitationLinks.usedRsvpId,
+        revokedAt: rsvpInvitationLinks.revokedAt,
+        revokedBy: rsvpInvitationLinks.revokedBy,
+        createdBy: rsvpInvitationLinks.createdBy,
+        createdAt: rsvpInvitationLinks.createdAt,
+    })
+        .from(rsvpInvitationLinks)
+        .where(eq(rsvpInvitationLinks.eventId, eventId))
+        .orderBy(desc(rsvpInvitationLinks.createdAt))
+}
+
+/** Revoke only a still-active link belonging to the selected event. */
+export async function revokeRsvpInvitationLink(
+    id: string,
+    eventId: string,
+    revokedBy: string,
+): Promise<boolean> {
+    if (!db) throw new Error('Database not configured')
+
+    const [revoked] = await db.update(rsvpInvitationLinks)
+        .set({ revokedAt: new Date(), revokedBy })
+        .where(and(
+            eq(rsvpInvitationLinks.id, id),
+            eq(rsvpInvitationLinks.eventId, eventId),
+            isNull(rsvpInvitationLinks.usedAt),
+            isNull(rsvpInvitationLinks.revokedAt),
+            gt(rsvpInvitationLinks.expiresAt, sql`now()`),
+        ))
+        .returning({ id: rsvpInvitationLinks.id })
+
+    return !!revoked
+}
+
+/**
+ * Public read model for a valid capability. The select intentionally includes
+ * only the event table: link ids, hashes and actor metadata never leave the
+ * data layer on this path. Reading does not consume the token.
+ */
+export async function getRsvpInvitationEvent(tokenHash: string): Promise<Event | null> {
+    if (!db) throw new Error('Database not configured')
+
+    const [row] = await db.select({ event: events })
+        .from(rsvpInvitationLinks)
+        .innerJoin(events, eq(events.slug, rsvpInvitationLinks.eventId))
+        .where(and(
+            eq(rsvpInvitationLinks.tokenHash, tokenHash),
+            isNull(rsvpInvitationLinks.usedAt),
+            isNull(rsvpInvitationLinks.revokedAt),
+            gt(rsvpInvitationLinks.expiresAt, sql`now()`),
+            eq(events.isActive, true),
+        ))
+        .limit(1)
+
+    return row?.event || null
+}
+
+/**
+ * Atomically create/reactivate an RSVP and consume its one-time capability.
+ *
+ * neon-http does not support interactive transactions, so every state change
+ * is expressed in one data-modifying CTE statement. `FOR UPDATE` conditionally
+ * claims the still-valid token row; concurrent callers serialize there and
+ * PostgreSQL rechecks the validity predicate after the wait. The final token
+ * UPDATE depends on a returned RSVP row. Any uniqueness/capacity/trigger error
+ * aborts the whole statement, rolling back both RSVP and claim.
+ */
+export async function saveRsvpWithInvitation(
+    input: SaveRsvpWithInvitationInput,
+): Promise<RSVP | null> {
+    if (!db) throw new Error('Database not configured')
+
+    const email = input.email.trim()
+    const emailLower = email.toLowerCase()
+    let result
+    try {
+        result = await withDeadlockRetry(() => db!.execute(sql`
+        WITH eligible_invitation AS MATERIALIZED (
+            SELECT candidate.id
+            FROM rsvp_invitation_links AS candidate
+            INNER JOIN events AS invitation_event
+                ON invitation_event.slug = candidate.event_id
+            WHERE candidate.token_hash = ${input.tokenHash}
+              AND candidate.event_id = ${input.eventId}
+              AND candidate.used_at IS NULL
+              AND candidate.revoked_at IS NULL
+              AND candidate.expires_at > now()
+              AND invitation_event.is_active = true
+            FOR UPDATE OF candidate
+        ),
+        existing_rsvp AS MATERIALIZED (
+            SELECT target.id
+            FROM rsvps AS target
+            WHERE target.event_id = ${input.eventId}
+              AND lower(target.email) = ${emailLower}
+              AND EXISTS (SELECT 1 FROM eligible_invitation)
+            FOR UPDATE OF target
+        ),
+        reactivated_rsvp AS (
+            UPDATE rsvps AS target
+            SET name = ${input.name},
+                email = ${email},
+                phone = ${input.phone},
+                plus_one = ${input.plusOne},
+                plus_one_name = ${input.plusOneName || null},
+                status = 'confirmed'
+            WHERE target.id IN (SELECT id FROM existing_rsvp)
+              AND target.status = 'cancelled'
+              AND EXISTS (SELECT 1 FROM eligible_invitation)
+            RETURNING target.*
+        ),
+        inserted_rsvp AS (
+            INSERT INTO rsvps (
+                id, event_id, name, email, phone, plus_one, plus_one_name, status
+            )
+            SELECT ${randomUUID()}, ${input.eventId}, ${input.name}, ${email}, ${input.phone},
+                   ${input.plusOne}, ${input.plusOneName || null}, 'confirmed'
+            FROM eligible_invitation
+            WHERE NOT EXISTS (SELECT 1 FROM existing_rsvp)
+            ON CONFLICT DO NOTHING
+            RETURNING rsvps.*
+        ),
+        successful_rsvp AS (
+            SELECT * FROM reactivated_rsvp
+            UNION ALL
+            SELECT * FROM inserted_rsvp
+        ),
+        claimed_invitation AS (
+            UPDATE rsvp_invitation_links AS claimed
+            SET used_at = now(),
+                used_rsvp_id = (SELECT id FROM successful_rsvp LIMIT 1)
+            WHERE claimed.id IN (SELECT id FROM eligible_invitation)
+              AND claimed.used_at IS NULL
+              AND claimed.revoked_at IS NULL
+              AND EXISTS (SELECT 1 FROM successful_rsvp)
+            RETURNING claimed.id
+        )
+        SELECT successful_rsvp.*
+        FROM successful_rsvp
+        WHERE EXISTS (SELECT 1 FROM claimed_invitation)
+        `))
+    } catch (err: any) {
+        if (isCapacityFullError(err)) throw new Error(CAPACITY_FULL_MESSAGE)
+        throw err
+    }
+
+    const row = result.rows[0] as Record<string, unknown> | undefined
+    if (!row) return null
+
+    return {
+        id: String(row.id),
+        eventId: String(row.event_id),
+        name: String(row.name),
+        email: String(row.email),
+        phone: String(row.phone),
+        plusOne: row.plus_one === true,
+        plusOneName: row.plus_one_name == null ? null : String(row.plus_one_name),
+        status: String(row.status),
+        emailSent: row.email_sent == null ? null : new Date(String(row.email_sent)),
+        emailHistory: Array.isArray(row.email_history) ? row.email_history as RSVP['emailHistory'] : [],
+        cancelToken: row.cancel_token == null ? null : String(row.cancel_token),
+        createdAt: row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at)),
+    }
 }
 
 async function saveRSVPOnce(rsvpData: {

@@ -19,6 +19,11 @@ import {
     historicalSemanticStateFromRows,
     passwordLifecycleSemanticStateFromRows,
 } from '@/lib/migration-semantic-contract'
+import {
+    RSVP_INVITATION_SEMANTIC_CHECK_NAMES,
+    RSVP_INVITATION_SEMANTICS_QUERY,
+    rsvpInvitationSemanticStateFromRows,
+} from '@/lib/rsvp-invitation-migration-contract'
 
 type QueryRow = Record<string, unknown>
 
@@ -84,6 +89,13 @@ async function main() {
     )
     for (const checkName of PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES) {
         checks.push([`password lifecycle semantic contract: ${checkName}`, passwordLifecycleSemantics[checkName]])
+    }
+
+    const rsvpInvitationSemantics = rsvpInvitationSemanticStateFromRows(
+        await query(RSVP_INVITATION_SEMANTICS_QUERY),
+    )
+    for (const checkName of RSVP_INVITATION_SEMANTIC_CHECK_NAMES) {
+        checks.push([`RSVP invitation semantic contract: ${checkName}`, rsvpInvitationSemantics[checkName]])
     }
 
     const foundationColumns = await query(`

@@ -17,6 +17,10 @@ import {
     historicalSemanticStateFromRows,
     passwordLifecycleSemanticStateFromRows,
 } from '@/lib/migration-semantic-contract'
+import {
+    RSVP_INVITATION_SEMANTICS_QUERY,
+    rsvpInvitationSemanticStateFromRows,
+} from '@/lib/rsvp-invitation-migration-contract'
 
 interface JournalEntry {
     idx: number
@@ -134,14 +138,14 @@ async function main() {
         SELECT table_name
         FROM information_schema.tables
         WHERE table_schema = 'public'
-          AND table_name IN ('app_settings', 'events', 'password_reset_tokens', 'rsvps', 'user_event_assignments', 'user_sessions', 'users')`
+          AND table_name IN ('app_settings', 'events', 'password_reset_tokens', 'rsvp_invitation_links', 'rsvps', 'user_event_assignments', 'user_sessions', 'users')`
     ).map(row => String(row.table_name))
     const columns = (await sql`
         SELECT table_name || '.' || column_name AS name
         FROM information_schema.columns
         WHERE table_schema = 'public'
           AND table_name IN (
-              'app_settings', 'events', 'password_reset_tokens', 'rsvps', 'user_event_assignments', 'user_sessions', 'users'
+              'app_settings', 'events', 'password_reset_tokens', 'rsvp_invitation_links', 'rsvps', 'user_event_assignments', 'user_sessions', 'users'
           )`
     ).map(row => String(row.name))
     const constraints = (await sql`
@@ -263,6 +267,30 @@ async function main() {
     const passwordLifecycleSemantics = passwordLifecycleSemanticStateFromRows(
         await sql.query(PASSWORD_LIFECYCLE_SEMANTICS_QUERY),
     )
+    const rsvpInvitationTables = tables.filter(table => table === 'rsvp_invitation_links')
+    const rsvpInvitationColumns = columns.filter(column => column.startsWith('rsvp_invitation_links.'))
+    const rsvpInvitationConstraints = (await sql`
+        SELECT conname
+        FROM pg_constraint
+        WHERE connamespace = to_regnamespace('public')
+          AND conname IN (
+              'rsvp_invitation_links_pkey',
+              'rsvp_invitation_links_event_id_events_slug_fk',
+              'rsvp_invitation_links_used_rsvp_id_rsvps_id_fk'
+          )`
+    ).map(row => String(row.conname))
+    const rsvpInvitationIndexes = (await sql`
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND indexname IN (
+              'rsvp_invitation_links_event_id_idx',
+              'rsvp_invitation_links_token_hash_unique'
+          )`
+    ).map(row => String(row.indexname))
+    const rsvpInvitationSemantics = rsvpInvitationSemanticStateFromRows(
+        await sql.query(RSVP_INVITATION_SEMANTICS_QUERY),
+    )
 
     const objects: MigrationObjectState = {
         tables,
@@ -283,6 +311,11 @@ async function main() {
         passwordLifecycleConstraints,
         passwordLifecycleIndexes,
         passwordLifecycleSemantics,
+        rsvpInvitationTables,
+        rsvpInvitationColumns,
+        rsvpInvitationConstraints,
+        rsvpInvitationIndexes,
+        rsvpInvitationSemantics,
     }
     const expected = expectedRegistry()
     const result = classifyMigrationPreflight({
@@ -291,7 +324,8 @@ async function main() {
         expectedFoundationRegistry: expected.slice(0, 5),
         expectedPresentationRegistry: expected.slice(0, 6),
         expectedImagePositionRegistry: expected.slice(0, 7),
-        expectedCurrentRegistry: expected.slice(0, 8),
+        expectedPasswordLifecycleRegistry: expected.slice(0, 8),
+        expectedCurrentRegistry: expected.slice(0, 9),
         objects,
     })
 
@@ -309,6 +343,7 @@ async function main() {
         !result.canApply0005
         && !result.canApply0006
         && !result.canApply0007
+        && !result.canApply0008
         && result.classification !== 'registered-current-schema'
     ) {
         process.exitCode = 1

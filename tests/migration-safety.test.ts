@@ -7,6 +7,7 @@ import {
     REQUIRED_IMAGE_POSITION_OBJECTS,
     REQUIRED_PASSWORD_LIFECYCLE_OBJECTS,
     REQUIRED_PRESENTATION_OBJECTS,
+    REQUIRED_RSVP_INVITATION_OBJECTS,
     type MigrationObjectState,
 } from '@/lib/migration-preflight'
 import {
@@ -19,6 +20,11 @@ import {
     type HistoricalSemanticState,
     type PasswordLifecycleSemanticState,
 } from '@/lib/migration-semantic-contract'
+import {
+    RSVP_INVITATION_SEMANTIC_CHECK_NAMES,
+    RSVP_INVITATION_SEMANTICS_QUERY,
+    type RsvpInvitationSemanticState,
+} from '@/lib/rsvp-invitation-migration-contract'
 
 function capacityFunctionBodyFromMigration(): string {
     const migration = readFileSync('drizzle/0002_enforce_event_capacity.sql', 'utf8')
@@ -41,6 +47,12 @@ const validPasswordLifecycleSemantics = Object.fromEntries(
 const absentPasswordLifecycleSemantics = Object.fromEntries(
     PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
 ) as PasswordLifecycleSemanticState
+const validRsvpInvitationSemantics = Object.fromEntries(
+    RSVP_INVITATION_SEMANTIC_CHECK_NAMES.map(name => [name, true]),
+) as RsvpInvitationSemanticState
+const absentRsvpInvitationSemantics = Object.fromEntries(
+    RSVP_INVITATION_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+) as RsvpInvitationSemanticState
 
 const observedHistoricalObjects: MigrationObjectState = {
     tables: [...REQUIRED_HISTORICAL_OBJECTS.tables],
@@ -61,6 +73,11 @@ const observedHistoricalObjects: MigrationObjectState = {
     passwordLifecycleConstraints: [],
     passwordLifecycleIndexes: [],
     passwordLifecycleSemantics: absentPasswordLifecycleSemantics,
+    rsvpInvitationTables: [],
+    rsvpInvitationColumns: [],
+    rsvpInvitationConstraints: [],
+    rsvpInvitationIndexes: [],
+    rsvpInvitationSemantics: absentRsvpInvitationSemantics,
 }
 
 const foundationRegistry = Array.from({ length: 5 }, (_, index) => ({
@@ -75,9 +92,13 @@ const imagePositionRegistry = [
     ...presentationRegistry,
     { hash: 'hash-6', createdAt: 6 },
 ]
-const currentRegistry = [
+const passwordLifecycleRegistry = [
     ...imagePositionRegistry,
     { hash: 'hash-7', createdAt: 7 },
+]
+const currentRegistry = [
+    ...passwordLifecycleRegistry,
+    { hash: 'hash-8', createdAt: 8 },
 ]
 
 describe('production migration safety', () => {
@@ -239,9 +260,9 @@ describe('production migration safety', () => {
         })
     })
 
-    it('accepts registered current schema only with complete password lifecycle objects and semantics', () => {
+    it('allows 0008 only from the exact registered password lifecycle state', () => {
         const result = classifyMigrationPreflight({
-            drizzleRegistry: currentRegistry,
+            drizzleRegistry: passwordLifecycleRegistry,
             publicRegistry: null,
             expectedFoundationRegistry: foundationRegistry,
             expectedPresentationRegistry: presentationRegistry,
@@ -262,11 +283,85 @@ describe('production migration safety', () => {
         })
 
         expect(result).toMatchObject({
-            classification: 'registered-current-schema',
+            classification: 'registered-password-lifecycle-ready',
             canApply0007: false,
+            canApply0008: true,
             missingPasswordLifecycleObjects: [],
             invalidPasswordLifecycleSemantics: [],
         })
+    })
+
+    it('accepts current schema only with exact 0008 objects and semantics', () => {
+        const result = classifyMigrationPreflight({
+            drizzleRegistry: currentRegistry,
+            publicRegistry: null,
+            expectedFoundationRegistry: foundationRegistry,
+            expectedPresentationRegistry: presentationRegistry,
+            expectedImagePositionRegistry: imagePositionRegistry,
+            expectedPasswordLifecycleRegistry: passwordLifecycleRegistry,
+            expectedCurrentRegistry: currentRegistry,
+            objects: {
+                ...observedHistoricalObjects,
+                presentationColumns: [...REQUIRED_PRESENTATION_OBJECTS.columns],
+                presentationConstraints: [...REQUIRED_PRESENTATION_OBJECTS.constraints],
+                imagePositionColumns: [...REQUIRED_IMAGE_POSITION_OBJECTS.columns],
+                imagePositionConstraints: [...REQUIRED_IMAGE_POSITION_OBJECTS.constraints],
+                passwordLifecycleTables: [...REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.tables],
+                passwordLifecycleColumns: [...REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.columns],
+                passwordLifecycleConstraints: [...REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.constraints],
+                passwordLifecycleIndexes: [...REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.indexes],
+                passwordLifecycleSemantics: validPasswordLifecycleSemantics,
+                rsvpInvitationTables: [...REQUIRED_RSVP_INVITATION_OBJECTS.tables],
+                rsvpInvitationColumns: [...REQUIRED_RSVP_INVITATION_OBJECTS.columns],
+                rsvpInvitationConstraints: [...REQUIRED_RSVP_INVITATION_OBJECTS.constraints],
+                rsvpInvitationIndexes: [...REQUIRED_RSVP_INVITATION_OBJECTS.indexes],
+                rsvpInvitationSemantics: validRsvpInvitationSemantics,
+            },
+        })
+
+        expect(result).toMatchObject({
+            classification: 'registered-current-schema',
+            canApply0008: false,
+            missingRsvpInvitationObjects: [],
+            invalidRsvpInvitationSemantics: [],
+        })
+    })
+
+    it('fails closed when a same-named 0008 object has invalid semantics', () => {
+        const result = classifyMigrationPreflight({
+            drizzleRegistry: currentRegistry,
+            publicRegistry: null,
+            expectedFoundationRegistry: foundationRegistry,
+            expectedPresentationRegistry: presentationRegistry,
+            expectedImagePositionRegistry: imagePositionRegistry,
+            expectedPasswordLifecycleRegistry: passwordLifecycleRegistry,
+            expectedCurrentRegistry: currentRegistry,
+            objects: {
+                ...observedHistoricalObjects,
+                presentationColumns: [...REQUIRED_PRESENTATION_OBJECTS.columns],
+                presentationConstraints: [...REQUIRED_PRESENTATION_OBJECTS.constraints],
+                imagePositionColumns: [...REQUIRED_IMAGE_POSITION_OBJECTS.columns],
+                imagePositionConstraints: [...REQUIRED_IMAGE_POSITION_OBJECTS.constraints],
+                passwordLifecycleTables: [...REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.tables],
+                passwordLifecycleColumns: [...REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.columns],
+                passwordLifecycleConstraints: [...REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.constraints],
+                passwordLifecycleIndexes: [...REQUIRED_PASSWORD_LIFECYCLE_OBJECTS.indexes],
+                passwordLifecycleSemantics: validPasswordLifecycleSemantics,
+                rsvpInvitationTables: [...REQUIRED_RSVP_INVITATION_OBJECTS.tables],
+                rsvpInvitationColumns: [...REQUIRED_RSVP_INVITATION_OBJECTS.columns],
+                rsvpInvitationConstraints: [...REQUIRED_RSVP_INVITATION_OBJECTS.constraints],
+                rsvpInvitationIndexes: [...REQUIRED_RSVP_INVITATION_OBJECTS.indexes],
+                rsvpInvitationSemantics: {
+                    ...validRsvpInvitationSemantics,
+                    'constraint.rsvp_invitation_links_event_fk': false,
+                },
+            },
+        })
+
+        expect(result.classification).toBe('registered-inconsistent-schema')
+        expect(result.invalidRsvpInvitationSemantics)
+            .toContain('constraint.rsvp_invitation_links_event_fk')
+        expect(result.reasons.join('\n')).toContain('invalid RSVP invitation semantics')
     })
 
     it('rejects a same-named reset-token primary key with invalid semantics', () => {
@@ -383,6 +478,15 @@ describe('production migration safety', () => {
         expect(PASSWORD_LIFECYCLE_SEMANTICS_QUERY).toContain('index_state.indisunique = expected.unique_required')
     })
 
+    it('binds the 0008 semantic contract to exact columns, cascades and unique hash index', () => {
+        expect(RSVP_INVITATION_SEMANTICS_QUERY).toContain("to_regclass('public.rsvp_invitation_links')")
+        expect(RSVP_INVITATION_SEMANTICS_QUERY).toContain("confupdtype = 'c'")
+        expect(RSVP_INVITATION_SEMANTICS_QUERY).toContain("confdeltype = 'c'")
+        expect(RSVP_INVITATION_SEMANTICS_QUERY).toContain("confdeltype = 'n'")
+        expect(RSVP_INVITATION_SEMANTICS_QUERY).toContain('AND indisunique AND indisvalid')
+        expect(RSVP_INVITATION_SEMANTICS_QUERY).toContain('token_hash')
+    })
+
     it('keeps the baseline transaction bounded, locked and fail-closed on the full contract', () => {
         const runbook = readFileSync('docs/PRODUCTION_MIGRATION_RUNBOOK.md', 'utf8')
 
@@ -438,26 +542,28 @@ describe('production migration safety', () => {
         }
     })
 
-    it('keeps the reviewed hashes synchronized with migrations 0000-0007', () => {
+    it('keeps the reviewed hashes synchronized with migrations 0000-0008', () => {
         const runbook = readFileSync('docs/PRODUCTION_MIGRATION_RUNBOOK.md', 'utf8')
         const journal = JSON.parse(readFileSync('drizzle/meta/_journal.json', 'utf8')) as {
             entries: Array<{ tag: string }>
         }
 
-        for (const entry of journal.entries.slice(0, 8)) {
+        for (const entry of journal.entries.slice(0, 9)) {
             const sql = readFileSync(`drizzle/${entry.tag}.sql`, 'utf8')
             const hash = createHash('sha256').update(sql).digest('hex')
             expect(runbook, entry.tag).toContain(hash)
         }
     })
 
-    it('runs the full DB verifier only after 0007 is applied on each target', () => {
+    it('runs the full DB verifier only after 0008 is applied on each target', () => {
         const runbook = readFileSync('docs/PRODUCTION_MIGRATION_RUNBOOK.md', 'utf8')
         const after0005 = runbook.split('## Aplicación transaccional de 0005')[1]
             .split('## Aplicación transaccional de 0006')[0]
         const after0006 = runbook.split('## Aplicación transaccional de 0006')[1]
             .split('## Ensayo obligatorio de 0007')[0]
         const after0007 = runbook.split('## Aplicación transaccional de 0007')[1]
+            .split('## Ensayo obligatorio de 0008')[0]
+        const after0008 = runbook.split('## Aplicación transaccional de 0008')[1]
 
         expect(after0005).toContain('registered-presentation-ready')
         expect(after0005).toContain('canApply0006: true')
@@ -465,7 +571,10 @@ describe('production migration safety', () => {
         expect(after0006).toContain('registered-image-position-ready')
         expect(after0006).toContain('canApply0007: true')
         expect(after0006).not.toContain('npm run verify:db')
-        expect(after0007).toContain('npm run verify:db')
-        expect(after0007).toContain('registered-current-schema')
+        expect(after0007).toContain('registered-password-lifecycle-ready')
+        expect(after0007).toContain('canApply0008: true')
+        expect(after0007).not.toContain('npm run verify:db')
+        expect(after0008).toContain('npm run verify:db')
+        expect(after0008).toContain('registered-current-schema')
     })
 })
