@@ -64,6 +64,13 @@
       "when": 1787059972759,
       "tag": "0008_rsvp_invitation_links",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787146372759,
+      "tag": "0009_pending_states",
+      "breakpoints": true
     }
   ]
 }

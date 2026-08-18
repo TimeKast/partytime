@@ -75,6 +75,10 @@ export const events = pgTable('events', {
 
     // Email configuration
     emailConfirmationEnabled: boolean('email_confirmation_enabled').default(false),
+    // ISSUE-005/EPIC-003: per-event toggle for the pending_verification flow.
+    // Superseded by payment_required once EPIC-004 lands (the pay ES the
+    // verification — see PLAN-EPICS-002-005.md §2).
+    emailVerificationEnabled: boolean('email_verification_enabled').notNull().default(false),
     reminderEnabled: boolean('reminder_enabled').default(false),
     reminderScheduledAt: timestamp('reminder_scheduled_at'),
     reminderSentAt: timestamp('reminder_sent_at'),
@@ -136,6 +140,16 @@ export const rsvps = pgTable('rsvps', {
 
     // Cancel token
     cancelToken: text('cancel_token'),
+
+    // ISSUE-005 (migration 0009): pending-state TTL and email verification.
+    // pendingExpiresAt drives the lazy expiration sweep (expireStalePendingRsvps)
+    // for pending_payment/pending_verification rows; verificationTokenHash
+    // follows the password_reset_tokens pattern (SHA-256 hash-only, reissue =
+    // overwrite) — see PLAN-EPICS-002-005.md §3.2.
+    pendingExpiresAt: timestamp('pending_expires_at'),
+    verifiedAt: timestamp('verified_at'),
+    verificationTokenHash: varchar('verification_token_hash', { length: 64 }),
+    verificationExpiresAt: timestamp('verification_expires_at'),
 
     // Timestamps
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -210,6 +224,14 @@ export const rsvpInvitationLinks = pgTable('rsvp_invitation_links', {
         .references(() => events.slug, { onUpdate: 'cascade', onDelete: 'cascade' }),
     tokenHash: varchar('token_hash', { length: 64 }).notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    // ISSUE-005/PLAN §2.1: per-link flags the organizer chooses at creation.
+    // is_courtesy=false in a paid event routes the guest through Stripe like
+    // the public flow; skip_verification=false routes through
+    // pending_verification when the event has email verification enabled.
+    // Both DEFAULT true preserve today's "confirmed directly" behavior for
+    // every existing/unflagged link.
+    isCourtesy: boolean('is_courtesy').notNull().default(true),
+    skipVerification: boolean('skip_verification').notNull().default(true),
     usedAt: timestamp('used_at', { withTimezone: true }),
     usedRsvpId: text('used_rsvp_id')
         .references(() => rsvps.id, { onDelete: 'set null' }),

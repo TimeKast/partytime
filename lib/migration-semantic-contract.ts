@@ -53,6 +53,16 @@ export function invalidHistoricalSemantics(state: HistoricalSemanticState): stri
 
 export const EXPECTED_CAPACITY_FUNCTION_BODY_HASH = 'cc8ef90ba771e3ee7713166327b0d3fa'
 
+// ISSUE-005 (EPIC-002): same fingerprint recipe, over the enforce_event_capacity()
+// body as CREATE OR REPLACEd by drizzle/0009_pending_states.sql — counts
+// pending_payment/pending_verification as seat-holding statuses alongside
+// confirmed. The historical function.enforce_event_capacity check below
+// accepts EITHER hash so verify:db/preflight keep passing whether a target
+// has run 0009 yet or not (0009 has not been applied to any real database).
+// Migration 0009 is file-only as of this constant's introduction — see
+// docs/backlog/ISSUE-005-pending-states-migration.md.
+export const EXPECTED_PENDING_STATES_CAPACITY_FUNCTION_BODY_HASH = '80111d792df7d5de6e42b6cdbfc793ba'
+
 // Keep this exact expression synchronized with the production baseline guard.
 // It intentionally does not lowercase prosrc: PL/pgSQL string literals are
 // case-sensitive, so lower(prosrc) can make behavior-changing bodies collide.
@@ -292,7 +302,10 @@ function_check AS (
             AND lanname = 'plpgsql'
             AND provolatile = 'v'
             AND NOT prosecdef
-            AND ${CAPACITY_FUNCTION_BODY_FINGERPRINT_SQL} = '${EXPECTED_CAPACITY_FUNCTION_BODY_HASH}'
+            AND (
+                ${CAPACITY_FUNCTION_BODY_FINGERPRINT_SQL} = '${EXPECTED_CAPACITY_FUNCTION_BODY_HASH}'
+                OR ${CAPACITY_FUNCTION_BODY_FINGERPRINT_SQL} = '${EXPECTED_PENDING_STATES_CAPACITY_FUNCTION_BODY_HASH}'
+            )
         ), false) AS valid
     FROM function_objects
 )
@@ -452,4 +465,143 @@ UNION ALL SELECT check_name, valid FROM reset_token_columns_check
 UNION ALL SELECT check_name, valid FROM reset_token_pk_check
 UNION ALL SELECT check_name, valid FROM reset_token_fk_check
 UNION ALL SELECT check_name, valid FROM index_checks
+ORDER BY check_name`
+
+export const PENDING_STATES_SEMANTIC_CHECK_NAMES = [
+    'column.events.email_verification_enabled',
+    'column.rsvps.pending_expires_at',
+    'column.rsvps.verified_at',
+    'column.rsvps.verification_token_hash',
+    'column.rsvps.verification_expires_at',
+    'column.rsvp_invitation_links.is_courtesy',
+    'column.rsvp_invitation_links.skip_verification',
+] as const
+
+export type PendingStatesSemanticCheckName = typeof PENDING_STATES_SEMANTIC_CHECK_NAMES[number]
+export type PendingStatesSemanticState = Record<PendingStatesSemanticCheckName, boolean>
+
+export function pendingStatesSemanticStateFromRows(
+    rows: ReadonlyArray<Record<string, unknown>>,
+): PendingStatesSemanticState {
+    const state = Object.fromEntries(
+        PENDING_STATES_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+    ) as PendingStatesSemanticState
+    const seen = new Set<PendingStatesSemanticCheckName>()
+
+    for (const row of rows) {
+        if (
+            typeof row.check_name !== 'string'
+            || !PENDING_STATES_SEMANTIC_CHECK_NAMES.includes(
+                row.check_name as PendingStatesSemanticCheckName,
+            )
+            || seen.has(row.check_name as PendingStatesSemanticCheckName)
+        ) continue
+
+        const name = row.check_name as PendingStatesSemanticCheckName
+        seen.add(name)
+        state[name] = row.valid === true
+    }
+
+    return state
+}
+
+export function invalidPendingStatesSemantics(state: PendingStatesSemanticState): string[] {
+    return PENDING_STATES_SEMANTIC_CHECK_NAMES.filter(name => state[name] !== true)
+}
+
+/**
+ * ISSUE-005 (EPIC-002): the seven columns migration 0009 adds across events,
+ * rsvps and rsvp_invitation_links (TTL, verification token/hash, and the
+ * per-link courtesy/skip-verification flags from PLAN-EPICS-002-005.md §2.1).
+ * The capacity trigger/function body itself is verified above, inside
+ * HISTORICAL_SEMANTICS_QUERY's function.enforce_event_capacity check, which
+ * accepts either the pre-0009 or the 0009 body.
+ */
+export const PENDING_STATES_SEMANTICS_QUERY = String.raw`
+WITH email_verification_enabled_check AS (
+    SELECT
+        'column.events.email_verification_enabled'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            data_type = 'boolean'
+            AND is_nullable = 'NO'
+            AND column_default IN ('false', 'false::boolean')
+        ), false) AS valid
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'email_verification_enabled'
+), pending_expires_at_check AS (
+    SELECT
+        'column.rsvps.pending_expires_at'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            data_type = 'timestamp without time zone'
+            AND is_nullable = 'YES'
+            AND column_default IS NULL
+        ), false) AS valid
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'rsvps' AND column_name = 'pending_expires_at'
+), verified_at_check AS (
+    SELECT
+        'column.rsvps.verified_at'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            data_type = 'timestamp without time zone'
+            AND is_nullable = 'YES'
+            AND column_default IS NULL
+        ), false) AS valid
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'rsvps' AND column_name = 'verified_at'
+), verification_token_hash_check AS (
+    SELECT
+        'column.rsvps.verification_token_hash'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            data_type = 'character varying'
+            AND character_maximum_length = 64
+            AND is_nullable = 'YES'
+            AND column_default IS NULL
+        ), false) AS valid
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'rsvps' AND column_name = 'verification_token_hash'
+), verification_expires_at_check AS (
+    SELECT
+        'column.rsvps.verification_expires_at'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            data_type = 'timestamp without time zone'
+            AND is_nullable = 'YES'
+            AND column_default IS NULL
+        ), false) AS valid
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'rsvps' AND column_name = 'verification_expires_at'
+), is_courtesy_check AS (
+    SELECT
+        'column.rsvp_invitation_links.is_courtesy'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            data_type = 'boolean'
+            AND is_nullable = 'NO'
+            AND column_default IN ('true', 'true::boolean')
+        ), false) AS valid
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'rsvp_invitation_links' AND column_name = 'is_courtesy'
+), skip_verification_check AS (
+    SELECT
+        'column.rsvp_invitation_links.skip_verification'::text AS check_name,
+        count(*) = 1
+        AND coalesce(bool_and(
+            data_type = 'boolean'
+            AND is_nullable = 'NO'
+            AND column_default IN ('true', 'true::boolean')
+        ), false) AS valid
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'rsvp_invitation_links' AND column_name = 'skip_verification'
+)
+SELECT check_name, valid FROM email_verification_enabled_check
+UNION ALL SELECT check_name, valid FROM pending_expires_at_check
+UNION ALL SELECT check_name, valid FROM verified_at_check
+UNION ALL SELECT check_name, valid FROM verification_token_hash_check
+UNION ALL SELECT check_name, valid FROM verification_expires_at_check
+UNION ALL SELECT check_name, valid FROM is_courtesy_check
+UNION ALL SELECT check_name, valid FROM skip_verification_check
 ORDER BY check_name`

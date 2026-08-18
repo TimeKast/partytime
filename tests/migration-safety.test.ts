@@ -6,6 +6,7 @@ import {
     REQUIRED_HISTORICAL_OBJECTS,
     REQUIRED_IMAGE_POSITION_OBJECTS,
     REQUIRED_PASSWORD_LIFECYCLE_OBJECTS,
+    REQUIRED_PENDING_STATES_OBJECTS,
     REQUIRED_PRESENTATION_OBJECTS,
     REQUIRED_RSVP_INVITATION_OBJECTS,
     type MigrationObjectState,
@@ -17,8 +18,10 @@ import {
     HISTORICAL_SEMANTICS_QUERY,
     PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES,
     PASSWORD_LIFECYCLE_SEMANTICS_QUERY,
+    PENDING_STATES_SEMANTIC_CHECK_NAMES,
     type HistoricalSemanticState,
     type PasswordLifecycleSemanticState,
+    type PendingStatesSemanticState,
 } from '@/lib/migration-semantic-contract'
 import {
     RSVP_INVITATION_SEMANTIC_CHECK_NAMES,
@@ -53,6 +56,13 @@ const validRsvpInvitationSemantics = Object.fromEntries(
 const absentRsvpInvitationSemantics = Object.fromEntries(
     RSVP_INVITATION_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
 ) as RsvpInvitationSemanticState
+// ISSUE-005: 0009 has not been applied to any real database yet, so every
+// fixture in this file (all pinned to production evidence through 0008)
+// represents pending states as absent — see tests/pending-states.test.ts for
+// the 0009-applied classification coverage.
+const absentPendingStatesSemantics = Object.fromEntries(
+    PENDING_STATES_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+) as PendingStatesSemanticState
 
 const observedHistoricalObjects: MigrationObjectState = {
     tables: [...REQUIRED_HISTORICAL_OBJECTS.tables],
@@ -78,6 +88,8 @@ const observedHistoricalObjects: MigrationObjectState = {
     rsvpInvitationConstraints: [],
     rsvpInvitationIndexes: [],
     rsvpInvitationSemantics: absentRsvpInvitationSemantics,
+    pendingStatesColumns: [],
+    pendingStatesSemantics: absentPendingStatesSemantics,
 }
 
 const foundationRegistry = Array.from({ length: 5 }, (_, index) => ({
@@ -291,7 +303,14 @@ describe('production migration safety', () => {
         })
     })
 
-    it('accepts current schema only with exact 0008 objects and semantics', () => {
+    // ISSUE-005: this exact object state (0008-complete, 0009's columns still
+    // absent) used to be the terminal 'registered-current-schema' before
+    // migration 0009 existed. Now that 0009 exists, this state is one step
+    // behind "current" — it's the new intermediate registered-rsvp-invitation-ready
+    // gate, mirroring how registered-password-lifecycle-ready was introduced
+    // when 0008 shipped. See tests/pending-states.test.ts for the classification
+    // of a database that has actually run 0009.
+    it('accepts registered-rsvp-invitation-ready only with exact 0008 objects and semantics, ready for 0009', () => {
         const result = classifyMigrationPreflight({
             drizzleRegistry: currentRegistry,
             publicRegistry: null,
@@ -299,6 +318,7 @@ describe('production migration safety', () => {
             expectedPresentationRegistry: presentationRegistry,
             expectedImagePositionRegistry: imagePositionRegistry,
             expectedPasswordLifecycleRegistry: passwordLifecycleRegistry,
+            expectedRsvpInvitationRegistry: currentRegistry,
             expectedCurrentRegistry: currentRegistry,
             objects: {
                 ...observedHistoricalObjects,
@@ -320,10 +340,12 @@ describe('production migration safety', () => {
         })
 
         expect(result).toMatchObject({
-            classification: 'registered-current-schema',
+            classification: 'registered-rsvp-invitation-ready',
             canApply0008: false,
+            canApply0009: true,
             missingRsvpInvitationObjects: [],
             invalidRsvpInvitationSemantics: [],
+            missingPendingStatesObjects: [...REQUIRED_PENDING_STATES_OBJECTS.columns],
         })
     })
 

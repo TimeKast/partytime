@@ -16,8 +16,11 @@ import {
     HISTORICAL_SEMANTICS_QUERY,
     PASSWORD_LIFECYCLE_SEMANTIC_CHECK_NAMES,
     PASSWORD_LIFECYCLE_SEMANTICS_QUERY,
+    PENDING_STATES_SEMANTIC_CHECK_NAMES,
+    PENDING_STATES_SEMANTICS_QUERY,
     historicalSemanticStateFromRows,
     passwordLifecycleSemanticStateFromRows,
+    pendingStatesSemanticStateFromRows,
 } from '@/lib/migration-semantic-contract'
 import {
     RSVP_INVITATION_SEMANTIC_CHECK_NAMES,
@@ -96,6 +99,13 @@ async function main() {
     )
     for (const checkName of RSVP_INVITATION_SEMANTIC_CHECK_NAMES) {
         checks.push([`RSVP invitation semantic contract: ${checkName}`, rsvpInvitationSemantics[checkName]])
+    }
+
+    const pendingStatesSemantics = pendingStatesSemanticStateFromRows(
+        await query(PENDING_STATES_SEMANTICS_QUERY),
+    )
+    for (const checkName of PENDING_STATES_SEMANTIC_CHECK_NAMES) {
+        checks.push([`pending states semantic contract: ${checkName}`, pendingStatesSemantics[checkName]])
     }
 
     const foundationColumns = await query(`

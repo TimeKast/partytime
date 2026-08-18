@@ -45,6 +45,7 @@ const existingEvent: DatabaseEvent = {
     rsvpClosedMessage: '¡Nos vemos en el próximo evento!',
     requirePlusOneName: false,
     emailConfirmationEnabled: false,
+    emailVerificationEnabled: false,
     reminderEnabled: false,
     reminderScheduledAt: null,
     reminderSentAt: null,

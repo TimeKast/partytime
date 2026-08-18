@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { neon } from '@neondatabase/serverless'
 import {
+    REQUIRED_PENDING_STATES_OBJECTS,
     classifyMigrationPreflight,
     type MigrationObjectState,
     type MigrationRegistryRow,
@@ -14,8 +15,10 @@ import {
 import {
     HISTORICAL_SEMANTICS_QUERY,
     PASSWORD_LIFECYCLE_SEMANTICS_QUERY,
+    PENDING_STATES_SEMANTICS_QUERY,
     historicalSemanticStateFromRows,
     passwordLifecycleSemanticStateFromRows,
+    pendingStatesSemanticStateFromRows,
 } from '@/lib/migration-semantic-contract'
 import {
     RSVP_INVITATION_SEMANTICS_QUERY,
@@ -291,6 +294,11 @@ async function main() {
     const rsvpInvitationSemantics = rsvpInvitationSemanticStateFromRows(
         await sql.query(RSVP_INVITATION_SEMANTICS_QUERY),
     )
+    const pendingStatesColumnSet = new Set<string>(REQUIRED_PENDING_STATES_OBJECTS.columns)
+    const pendingStatesColumns = columns.filter(column => pendingStatesColumnSet.has(column))
+    const pendingStatesSemantics = pendingStatesSemanticStateFromRows(
+        await sql.query(PENDING_STATES_SEMANTICS_QUERY),
+    )
 
     const objects: MigrationObjectState = {
         tables,
@@ -316,6 +324,8 @@ async function main() {
         rsvpInvitationConstraints,
         rsvpInvitationIndexes,
         rsvpInvitationSemantics,
+        pendingStatesColumns,
+        pendingStatesSemantics,
     }
     const expected = expectedRegistry()
     const result = classifyMigrationPreflight({
@@ -325,7 +335,8 @@ async function main() {
         expectedPresentationRegistry: expected.slice(0, 6),
         expectedImagePositionRegistry: expected.slice(0, 7),
         expectedPasswordLifecycleRegistry: expected.slice(0, 8),
-        expectedCurrentRegistry: expected.slice(0, 9),
+        expectedRsvpInvitationRegistry: expected.slice(0, 9),
+        expectedCurrentRegistry: expected.slice(0, 10),
         objects,
     })
 
@@ -344,6 +355,7 @@ async function main() {
         && !result.canApply0006
         && !result.canApply0007
         && !result.canApply0008
+        && !result.canApply0009
         && result.classification !== 'registered-current-schema'
     ) {
         process.exitCode = 1

@@ -17,6 +17,20 @@ import type { Event, NewEvent, RSVP, NewRSVP } from './schema'
 // seat-adding write. The helpers below only translate its errors.
 export const CAPACITY_FULL_MESSAGE = 'El evento ha alcanzado su capacidad máxima'
 
+// ISSUE-005 (EPIC-002, migration 0009): canonical rsvps.status values.
+// pending_payment/pending_verification reserve a seat (see
+// drizzle/0009_pending_states.sql's enforce_event_capacity()) until they are
+// confirmed or lazily expired by expireStalePendingRsvps below.
+export const RSVP_STATUS = {
+    CONFIRMED: 'confirmed',
+    CANCELLED: 'cancelled',
+    PENDING_PAYMENT: 'pending_payment',
+    PENDING_VERIFICATION: 'pending_verification',
+    EXPIRED: 'expired',
+} as const
+
+export type RsvpStatus = typeof RSVP_STATUS[keyof typeof RSVP_STATUS]
+
 // drizzle >= 0.44 wraps driver errors in DrizzleQueryError: err.message is
 // "Failed query: <sql>" and the real NeonDbError (with .code / the PG
 // message) lives in err.cause. Walk the cause chain so classification sees
@@ -53,10 +67,10 @@ export function isSeatAddingChange(
     current: Pick<RSVP, 'status' | 'plusOne'>,
     update: { status?: string; plusOne?: boolean | null },
 ): boolean {
-    const currentSeats = current.status === 'confirmed' ? 1 + (current.plusOne ? 1 : 0) : 0
+    const currentSeats = current.status === RSVP_STATUS.CONFIRMED ? 1 + (current.plusOne ? 1 : 0) : 0
     const nextStatus = update.status ?? current.status
     const nextPlusOne = update.plusOne ?? current.plusOne
-    const nextSeats = nextStatus === 'confirmed' ? 1 + (nextPlusOne ? 1 : 0) : 0
+    const nextSeats = nextStatus === RSVP_STATUS.CONFIRMED ? 1 + (nextPlusOne ? 1 : 0) : 0
     return nextSeats > currentSeats
 }
 
@@ -294,9 +308,9 @@ export async function saveRsvpWithInvitation(
                 phone = ${input.phone},
                 plus_one = ${input.plusOne},
                 plus_one_name = ${input.plusOneName || null},
-                status = 'confirmed'
+                status = ${RSVP_STATUS.CONFIRMED}
             WHERE target.id IN (SELECT id FROM existing_rsvp)
-              AND target.status = 'cancelled'
+              AND target.status = ${RSVP_STATUS.CANCELLED}
               AND EXISTS (SELECT 1 FROM eligible_invitation)
             RETURNING target.*
         ),
@@ -305,7 +319,7 @@ export async function saveRsvpWithInvitation(
                 id, event_id, name, email, phone, plus_one, plus_one_name, status
             )
             SELECT ${randomUUID()}, ${input.eventId}, ${input.name}, ${email}, ${input.phone},
-                   ${input.plusOne}, ${input.plusOneName || null}, 'confirmed'
+                   ${input.plusOne}, ${input.plusOneName || null}, ${RSVP_STATUS.CONFIRMED}
             FROM eligible_invitation
             WHERE NOT EXISTS (SELECT 1 FROM existing_rsvp)
             ON CONFLICT DO NOTHING
@@ -338,6 +352,16 @@ export async function saveRsvpWithInvitation(
     const row = result.rows[0] as Record<string, unknown> | undefined
     if (!row) return null
 
+    return mapRsvpRow(row)
+}
+
+/**
+ * Map a raw `rsvps` row (as returned by a hand-written `RETURNING *`/`SELECT *`
+ * statement) to the `RSVP` shape. Shared by every query that reads whole rows
+ * back from a CTE instead of going through drizzle's own row mapper — keeps
+ * the pending-state columns (ISSUE-005) included everywhere a row is mapped.
+ */
+function mapRsvpRow(row: Record<string, unknown>): RSVP {
     return {
         id: String(row.id),
         eventId: String(row.event_id),
@@ -351,7 +375,53 @@ export async function saveRsvpWithInvitation(
         emailHistory: Array.isArray(row.email_history) ? row.email_history as RSVP['emailHistory'] : [],
         cancelToken: row.cancel_token == null ? null : String(row.cancel_token),
         createdAt: row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at)),
+        pendingExpiresAt: row.pending_expires_at == null ? null : new Date(String(row.pending_expires_at)),
+        verifiedAt: row.verified_at == null ? null : new Date(String(row.verified_at)),
+        verificationTokenHash: row.verification_token_hash == null ? null : String(row.verification_token_hash),
+        verificationExpiresAt: row.verification_expires_at == null
+            ? null
+            : new Date(String(row.verification_expires_at)),
     }
+}
+
+/**
+ * ISSUE-005 (EPIC-002): lazy expiration of pending rows, run at the start of
+ * every RSVP attempt on an event (wired in ISSUE-007/011 — this is only the
+ * helper + test). One CTE statement (neon-http has no interactive
+ * transactions, same pattern as saveRsvpWithInvitation above):
+ *   1. expires pending_payment/pending_verification rows whose TTL passed;
+ *   2. restores the invitation link that produced each expired row — only if
+ *      the link is still not revoked and not expired itself — so the guest
+ *      can retry with the same link (PLAN-EPICS-002-005.md §2.1).
+ * Wrapped in withDeadlockRetry defensively: it writes rsvps then
+ * rsvp_invitation_links in one statement, the same multi-table shape that
+ * motivates the retry on saveRsvpWithInvitation.
+ */
+export async function expireStalePendingRsvps(eventSlug: string): Promise<RSVP[]> {
+    if (!db) throw new Error('Database not configured')
+
+    const result = await withDeadlockRetry(() => db!.execute(sql`
+        WITH expired_rsvps AS (
+            UPDATE rsvps
+            SET status = ${RSVP_STATUS.EXPIRED}, pending_expires_at = NULL
+            WHERE event_id = ${eventSlug}
+              AND status IN (${RSVP_STATUS.PENDING_PAYMENT}, ${RSVP_STATUS.PENDING_VERIFICATION})
+              AND pending_expires_at < now()
+            RETURNING *
+        ),
+        restored_links AS (
+            UPDATE rsvp_invitation_links
+            SET used_at = NULL,
+                used_rsvp_id = NULL
+            WHERE used_rsvp_id IN (SELECT id FROM expired_rsvps)
+              AND revoked_at IS NULL
+              AND (expires_at IS NULL OR expires_at > now())
+            RETURNING id
+        )
+        SELECT * FROM expired_rsvps
+    `))
+
+    return (result.rows as Record<string, unknown>[]).map(mapRsvpRow)
 }
 
 async function saveRSVPOnce(rsvpData: {
@@ -379,7 +449,7 @@ async function saveRSVPOnce(rsvpData: {
 
     if (existing.length > 0) {
         const prev = existing[0]
-        if (prev.status === 'confirmed') {
+        if (prev.status === RSVP_STATUS.CONFIRMED) {
             throw new Error('Ya existe un RSVP con este email para este evento')
         }
         // A2-H03: a previously cancelled guest can re-register — reactivate the
@@ -396,9 +466,9 @@ async function saveRSVPOnce(rsvpData: {
                     phone: rsvpData.phone,
                     plusOne: rsvpData.plusOne,
                     plusOneName: rsvpData.plusOneName || null,
-                    status: 'confirmed',
+                    status: RSVP_STATUS.CONFIRMED,
                 })
-                .where(and(eq(rsvps.id, prev.id), eq(rsvps.status, 'cancelled')))
+                .where(and(eq(rsvps.id, prev.id), eq(rsvps.status, RSVP_STATUS.CANCELLED)))
                 .returning()
         } catch (err: any) {
             if (isCapacityFullError(err)) throw new Error(CAPACITY_FULL_MESSAGE)
@@ -419,7 +489,7 @@ async function saveRSVPOnce(rsvpData: {
                 plusOne: rsvpData.plusOne,
                 plusOneName: rsvpData.plusOneName || null,
                 eventId: rsvpData.eventId,
-                status: 'confirmed',
+                status: RSVP_STATUS.CONFIRMED,
             })
             .returning()
 
@@ -511,7 +581,7 @@ export async function cancelRSVP(rsvpId: string, token: string): Promise<RSVP> {
     }
 
     const [updated] = await db.update(rsvps)
-        .set({ status: 'cancelled' })
+        .set({ status: RSVP_STATUS.CANCELLED })
         .where(eq(rsvps.id, rsvpId))
         .returning()
 
@@ -562,8 +632,8 @@ export async function getEventStats(eventId: string) {
         .from(rsvps)
         .where(eq(rsvps.eventId, eventId))
 
-    const confirmed = allRsvps.filter(r => r.status === 'confirmed').length
-    const cancelled = allRsvps.filter(r => r.status === 'cancelled').length
+    const confirmed = allRsvps.filter(r => r.status === RSVP_STATUS.CONFIRMED).length
+    const cancelled = allRsvps.filter(r => r.status === RSVP_STATUS.CANCELLED).length
 
     return {
         totalConfirmed: allRsvps.length,
@@ -935,7 +1005,7 @@ export async function getConfirmedRSVPsForReminder(eventSlug: string): Promise<R
         .from(rsvps)
         .where(and(
             eq(rsvps.eventId, eventSlug),
-            eq(rsvps.status, 'confirmed')
+            eq(rsvps.status, RSVP_STATUS.CONFIRMED)
         ))
 
     return result
