@@ -160,6 +160,22 @@ describe('markCheckinGuest (ISSUE-016)', () => {
         expect(setValues).not.toHaveProperty('checkinNote') // note: undefined -> untouched
     })
 
+    // ISSUE-017 review finding: a note-only save resends checkedIn: true for
+    // an already-arrived guest — the original arrival time must survive.
+    it('re-marking an already-arrived guest preserves the original checked_in_at (note-only saves never re-stamp)', async () => {
+        const originalArrival = new Date('2026-08-18T19:00:00.000Z')
+        mockSelectOnce([camelRsvp({ checkedInAt: originalArrival, checkedInBy: 'Ana' })])
+        const setSpy = mockUpdateOnce([camelRsvp({ checkedInAt: originalArrival, checkedInBy: 'Beto', checkinNote: 'trae regalo' })])
+
+        const result = await markCheckinGuest({
+            rsvpId: 'rsvp-1', eventSlug: 'fiesta', target: 'guest', checkedIn: true, staffName: 'Beto', note: 'trae regalo',
+        })
+
+        expect(result.outcome).toBe('marked')
+        const setValues = setSpy.mock.calls[0][0]
+        expect(setValues.checkedInAt).toEqual(originalArrival)
+    })
+
     it('marking the guest OUT (unmark) nulls checked_in_at but does NOT touch checked_in_by (conserva el último actor)', async () => {
         mockSelectOnce([camelRsvp({ checkedInAt: new Date(), checkedInBy: 'Ana' })])
         const setSpy = mockUpdateOnce([camelRsvp({ checkedInAt: null, checkedInBy: 'Ana' })])

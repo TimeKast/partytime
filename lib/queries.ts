@@ -1598,10 +1598,14 @@ export async function markCheckinGuest(input: MarkCheckinInput): Promise<MarkChe
     }
 
     const setValues: Partial<RSVP> = {}
+    // Re-marking an already-arrived target preserves its original arrival
+    // time — otherwise a note-only save (the UI resends the current
+    // checkedIn value) would silently re-stamp checked_in_at to "now"
+    // (ISSUE-017 review finding).
     if (input.target === 'guest') {
-        setValues.checkedInAt = input.checkedIn ? new Date() : null
+        setValues.checkedInAt = input.checkedIn ? (existing.checkedInAt ?? new Date()) : null
     } else {
-        setValues.plusOneCheckedInAt = input.checkedIn ? new Date() : null
+        setValues.plusOneCheckedInAt = input.checkedIn ? (existing.plusOneCheckedInAt ?? new Date()) : null
     }
     // Marking IN stamps the current staff member; unmarking intentionally
     // leaves checked_in_by as-is (conserva el último actor, per the issue).
