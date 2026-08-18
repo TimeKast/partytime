@@ -17,7 +17,13 @@ type InvitationState =
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/
 
-export default function InvitationRegistrationClient() {
+interface InvitationRegistrationClientProps {
+  expectedEventSlug?: string
+}
+
+export default function InvitationRegistrationClient({
+  expectedEventSlug,
+}: InvitationRegistrationClientProps) {
   const shouldReduceMotion = useReducedMotion()
   const tokenRef = useRef<string | null>(null)
   const [state, setState] = useState<InvitationState>({ kind: 'loading' })
@@ -61,7 +67,7 @@ export default function InvitationRegistrationClient() {
           && data.event !== null
         ) {
           const event = data.event as PublicEvent
-          if (!event.isActive) {
+          if (!event.isActive || (expectedEventSlug && event.slug !== expectedEventSlug)) {
             setState({ kind: 'invalid' })
             return
           }
@@ -78,7 +84,7 @@ export default function InvitationRegistrationClient() {
 
     void validateInvitation()
     return () => controller.abort()
-  }, [])
+  }, [expectedEventSlug])
 
   if (state.kind === 'loading') {
     return (

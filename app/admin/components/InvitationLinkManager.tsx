@@ -229,16 +229,18 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
       <form className={styles.invitationLinkForm} onSubmit={handleCreate}>
         <div className={styles.invitationExpiryField}>
           <label htmlFor="invitation-link-expiration">Válido hasta</label>
-          <input
-            id="invitation-link-expiration"
-            type="datetime-local"
-            value={expiresAt}
-            min={toLocalDateTimeInput(now)}
-            max={toLocalDateTimeInput(maxExpiration)}
-            onChange={event => setExpiresAt(event.target.value)}
-            required
-            disabled={creating}
-          />
+          <div className={styles.invitationExpiryControl}>
+            <input
+              id="invitation-link-expiration"
+              type="datetime-local"
+              value={expiresAt}
+              min={toLocalDateTimeInput(now)}
+              max={toLocalDateTimeInput(maxExpiration)}
+              onChange={event => setExpiresAt(event.target.value)}
+              required
+              disabled={creating}
+            />
+          </div>
         </div>
         <button className={styles.invitationPrimaryAction} type="submit" disabled={creating || !expiresAt}>
           {creating ? 'Generando…' : 'Generar link'}
@@ -311,20 +313,22 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
                       <span>Invitado: {link.usedRsvpName || 'Registro no disponible'}</span>
                     ) : null}
                   </div>
-                  <span className={`${styles.invitationStatus} ${styles[`invitationStatus_${link.status}`]}`}>
-                    {STATUS_LABELS[link.status]}
-                  </span>
-                  {link.status === 'active' && (
-                    <button
-                      className={styles.invitationRevokeAction}
-                      type="button"
-                      onClick={() => void handleRevoke(link.id)}
-                      disabled={revokingId === link.id}
-                      aria-label={`Revocar link creado el ${formatDate(link.createdAt)}`}
-                    >
-                      {revokingId === link.id ? 'Revocando…' : 'Revocar'}
-                    </button>
-                  )}
+                  <div className={styles.invitationLinkActions}>
+                    <span className={`${styles.invitationStatus} ${styles[`invitationStatus_${link.status}`]}`}>
+                      {STATUS_LABELS[link.status]}
+                    </span>
+                    {link.status === 'active' && (
+                      <button
+                        className={styles.invitationRevokeAction}
+                        type="button"
+                        onClick={() => void handleRevoke(link.id)}
+                        disabled={revokingId === link.id}
+                        aria-label={`Revocar link creado el ${formatDate(link.createdAt)}`}
+                      >
+                        {revokingId === link.id ? 'Revocando…' : 'Revocar'}
+                      </button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

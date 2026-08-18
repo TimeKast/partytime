@@ -27,12 +27,13 @@ describe('admin one-time invitation link UI contract', () => {
     expect(manager).toContain('navigator.clipboard.writeText(generatedUrl)')
   })
 
-  it('labels every status and exposes revoke only inside the active branch', () => {
+  it('labels every status, groups it beside the details and exposes revoke only inside the active branch', () => {
     expect(manager).toContain("active: 'Activo'")
     expect(manager).toContain("used: 'Usado'")
     expect(manager).toContain("expired: 'Vencido'")
     expect(manager).toContain("revoked: 'Revocado'")
     expect(manager).toContain("link.status === 'active'")
+    expect(manager).toContain('className={styles.invitationLinkActions}')
     expect(manager).toContain("method: 'DELETE'")
     expect(manager).toContain('aria-live="polite"')
     expect(adminCss).toMatch(/\.invitationPrimaryAction[\s\S]*?min-height:\s*44px/)
@@ -53,18 +54,24 @@ describe('admin one-time invitation link UI contract', () => {
     expect(adminPage).toContain('target.focus({ preventScroll: true })')
   })
 
-  it('uses a content-hugging responsive form and bounds the native date input', () => {
+  it('uses a content-hugging responsive form and bounds the native date input with its own control shell', () => {
     expect(adminCss).toMatch(/\.invitationLinkManager\s*\{[\s\S]*?max-width:\s*100%;[\s\S]*?min-width:\s*0;[\s\S]*?box-sizing:\s*border-box;/)
     expect(adminCss).toMatch(/\.invitationLinkForm\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) auto;/)
     expect(adminCss).toMatch(/\.invitationExpiryField\s*\{[\s\S]*?min-width:\s*0;/)
-    expect(adminCss).toMatch(/\.invitationExpiryField input,[\s\S]*?max-width:\s*100%;[\s\S]*?min-width:\s*0;[\s\S]*?box-sizing:\s*border-box;/)
+    expect(manager).toContain('<div className={styles.invitationExpiryControl}>')
+    expect(adminCss).toMatch(/\.invitationExpiryControl\s*\{[\s\S]*?max-width:\s*100%;[\s\S]*?min-width:\s*0;[\s\S]*?box-sizing:\s*border-box;[\s\S]*?overflow:\s*hidden;/)
+    expect(adminCss).toMatch(/\.invitationExpiryControl input\s*\{[\s\S]*?display:\s*block;[\s\S]*?border:\s*0;/)
+    expect(adminCss).toMatch(/\.invitationExpiryControl:focus-within,[\s\S]*?box-shadow:\s*var\(--ad-focus-ring\);/)
     expect(adminCss).not.toMatch(/\.invitationExpiryField\s*\{[\s\S]*?flex:\s*1 1 280px;/)
     expect(adminCss).toMatch(/@media \(max-width: 640px\)[\s\S]*?\.invitationLinkForm\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\);/)
+    expect(adminCss).toMatch(/@media \(max-width: 640px\)[\s\S]*?\.invitationLinkList li\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) auto;/)
+    expect(adminCss).toMatch(/@media \(max-width: 640px\)[\s\S]*?\.invitationLinkActions\s*\{[\s\S]*?align-items:\s*flex-end;/)
   })
 })
 
 describe('public invitation registration UI contract', () => {
   const page = source('app/invite/page.tsx')
+  const eventPage = source('app/invite/[slug]/page.tsx')
   const client = source('app/invite/InvitationRegistrationClient.tsx')
   const modal = source('app/components/RSVPModal.tsx')
 
@@ -88,6 +95,15 @@ describe('public invitation registration UI contract', () => {
     expect(client).toContain('invitationToken={state.token}')
   })
 
+  it('keeps the legacy entry point and binds event-aware links to the path slug', () => {
+    expect(page).toContain('<InvitationRegistrationClient />')
+    expect(page).toContain("export const dynamic = 'force-dynamic'")
+    expect(page).toContain('export const revalidate = 0')
+    expect(eventPage).toContain('<InvitationRegistrationClient expectedEventSlug={slug} />')
+    expect(client).toContain('expectedEventSlug?: string')
+    expect(client).toContain('expectedEventSlug && event.slug !== expectedEventSlug')
+  })
+
   it('forwards the token only when provided and replaces the form after success', () => {
     expect(modal).toContain('invitationToken?: string')
     expect(modal).toContain('onSuccess?: () => void')
@@ -97,7 +113,7 @@ describe('public invitation registration UI contract', () => {
     expect(client).toContain('Este link de invitación ya fue utilizado.')
   })
 
-  it('sets no-referrer, no-store and noindex headers on the fragment entry point', async () => {
+  it('sets no-referrer, no-store and noindex headers on legacy and event-bound entry points', async () => {
     const config = await import('../next.config.js')
     const headersFactory = config.default.headers
     expect(headersFactory).toBeTypeOf('function')
@@ -105,6 +121,14 @@ describe('public invitation registration UI contract', () => {
     const headers = await headersFactory()
     expect(headers).toContainEqual({
       source: '/invite',
+      headers: [
+        { key: 'Referrer-Policy', value: 'no-referrer' },
+        { key: 'Cache-Control', value: 'private, no-store, max-age=0' },
+        { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
+      ],
+    })
+    expect(headers).toContainEqual({
+      source: '/invite/:slug',
       headers: [
         { key: 'Referrer-Policy', value: 'no-referrer' },
         { key: 'Cache-Control', value: 'private, no-store, max-age=0' },

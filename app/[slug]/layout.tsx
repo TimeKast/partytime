@@ -1,7 +1,6 @@
 import { Metadata } from 'next'
 import { getEventBySlugWithSettings } from '@/lib/queries'
-import { buildEventMetadata } from '@/lib/event-presentation'
-import { buildOgMetadataImageUrl } from '@/lib/og-metadata'
+import { buildEventPageMetadata } from '@/lib/event-page-metadata'
 
 // Forzar regeneración dinámica de metadatos en cada request
 export const dynamic = 'force-dynamic'
@@ -27,43 +26,7 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
             }
         }
 
-        const { title, description } = buildEventMetadata(event)
-
-        const imageUrl = buildOgMetadataImageUrl({
-            baseUrl,
-            slug,
-            ogImageUrl: event.ogImageUrl,
-            backgroundImageUrl: event.backgroundImageUrl,
-        })
-
-        return {
-            metadataBase: new URL(baseUrl),
-            title,
-            description,
-            openGraph: {
-                title,
-                description,
-                type: 'website',
-                locale: 'es_MX',
-                url: `${baseUrl}/${slug}`,
-                siteName: event.title,
-                images: [
-                    {
-                        url: imageUrl,
-                        secureUrl: imageUrl,
-                        width: 1200,
-                        height: 630,
-                        alt: event.title,
-                    },
-                ],
-            },
-            twitter: {
-                card: 'summary_large_image',
-                title,
-                description,
-                images: [imageUrl],
-            },
-        }
+        return buildEventPageMetadata(event, { baseUrl })
     } catch (error) {
         console.error('[EventLayout] Error generating metadata:', error)
         return {

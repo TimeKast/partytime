@@ -68,6 +68,14 @@ async function getHomeMetadata(currentEvent = event): Promise<Metadata> {
     return generateMetadata()
 }
 
+async function getInvitationMetadata(currentEvent = event): Promise<Metadata> {
+    mocks.getEventBySlugWithSettings.mockResolvedValue(currentEvent)
+    const { generateMetadata } = await import('@/app/invite/[slug]/page')
+    return generateMetadata({
+        params: Promise.resolve({ slug: currentEvent.slug }),
+    })
+}
+
 describe('OG metadata cache keys', () => {
     beforeEach(() => {
         vi.clearAllMocks()
@@ -108,6 +116,26 @@ describe('OG metadata cache keys', () => {
         const cacheKey = new URL(eventImage).searchParams.get('v')
         expect(cacheKey).toMatch(/^[a-f0-9]{12}$/)
         expect(eventImage).not.toContain('blob.example')
+    })
+
+    it('uses the canonical event metadata for event-bound one-time links', async () => {
+        const eventMetadata = await getEventMetadata(event)
+        const invitationMetadata = await getInvitationMetadata(event)
+
+        expect(invitationMetadata.title).toEqual(eventMetadata.title)
+        expect(invitationMetadata.description).toEqual(eventMetadata.description)
+        expect(invitationMetadata.openGraph).toEqual(eventMetadata.openGraph)
+        expect(invitationMetadata.twitter).toEqual(eventMetadata.twitter)
+        expect(invitationMetadata.metadataBase).toEqual(eventMetadata.metadataBase)
+        expect(invitationMetadata.alternates).toEqual(eventMetadata.alternates)
+        expect(invitationMetadata.robots).toEqual({
+            index: false,
+            follow: false,
+            nocache: true,
+        })
+        expect(invitationMetadata.alternates?.canonical?.toString()).toBe('https://party.timekast.mx/home-event')
+        expect(invitationMetadata.openGraph?.url?.toString()).toBe('https://party.timekast.mx/home-event')
+        expect(getMetadataImageUrl(invitationMetadata)).toBe(getMetadataImageUrl(eventMetadata))
     })
 
     it('derives the key from background only when no dedicated OG is configured', async () => {

@@ -119,8 +119,10 @@ describe('/api/admin/rsvp-invitations', () => {
         expect(response.status).toBe(201)
         const issuedUrl = new URL(payload.url)
         const rawToken = new URLSearchParams(issuedUrl.hash.slice(1)).get('token')!
-        expect(issuedUrl.pathname).toBe('/invite')
+        expect(issuedUrl.pathname).toBe('/invite/fiesta')
         expect(issuedUrl.search).toBe('')
+        expect(issuedUrl.href.split('#')[0]).not.toContain(rawToken)
+        expect(issuedUrl.hash).toBe(`#token=${rawToken}`)
         expect(mocks.createRsvpInvitationLink).toHaveBeenCalledWith(expect.objectContaining({
             eventId: 'fiesta',
             tokenHash: hashRsvpInvitationToken(rawToken),
@@ -133,6 +135,20 @@ describe('/api/admin/rsvp-invitations', () => {
         expect(auditLog).toContain('link-1')
         expect(auditLog).not.toContain(rawToken)
         expect(auditLog).not.toContain(hashRsvpInvitationToken(rawToken))
+        info.mockRestore()
+    })
+
+    it('uses the authorized canonical event slug instead of the request alias in the public path', async () => {
+        const info = vi.spyOn(console, 'info').mockImplementation(() => undefined)
+        const { POST } = await import('@/app/api/admin/rsvp-invitations/route')
+        const response = await POST(adminRequest('POST', {
+            eventSlug: 'event-uuid', expiresAt: futureExpiry.toISOString(),
+        }))
+        const payload = await response.json()
+
+        expect(response.status).toBe(201)
+        expect(new URL(payload.url).pathname).toBe('/invite/fiesta')
+        expect(mocks.getEventBySlug).toHaveBeenCalledWith('event-uuid')
         info.mockRestore()
     })
 

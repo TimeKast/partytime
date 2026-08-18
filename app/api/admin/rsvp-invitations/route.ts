@@ -73,7 +73,7 @@ function linkDto(link: {
     }
 }
 
-function invitationUrl(request: NextRequest, rawToken: string): string {
+function invitationUrl(request: NextRequest, eventSlug: string, rawToken: string): string {
     let base = request.nextUrl.origin
     if (process.env.NEXT_PUBLIC_APP_URL) {
         try {
@@ -83,7 +83,7 @@ function invitationUrl(request: NextRequest, rawToken: string): string {
             // request's already-parsed same-origin URL is the safe fallback.
         }
     }
-    const url = new URL('/invite', base)
+    const url = new URL(`/invite/${encodeURIComponent(eventSlug)}`, base)
     // Fragments never reach the HTTP request line, CDN/origin logs or Referer.
     // The client extracts the capability once and immediately scrubs the URL.
     url.hash = `token=${encodeURIComponent(rawToken)}`
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             success: true,
             link: linkDto(link),
-            url: invitationUrl(request, rawToken),
+            url: invitationUrl(request, authorization.event.slug, rawToken),
         }, { status: 201 })
     } catch {
         // Driver errors may include bound parameters. Do not log the digest of

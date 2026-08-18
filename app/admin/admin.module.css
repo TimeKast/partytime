@@ -2117,7 +2117,19 @@
   font-weight: var(--ad-weight-bold);
 }
 
-.invitationExpiryField input,
+.invitationExpiryControl {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--ad-border-strong);
+  border-radius: var(--ad-r-md);
+  background: var(--ad-surface);
+}
+
+.invitationExpiryControl input,
 .invitationSecretRow input {
   width: 100%;
   max-width: 100%;
@@ -2125,14 +2137,27 @@
   min-height: 44px;
   box-sizing: border-box;
   padding: 10px 12px;
-  border: 1px solid var(--ad-border-strong);
-  border-radius: var(--ad-r-md);
   background: var(--ad-surface);
   color: var(--ad-text);
   font: inherit;
 }
 
-.invitationExpiryField input:focus,
+.invitationExpiryControl input {
+  display: block;
+  border: 0;
+  border-radius: 0;
+}
+
+.invitationExpiryControl input:focus {
+  outline: none;
+}
+
+.invitationSecretRow input {
+  border: 1px solid var(--ad-border-strong);
+  border-radius: var(--ad-r-md);
+}
+
+.invitationExpiryControl:focus-within,
 .invitationSecretRow input:focus,
 .invitationLinkManager button:focus-visible {
   outline: none;
@@ -2247,13 +2272,20 @@
 
 .invitationLinkList li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--ad-3);
   padding: var(--ad-3);
   border: 1px solid var(--ad-border);
   border-radius: var(--ad-r-md);
   background: #fafafa;
+}
+
+.invitationLinkActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ad-2);
 }
 
 .invitationLinkDates {
@@ -2351,7 +2383,7 @@
     flex-direction: column;
   }
 
-  .invitationExpiryField input {
+  .invitationExpiryControl input {
     font-size: 16px;
   }
 
@@ -2359,17 +2391,26 @@
     width: 100%;
   }
 
-  .invitationSecretRow,
-  .invitationLinkList li {
+  .invitationSecretRow {
     grid-template-columns: 1fr;
   }
 
-  .invitationSecretRow button,
-  .invitationRevokeAction {
+  .invitationSecretRow button {
     width: 100%;
   }
 
+  .invitationLinkList li {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: var(--ad-2);
+  }
+
+  .invitationLinkActions {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
   .invitationStatus {
-    justify-self: start;
+    justify-content: center;
   }
 }
