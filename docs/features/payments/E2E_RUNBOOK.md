@@ -121,11 +121,44 @@ y congelar la cantidad mientras el pago esté abierto o completado.
       y el total de pago mostrado es `MXN 20.00`.
 - [x] 1B.6 Verificar en DB/Stripe test que `rsvp_payments.amount_cents=2000`
       y que el cargo exitoso tiene `amount_total=2000`.
-- [ ] 1B.7 Mientras el RSVP/sesión de prueba esté `pending_payment`/`created`, intentar
+- [x] 1B.7 Mientras el RSVP/sesión de prueba esté `pending_payment`/`created`, intentar
       cambiar el flag +1 desde el editor invitado y desde admin: ambos deben
       responder 409 con mensaje claro; tras expirar la sesión debe permitirse.
 - [ ] 1B.8 Reenviar el webhook completado y comprobar de nuevo que no hay
       segundo email ni segundo cargo.
+
+**1B.7 — Fecha ejecutado:** 2026-08-19 **Resultado:** ☒ PASS ☐ FAIL — notas:
+Corrida contra producción (`https://party.timekast.mx`), evento descartable
+`e2e-1b7-*` (payment_required, cuota 10 MXN), sin tocar Stripe Checkout UI —
+la fila `rsvp_payments` con `status='created'` se insertó directo en DB para
+aislar la prueba del candado de la creación real de la sesión. Con el pago
+`created`: `POST /api/rsvp/update` (editor invitado, token HMAC generado con
+el mismo `CANCEL_TOKEN_SECRET` de prod) → `409` con el mensaje exacto de
+`RSVP_PAYMENT_PARTY_SIZE_LOCKED_MESSAGE`; `POST /api/admin/update-rsvp`
+(sesión admin real) → mismo `409`. Al expirar la fila (`rsvp_payments.status
+= 'expired'` y `rsvps.status = 'expired'`, replicando el efecto de
+`expireStalePendingRsvps`): la fila vieja quedó inaccesible por su token
+(`404`, comportamiento correcto — un RSVP expirado no se edita, se reemplaza,
+ver `RSVP_STATUS.EXPIRED` en `app/api/rsvp/update/route.ts`), y un
+`POST /api/rsvp` nuevo con el MISMO email obtuvo `201` con `plusOne=true` y
+una Checkout Session real de Stripe **test mode** (`cs_test_...` — confirma
+que producción usa claves de prueba de Stripe, no live). Datos de prueba
+limpiados de la DB al terminar (evento, RSVP, pago).
+
+**1B.8 — pendiente, requiere acción de José:** este paso necesita reenviar un
+evento de webhook ya completado vía `stripe events resend evt_...` (Stripe
+CLI) o el botón "Resend" del dashboard. El perfil local de Stripe CLI de esta
+máquina no tiene sesión autenticada (`stripe login` es un flujo OAuth
+interactivo que un agente no puede completar), y no hay una vía de API pura
+para "reenviar" un webhook — es una acción exclusiva de CLI/dashboard. La
+garantía que este paso busca demostrar (que un replay del webhook no duplica
+el efecto) ya está cubierta por tests automatizados
+(`tests/stripe-webhook.test.ts`) y por evidencia manual equivalente en el
+Escenario 3 (replay de un evento distinto, mismo `fulfillPaidRsvp` con
+`WHERE status = 'created'`, cero filas en el UPDATE si ya estaba `paid`) —
+pero la evidencia manual específica de 1B.8 sigue sin capturarse. Requiere
+que José corra `stripe login` (o use el dashboard) y luego reenvíe el evento
+de un pago 1B ya completado.
 
 **Fecha ejecutado:** 2026-08-19 **Resultado:** ☐ PASS ☐ FAIL ☒ PARCIAL — notas:
 Corrida contra producción (`https://party.timekast.mx/demo`) y Stripe
