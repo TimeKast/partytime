@@ -40,7 +40,7 @@ pueden probar: la integración real contra la API de Stripe.
      pago para confirmar" ON.
    - Sección 👥 Capacidad: "Limitar capacidad y mostrar cupo" ON, Límite de
      Personas = `1` (necesario para el escenario 4).
-   - Anota el slug del evento: `_______________`.
+   - Anota el slug del evento: `stripe-e2e-20260818` (ejecución 2026-08-18).
 5. **Servidor dev + listener corriendo en dos terminales separadas**:
    ```bash
    # Terminal A
@@ -63,30 +63,36 @@ pueden probar: la integración real contra la API de Stripe.
 **Objetivo:** RSVP en evento de pago → redirect a Checkout → pagar con
 `4242…` → webhook → `confirmed` + email de confirmación.
 
-- [ ] 1.1 Ir a `http://localhost:3000/{slug}`, llenar el formulario de RSVP
+- [x] 1.1 Ir a `http://localhost:3000/{slug}`, llenar el formulario de RSVP
       con un email real donde puedas revisar la bandeja (o usar el inbox de
       Resend en modo test/sandbox).
-- [ ] 1.2 Confirmar que la respuesta de `POST /api/rsvp` trae
+- [x] 1.2 Confirmar que la respuesta de `POST /api/rsvp` trae
       `status: "pending_payment"` y un `checkoutUrl` de
       `checkout.stripe.com`, y que el navegador redirige ahí.
-- [ ] 1.3 En la página hosted de Stripe, pagar con `4242 4242 4242 4242`.
-- [ ] 1.4 Verificar en la Terminal B (`stripe listen`) que llega
+- [x] 1.3 En la página hosted de Stripe, pagar con `4242 4242 4242 4242`.
+- [x] 1.4 Verificar en la Terminal B (`stripe listen`) que llega
       `checkout.session.completed` con `200 received: true`.
-- [ ] 1.5 Verificar que el navegador termina en `/{slug}/pago?state=success&session_id=cs_...`
+- [x] 1.5 Verificar que el navegador termina en `/{slug}/pago?state=success&session_id=cs_...`
       y que la página muestra el estado confirmado (puede tardar hasta
       `POLL_ATTEMPTS(3) × POLL_INTERVAL_MS(2500ms)` ≈ 7.5s en pasar de
       "verificando" a "confirmado" mientras el polling a
       `GET /api/rsvp/payment-status` alcanza al webhook).
-- [ ] 1.6 Verificar en `/admin` (tabla de RSVPs del evento) que la fila pasó
+- [x] 1.6 Verificar en `/admin` (tabla de RSVPs del evento) que la fila pasó
       a `confirmed` y muestra el pago.
-- [ ] 1.7 Verificar que llegó el email de confirmación a la bandeja usada en
+- [x] 1.7 Verificar que llegó el email de confirmación a la bandeja usada en
       1.1, con el link de cancelación.
-- [ ] 1.8 En el dashboard de Stripe (test mode → Payments), verificar que el
+- [x] 1.8 En el dashboard de Stripe (test mode → Payments), verificar que el
       cargo aparece como `Succeeded` por el monto exacto configurado (en
       centavos: monto configurado × 100).
 
-**Fecha ejecutado:** ______________ **Resultado:** ☐ PASS ☐ FAIL — notas:
-_______________________________________________
+**Fecha ejecutado:** 2026-08-18 **Resultado:** ☒ PASS ☐ FAIL — notas:
+Rama Neon desechable, servidor en `localhost:3001` porque el puerto 3000 estaba
+ocupado por el bridge local de WhatsApp. Checkout real test-mode por MXN 10.00
+(`amount_total=1000`), `checkout.session.completed` → HTTP 200, RSVP
+`confirmed`, pago `paid`, `paid_at` presente y Resend aceptó un único correo
+al inbox de prueba `delivered@resend.dev` (`email_history_count=1`). La página
+de retorno quedó en “Pago recibido”. La fila se verificó directamente en la
+base aislada (misma fuente de `/admin`) y el cargo mediante Stripe API test.
 
 ---
 
@@ -95,9 +101,9 @@ _______________________________________________
 **Objetivo:** abandonar el checkout (o forzar su expiración) → el asiento se
 libera.
 
-- [ ] 2.1 Repetir 1.1–1.2 con un email DISTINTO al del escenario 1 (para no
+- [x] 2.1 Repetir 1.1–1.2 con un email DISTINTO al del escenario 1 (para no
       chocar con el `UNIQUE(event, email)` de `rsvps`).
-- [ ] 2.2 En la página hosted de Stripe, **no pagar** — copiar el
+- [x] 2.2 En la página hosted de Stripe, **no pagar** — copiar el
       `session_id` de la URL de retorno (queda en `cancel_url` si haces
       click en "atrás", o léelo del log de `POST /api/rsvp` /
       `createRsvpPaymentRecord`) y expirarlo manualmente en vez de esperar
@@ -114,18 +120,22 @@ libera.
       y limita esta verificación manual a confirmar que el evento llega con
       200; ver nota abajo) o simplemente espera los 30 minutos reales de
       vida de la Checkout Session.
-- [ ] 2.3 Verificar en Terminal B que llega `checkout.session.expired` con
+- [x] 2.3 Verificar en Terminal B que llega `checkout.session.expired` con
       `200 received: true`.
-- [ ] 2.4 Verificar en `/admin` que la fila de RSVP pasó a `expired` (no
+- [x] 2.4 Verificar en `/admin` que la fila de RSVP pasó a `expired` (no
       queda `pending_payment` huérfana) y que `rsvp_payments.status` quedó
       `expired`.
-- [ ] 2.5 Si el evento tiene `capacityLimit`, verificar que el cupo mostrado
+- [x] 2.5 Si el evento tiene `capacityLimit`, verificar que el cupo mostrado
       al público subió de nuevo (el asiento se liberó).
-- [ ] 2.6 Repetir el RSVP con el MISMO email de 2.1 — debe permitir un nuevo
+- [x] 2.6 Repetir el RSVP con el MISMO email de 2.1 — debe permitir un nuevo
       intento de pago (la fila anterior ya no bloquea por email duplicado).
 
-**Fecha ejecutado:** ______________ **Resultado:** ☐ PASS ☐ FAIL — notas:
-_______________________________________________
+**Fecha ejecutado:** 2026-08-18 **Resultado:** ☒ PASS ☐ FAIL — notas:
+Se expiró la Checkout Session real con Stripe CLI. El listener recibió
+`checkout.session.expired` y respondió HTTP 200; RSVP y pago quedaron
+`expired`, `pending_expires_at` se limpió, el asiento se liberó y el mismo
+email obtuvo una nueva sesión `pending_payment`. Esa sesión de reintento se
+expiró también durante la limpieza.
 
 ---
 
@@ -134,28 +144,32 @@ _______________________________________________
 **Objetivo:** reenviar el mismo evento (`stripe events resend`) no debe
 duplicar el efecto (no doble email, no doble mutación).
 
-- [ ] 3.1 Completar el Escenario 1 hasta que la fila quede `confirmed`.
-- [ ] 3.2 Anotar el `Event ID` (`evt_...`) del `checkout.session.completed`
+- [x] 3.1 Completar el Escenario 1 hasta que la fila quede `confirmed`.
+- [x] 3.2 Anotar el `Event ID` (`evt_...`) del `checkout.session.completed`
       que confirmó el pago (visible en el dashboard de Stripe → Developers →
       Events, o en el log de la Terminal B).
-- [ ] 3.3 Reenviarlo:
+- [x] 3.3 Reenviarlo:
       ```bash
       stripe events resend evt_...
       ```
       o, desde el dashboard, el botón **Resend** en el detalle del evento.
-- [ ] 3.4 Verificar en Terminal B que el reenvío también responde
+- [x] 3.4 Verificar en Terminal B que el reenvío también responde
       `200 received: true` (no debe fallar ni reintentar Stripe).
-- [ ] 3.5 Verificar en `/admin` que la fila SIGUE en `confirmed` (mismo
+- [x] 3.5 Verificar en `/admin` que la fila SIGUE en `confirmed` (mismo
       `paid_at`, no se movió) — el UPDATE con `WHERE status = 'created'`
       (ver `lib/queries.ts::fulfillPaidRsvp`) hace que el replay actualice
       cero filas.
-- [ ] 3.6 Verificar que NO llegó un segundo email de confirmación (revisar
+- [x] 3.6 Verificar que NO llegó un segundo email de confirmación (revisar
       la bandeja o el dashboard de Resend).
-- [ ] 3.7 (Opcional, evidencia extra) Revisar logs del servidor — no debe
+- [x] 3.7 (Opcional, evidencia extra) Revisar logs del servidor — no debe
       aparecer un segundo `recordEmailSent` ni un segundo cargo en Stripe.
 
-**Fecha ejecutado:** ______________ **Resultado:** ☐ PASS ☐ FAIL — notas:
-_______________________________________________
+**Fecha ejecutado:** 2026-08-18 **Resultado:** ☒ PASS ☐ FAIL — notas:
+Como `stripe events resend` solo reenvía a endpoints públicos registrados y
+el objetivo de esta corrida era `localhost`, se recuperó el mismo evento real
+de Stripe y se reenvió su payload exacto con una firma nueva generada por el
+SDK contra el `whsec_` efímero del listener. Respondió HTTP 200; `status`,
+`paid_at` y `email_sent` no cambiaron y `email_history_count` permaneció en 1.
 
 ---
 
@@ -165,14 +179,14 @@ _______________________________________________
 simultáneos → uno paga, el otro recibe `CAPACITY_FULL` antes de llegar a
 Stripe.
 
-- [ ] 4.1 Confirmar que el evento de prueba tiene `capacityLimit = 1` y
+- [x] 4.1 Confirmar que el evento de prueba tiene `capacityLimit = 1` y
       capacidad actual libre (0 RSVPs `confirmed`/`pending_payment` activos;
       limpia cualquier fila de los escenarios anteriores primero, o usa un
       evento de prueba dedicado solo para este escenario).
-- [ ] 4.2 Invitado A: `POST /api/rsvp` con email A → debe obtener
+- [x] 4.2 Invitado A: `POST /api/rsvp` con email A → debe obtener
       `pending_payment` + `checkoutUrl` (ocupa el único asiento vía el
       trigger `enforce_event_capacity` en el INSERT).
-- [ ] 4.3 Invitado B (SIN que A haya pagado ni expirado): `POST /api/rsvp`
+- [x] 4.3 Invitado B (SIN que A haya pagado ni expirado): `POST /api/rsvp`
       con email B (mismo evento) → debe recibir `409` con
       `"El evento está lleno — se alcanzó el límite de invitados"` (ver
       `app/api/rsvp/route.ts` catch de `capacidad máxima`) — nunca llega a
@@ -183,12 +197,12 @@ Stripe.
         -d '{"name":"B","email":"b@example.com","phone":"+525500000001","eventSlug":"{slug}"}' \
         -w '\n%{http_code}\n'
       ```
-- [ ] 4.4 Invitado A completa el pago con `4242…` → confirma normalmente
+- [x] 4.4 Invitado A completa el pago con `4242…` → confirma normalmente
       (Escenario 1).
-- [ ] 4.5 (Variante) Repetir 4.2–4.3 pero dejando que la sesión de A EXPIRE
+- [x] 4.5 (Variante) Repetir 4.2–4.3 pero dejando que la sesión de A EXPIRE
       (Escenario 2) antes de que B reintente — B debe poder ahora obtener el
       asiento liberado.
-- [ ] 4.6 (Nota de honestidad) Este escenario prueba la carrera a nivel de
+- [x] 4.6 (Nota de honestidad) Este escenario prueba la carrera a nivel de
       **trigger de capacidad de Postgres** (atómico por diseño — no hay
       ventana real de doble-venta incluso con dos requests verdaderamente
       simultáneos, porque el UPDATE/INSERT que cuenta capacidad corre dentro
@@ -197,19 +211,28 @@ Stripe.
       determinista (A ya tiene el asiento, B llega después) en 4.2–4.3 ya
       cubre el contrato observable.
 
-**Fecha ejecutado:** ______________ **Resultado:** ☐ PASS ☐ FAIL — notas:
-_______________________________________________
+**Fecha ejecutado:** 2026-08-18 **Resultado:** ☒ PASS ☐ FAIL — notas:
+Con capacidad 1, A obtuvo `pending_payment`; B recibió 409 con el mensaje
+exacto de capacidad y no se creó RSVP ni pago para B. A pagó y terminó en
+“Pago recibido”. En la variante, A2 ocupó el asiento, B2 recibió 409, A2 se
+expiró por Stripe con webhook 200 y B2 obtuvo después una nueva Checkout
+Session 201. La sesión final de B2 se expiró durante la limpieza.
 
 ---
 
 ## Limpieza post-runbook
 
-- [ ] Cancelar/reembolsar en el dashboard de Stripe cualquier cargo de
+- [x] Cancelar/reembolsar en el dashboard de Stripe cualquier cargo de
       prueba que haya quedado (no afecta dinero real en test mode, pero
       mantiene el dashboard legible).
-- [ ] Borrar o archivar el evento de prueba en `/admin` si no se va a
+- [x] Borrar o archivar el evento de prueba en `/admin` si no se va a
       reusar.
-- [ ] Detener `stripe listen` (Terminal B) y `pnpm dev` (Terminal A).
+- [x] Detener `stripe listen` (Terminal B) y `pnpm dev` (Terminal A).
+
+Limpieza 2026-08-18: dos reembolsos test-mode por 1000 MXN-centavos cada uno;
+ambos `charge.refunded` respondieron HTTP 200. Se detuvieron los procesos y se
+eliminó la rama Neon desechable `br-lively-frog-ahs0ml91`, con lo que también
+se eliminó el evento sintético.
 
 ---
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import type { PublicEvent } from '@/types/event'
 import {
@@ -113,10 +113,11 @@ export default function PagoPage() {
   const params = useParams()
   const searchParams = useSearchParams()
   const slug = params?.slug as string
+  const stateParam = searchParams?.get('state')
+  const sessionId = searchParams?.get('session_id') ?? ''
 
   const [event, setEvent] = useState<PublicEvent | null>(null)
   const [state, setState] = useState<PagoState>({ kind: 'checking' })
-  const pollStarted = useRef(false)
 
   // Best-effort event lookup (public DTO, no session_id involved) — used only
   // for the themed shell, same as the verify page.
@@ -143,12 +144,6 @@ export default function PagoPage() {
   // confirmation always happens server-side, via the webhook (ISSUE-012),
   // regardless of anything this page observes.
   useEffect(() => {
-    if (pollStarted.current) return
-    pollStarted.current = true
-
-    const stateParam = searchParams?.get('state')
-    const sessionId = searchParams?.get('session_id') ?? ''
-
     if (stateParam === 'cancelled') {
       setState({ kind: 'cancelled' })
       return
@@ -192,7 +187,7 @@ export default function PagoPage() {
 
     void poll()
     return () => controller.abort()
-  }, [searchParams])
+  }, [stateParam, sessionId])
 
   const eventTitle = event?.displayTitle || event?.title || 'el evento'
 
