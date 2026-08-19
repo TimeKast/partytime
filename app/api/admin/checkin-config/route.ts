@@ -41,6 +41,7 @@ async function authenticate(): Promise<SessionUser | null> {
 async function authorizeEvent(
     user: SessionUser,
     eventSlugOrId: string,
+    requiredRole: 'manager' | 'viewer',
 ): Promise<{ event: EventRecord } | { response: NextResponse }> {
     const { getEventBySlug } = await import('@/lib/queries')
     const event = await getEventBySlug(eventSlugOrId)
@@ -49,9 +50,9 @@ async function authorizeEvent(
     }
 
     if (user.role !== 'super_admin') {
-        const { hasAccess } = await userHasEventAccess(user.id, event.id, 'manager')
+        const { hasAccess } = await userHasEventAccess(user.id, event.id, requiredRole)
         if (!hasAccess) {
-            return { response: NextResponse.json({ success: false, error: 'No tienes permiso para gestionar el check-in de este evento' }, { status: 403, headers: NO_STORE_HEADERS }) }
+            return { response: NextResponse.json({ success: false, error: 'No tienes permiso para acceder al check-in de este evento' }, { status: 403, headers: NO_STORE_HEADERS }) }
         }
     }
 
@@ -85,7 +86,10 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const authorization = await authorizeEvent(currentUser, eventSlug.trim())
+        // Reading portal readiness and arrival visibility is available to any
+        // assigned event user, including viewers. Mutations remain manager-only
+        // in PATCH below.
+        const authorization = await authorizeEvent(currentUser, eventSlug.trim(), 'viewer')
         if ('response' in authorization) return authorization.response
 
         return NextResponse.json(
@@ -154,7 +158,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     try {
-        const authorization = await authorizeEvent(currentUser, body.eventSlug.trim())
+        const authorization = await authorizeEvent(currentUser, body.eventSlug.trim(), 'manager')
         if ('response' in authorization) return authorization.response
         const { event } = authorization
 

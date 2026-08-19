@@ -4,7 +4,12 @@ import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 
 import { motion } from 'framer-motion'
 import { PhoneInput } from 'react-international-phone'
 import 'react-international-phone/style.css'
-import { getSolidCtaColors } from '@/lib/event-presentation'
+import {
+  formatWholeCurrencyAmount,
+  getPublicPaymentBreakdown,
+  getSolidCtaColors,
+  type PublicPaymentPricing,
+} from '@/lib/event-presentation'
 import type { RsvpModalVariant } from '@/lib/event-invitation-view-model'
 import styles from './RSVPModal.module.css'
 
@@ -16,6 +21,7 @@ interface RSVPModalProps {
   eventSlug?: string
   invitationToken?: string
   requirePlusOneName?: boolean
+  paymentPricing?: PublicPaymentPricing
   theme?: {
     primaryColor: string
     secondaryColor: string
@@ -44,6 +50,7 @@ export default function RSVPModal({
   eventSlug,
   invitationToken,
   requirePlusOneName,
+  paymentPricing,
   theme,
 }: RSVPModalProps) {
   // Configuración por defecto si no se provee el tema
@@ -83,6 +90,9 @@ export default function RSVPModal({
   const [resendMessage, setResendMessage] = useState('')
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const paymentBreakdown = paymentPricing
+    ? getPublicPaymentBreakdown(paymentPricing, formData.plusOne)
+    : null
 
   // ISSUE-008: ticks the 60s resend cooldown down to 0, one second at a time.
   useEffect(() => {
@@ -93,6 +103,14 @@ export default function RSVPModal({
 
   useEffect(() => {
     if (!isOpen) return
+
+    // Keep the background page fixed while the mobile dialog owns scrolling.
+    // The modal itself has overflow-y:auto, so long forms remain reachable
+    // without producing a second page scrollbar behind the overlay.
+    const previousBodyOverflow = document.body.style.overflow
+    const previousRootOverflow = document.documentElement.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
 
     const previouslyFocused = document.activeElement instanceof HTMLElement
       ? document.activeElement
@@ -127,6 +145,8 @@ export default function RSVPModal({
     return () => {
       cancelAnimationFrame(focusFrame)
       document.removeEventListener('keydown', handleDialogKeyDown)
+      document.body.style.overflow = previousBodyOverflow
+      document.documentElement.style.overflow = previousRootOverflow
       previouslyFocused?.focus()
     }
   }, [isOpen, onClose])
@@ -473,6 +493,42 @@ export default function RSVPModal({
               </motion.div>
             )}
 
+            {paymentBreakdown && (
+              <section
+                className={styles.paymentSummary}
+                aria-labelledby="rsvp-payment-title"
+                aria-live="polite"
+                aria-atomic="true"
+                role="status"
+              >
+                <div className={styles.paymentSummaryHeader}>
+                  <div>
+                    <p id="rsvp-payment-title" className={styles.paymentEyebrow}>
+                      Cuota de recuperación
+                    </p>
+                    <p className={styles.paymentUnitPrice}>
+                      {formatWholeCurrencyAmount(paymentBreakdown.unitAmount, paymentBreakdown.currency)} por persona
+                    </p>
+                  </div>
+                  <span className={styles.paymentSecureLabel}>Pago seguro · Stripe</span>
+                </div>
+
+                <div className={styles.paymentTotalRow}>
+                  <span>
+                    {paymentBreakdown.quantity} {paymentBreakdown.quantity === 1 ? 'cuota' : 'cuotas'} ×{' '}
+                    {formatWholeCurrencyAmount(paymentBreakdown.unitAmount, paymentBreakdown.currency)}
+                  </span>
+                  <strong>
+                    Total {formatWholeCurrencyAmount(paymentBreakdown.totalAmount, paymentBreakdown.currency)}
+                  </strong>
+                </div>
+
+                <p id="rsvp-payment-helper" className={styles.paymentHelper}>
+                  Al confirmar continuarás a Stripe. Si vienes con +1, se cobran dos cuotas.
+                </p>
+              </section>
+            )}
+
 
             {submitStatus === 'error' && (
               <div className={styles.errorMessage}>
@@ -484,6 +540,7 @@ export default function RSVPModal({
               type="submit"
               className={styles.submitButton}
               disabled={isSubmitting}
+              aria-describedby={paymentBreakdown ? 'rsvp-payment-helper' : undefined}
               whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
               whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
               style={isModern ? {
@@ -496,9 +553,13 @@ export default function RSVPModal({
               }}
             >
               {isSubmitting ? (
-                <span className={styles.spinner}>Enviando...</span>
+                <span className={styles.spinner}>
+                  {paymentBreakdown ? 'Preparando pago…' : 'Enviando...'}
+                </span>
               ) : (
-                isModern ? 'Confirmar asistencia' : 'CONFIRMAR ASISTENCIA'
+                paymentBreakdown
+                  ? 'Continuar al pago'
+                  : isModern ? 'Confirmar asistencia' : 'CONFIRMAR ASISTENCIA'
               )}
             </motion.button>
           </form>

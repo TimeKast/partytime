@@ -7,6 +7,7 @@ import EventInvitation from './EventInvitation'
 import styles from '../../page.module.css'
 import type { PublicEvent } from '@/types/event'
 import { buildEventInvitationViewModel } from '@/lib/event-invitation-view-model'
+import { getPublicPaymentPricing } from '@/lib/event-presentation'
 
 interface EventPageClientProps {
     slug: string
@@ -78,6 +79,7 @@ export default function EventPageClient({ slug }: EventPageClientProps) {
     }
 
     const invitationViewModel = buildEventInvitationViewModel(event)
+    const paymentPricing = getPublicPaymentPricing(event.paymentRequired, event.price)
 
     if (invitationViewModel.pageGate === 'inactive') {
         return (
@@ -107,6 +109,7 @@ export default function EventPageClient({ slug }: EventPageClientProps) {
                         variant={invitationViewModel.rsvp.modal.variant}
                         eventSlug={invitationViewModel.rsvp.modal.eventSlug}
                         requirePlusOneName={invitationViewModel.rsvp.modal.requirePlusOneName}
+                        paymentPricing={paymentPricing ?? undefined}
                         theme={event.theme}
                     />
                 )}

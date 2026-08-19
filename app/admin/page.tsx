@@ -12,6 +12,7 @@ import styles from './admin.module.css'
 import type { Event } from '@/types/event'
 import {
   normalizeEventPresentation,
+  parseStrictHexColor,
   type BackgroundImageFit,
   type BackgroundImagePosition,
   type PresentationMode,
@@ -47,13 +48,26 @@ import {
   ReminderStatusSection,
   type RSVP,
 } from './components'
-import type { CheckinStatus } from './components/CheckinSettings'
+import CheckinOverview from './components/CheckinOverview'
+import { parseCheckinStatusPayload, type CheckinStatus } from './components/CheckinStatus'
 import { AdminShell } from './components/shell'
 import { RsvpFilters, RsvpPagination, RsvpTable } from './components/table'
 import { Button, ImagePreview } from './components/ui'
-import { Settings } from './components/ui/icons'
-import { ConfigNav } from './components/config/ConfigNav'
+import { ExternalLink, Settings } from './components/ui/icons'
+import {
+  ConfigNav,
+  configSectionFromHash,
+  type ConfigSectionId,
+} from './components/config/ConfigNav'
 import { SaveBar } from './components/config/SaveBar'
+import { SettingsDisclosure } from './components/config/SettingsDisclosure'
+import { BackstageStatusStrip } from './components/config/BackstageStatusStrip'
+import {
+  isPlusOneLockedForPayment,
+  plusOnePaymentLockMessage,
+} from './components/config/rsvp-edit-policy'
+
+type ConfigDisclosureId = 'identity' | 'payment' | 'capacity' | 'presentation' | 'reminder'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -73,20 +87,36 @@ export default function AdminDashboard() {
 
   // Estado para tabs
   const [activeTab, setActiveTab] = useState<'dashboard' | 'config' | 'eventos' | 'usuarios' | 'cuenta'>('dashboard')
+  const [activeConfigSection, setActiveConfigSection] = useState<ConfigSectionId>('general')
+  const [configValidationReveal, setConfigValidationReveal] = useState<{
+    id: ConfigDisclosureId | null
+    nonce: number
+  }>({ id: null, nonce: 0 })
 
   // Estado para multi-party
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEventId, setSelectedEventId] = useState<string>('') // Will be set from homeEventId
   const [homeEventId, setHomeEventId] = useState<string>('')
+  const selectedEvent = events.find(event => event.slug === selectedEventId)
+  const accessRole = selectedEvent?.accessRole
+  const canManageSelectedEvent = currentUser?.role === 'super_admin' || accessRole === 'manager'
+  const isReadOnly = !canManageSelectedEvent
   // ISSUE-010: whether STRIPE_SECRET_KEY is set server-side (never the key
   // itself — see GET /api/event-settings). Drives the "Stripe no configurado"
   // notice next to the payment toggle.
   const [stripeConfigured, setStripeConfigured] = useState(true)
-  // ISSUE-018: sourced from the CheckinSettings section's own GET
-  // /api/admin/checkin-config fetch (via onStatusChange) — never fetched a
-  // second time here. Drives the "Llegada" column, the dashboard arrival
-  // counter and the export columns, all gated on `checkinStatus?.enabled`.
+  // ISSUE-018: loaded at page level so Dashboard and viewer accounts receive
+  // the event status without first visiting Config. CheckinSettings reuses
+  // this DTO and only emits updates after a successful mutation.
   const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(null)
+  const [checkinStatusEventSlug, setCheckinStatusEventSlug] = useState('')
+  const [checkinStatusLoading, setCheckinStatusLoading] = useState(false)
+  const [checkinStatusError, setCheckinStatusError] = useState('')
+  const checkinStatusMatchesSelection = checkinStatusEventSlug === selectedEventId
+  const selectedCheckinStatus = checkinStatusMatchesSelection ? checkinStatus : null
+  const selectedCheckinStatusLoading = Boolean(selectedEventId)
+    && (!checkinStatusMatchesSelection || checkinStatusLoading)
+  const selectedCheckinStatusError = checkinStatusMatchesSelection ? checkinStatusError : ''
 
 
   // Estado para configuración del evento
@@ -229,11 +259,79 @@ export default function AdminDashboard() {
     checkAuth()
   }, [router])
 
-  // ISSUE-018: stable identity so it never re-triggers CheckinSettings'
-  // load-on-eventSlug-change effect (see its onStatusChange dependency).
-  const handleCheckinStatusChange = useCallback((status: CheckinStatus | null) => {
+  const handleCheckinStatusChange = useCallback((status: CheckinStatus) => {
+    setCheckinStatusEventSlug(selectedEventId)
     setCheckinStatus(status)
+    setCheckinStatusError('')
+  }, [selectedEventId])
+
+  const selectConfigSection = useCallback((section: ConfigSectionId) => {
+    setActiveConfigSection(section)
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `#config-${section}`)
+    }
   }, [])
+
+  const openConfigSection = useCallback((section: ConfigSectionId) => {
+    selectConfigSection(section)
+    setActiveTab('config')
+  }, [selectConfigSection])
+
+  useEffect(() => {
+    if (activeTab !== 'config') return
+
+    const syncFromHash = () => {
+      const section = configSectionFromHash(window.location.hash)
+      if (section) setActiveConfigSection(section)
+    }
+
+    syncFromHash()
+    window.addEventListener('hashchange', syncFromHash)
+    return () => window.removeEventListener('hashchange', syncFromHash)
+  }, [activeTab])
+
+  // Keep the dashboard's portal status authoritative for the selected event.
+  // CheckinSettings consumes this state instead of issuing a duplicate GET.
+  useEffect(() => {
+    const controller = new AbortController()
+    setCheckinStatus(null)
+    setCheckinStatusError('')
+
+    if (!isAuthenticated || !selectedEventId) {
+      setCheckinStatusEventSlug('')
+      setCheckinStatusLoading(false)
+      return () => controller.abort()
+    }
+
+    setCheckinStatusEventSlug(selectedEventId)
+    setCheckinStatusLoading(true)
+    async function loadCheckinStatus() {
+      try {
+        const response = await fetch(
+          `/api/admin/checkin-config?eventSlug=${encodeURIComponent(selectedEventId)}`,
+          { cache: 'no-store', signal: controller.signal },
+        )
+        const data: unknown = await response.json()
+        if (!response.ok) {
+          const detail = typeof data === 'object' && data !== null && 'error' in data && typeof data.error === 'string'
+            ? data.error
+            : 'No se pudo cargar el estado del check-in.'
+          throw new Error(detail)
+        }
+        const status = parseCheckinStatusPayload(data)
+        if (!status) throw new Error('La respuesta del estado de check-in no es válida.')
+        if (!controller.signal.aborted) setCheckinStatus(status)
+      } catch (error) {
+        if (controller.signal.aborted) return
+        setCheckinStatusError(error instanceof Error ? error.message : 'No se pudo cargar el estado del check-in.')
+      } finally {
+        if (!controller.signal.aborted) setCheckinStatusLoading(false)
+      }
+    }
+
+    void loadCheckinStatus()
+    return () => controller.abort()
+  }, [isAuthenticated, selectedEventId])
 
   const loadRSVPs = useCallback(async (eventId?: string) => {
     setLoading(true)
@@ -829,7 +927,12 @@ export default function AdminDashboard() {
         },
         body: JSON.stringify({
           rsvpId: editingRsvp.id,
-          updates: editForm
+          updates: {
+            ...editForm,
+            plusOne: isPlusOneLockedForPayment(editingRsvp.paymentStatus)
+              ? editingRsvp.plusOne
+              : editForm.plusOne,
+          }
         })
       })
 
@@ -944,6 +1047,51 @@ export default function AdminDashboard() {
   // Guardar configuración del evento
   const saveEventConfig = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const validationFailure = (() => {
+      if (!configForm.title.trim()) {
+        return { section: 'general' as const, disclosure: 'identity' as const, fieldId: 'config-title', message: 'Escribe el nombre interno del evento.' }
+      }
+      if (!Number.isInteger(configForm.priceAmount) || configForm.priceAmount < 0) {
+        return { section: 'guests' as const, disclosure: 'payment' as const, fieldId: 'config-price-amount', message: 'La cuota debe ser un número entero de $0 MXN o más.' }
+      }
+      if (configForm.paymentRequired && (!configForm.priceEnabled || configForm.priceAmount <= 0)) {
+        return { section: 'guests' as const, disclosure: 'payment' as const, fieldId: 'config-price-amount', message: 'Para cobrar con Stripe, la cuota por persona debe ser mayor a $0 MXN.' }
+      }
+      if (configForm.capacityEnabled && (!Number.isInteger(configForm.capacityLimit) || configForm.capacityLimit < 1)) {
+        return { section: 'guests' as const, disclosure: 'capacity' as const, fieldId: 'config-capacity-limit', message: 'El límite de capacidad debe ser un número entero de al menos 1.' }
+      }
+      if (!configForm.rsvpButtonLabel.trim()) {
+        return { section: 'design' as const, disclosure: 'presentation' as const, fieldId: 'rsvpButtonLabel', message: 'Escribe el texto del botón RSVP.' }
+      }
+      if (configForm.rsvpButtonLabel.trim().length > 80) {
+        return { section: 'design' as const, disclosure: 'presentation' as const, fieldId: 'rsvpButtonLabel', message: 'El texto del botón RSVP no puede exceder 80 caracteres.' }
+      }
+      if (configForm.backgroundImageFit === 'contain' && !parseStrictHexColor(configForm.backgroundColor)) {
+        return { section: 'design' as const, disclosure: 'presentation' as const, fieldId: 'containBackgroundColor', message: 'Escribe un color de relleno HEX válido, por ejemplo #1a0033.' }
+      }
+      if (configForm.reminderEnabled && !configForm.reminderScheduledAt) {
+        return { section: 'messages' as const, disclosure: 'reminder' as const, fieldId: 'config-reminder-at', message: 'Selecciona fecha y hora para el recordatorio.' }
+      }
+      if (configForm.reminderEnabled && Number.isNaN(new Date(configForm.reminderScheduledAt).getTime())) {
+        return { section: 'messages' as const, disclosure: 'reminder' as const, fieldId: 'config-reminder-at', message: 'Selecciona una fecha y hora válidas para el recordatorio.' }
+      }
+      return null
+    })()
+
+    if (validationFailure) {
+      selectConfigSection(validationFailure.section)
+      setConfigValidationReveal(current => ({
+        id: validationFailure.disclosure,
+        nonce: current.nonce + 1,
+      }))
+      setMessage(`❌ ${validationFailure.message}`)
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => document.getElementById(validationFailure.fieldId)?.focus())
+      })
+      return
+    }
+
     setLoading(true)
     setMessage('')
 
@@ -1498,14 +1646,8 @@ export default function AdminDashboard() {
   // ISSUE-018: whole-event counter (unfiltered `rsvps`, same scope as
   // `stats` above) — only ever shown when the event's check-in portal is
   // enabled.
-  const checkinEnabled = checkinStatus?.enabled ?? false
+  const checkinEnabled = selectedCheckinStatus?.enabled ?? false
   const checkinArrivalCount = computeCheckinArrivalCount(rsvps)
-
-  // Permissions (per selected event)
-  const selectedEvent = events.find(e => e.slug === selectedEventId)
-  const accessRole = selectedEvent?.accessRole // 'manager' | 'viewer' | undefined
-  const canManageSelectedEvent = currentUser?.role === 'super_admin' || accessRole === 'manager'
-  const isReadOnly = !canManageSelectedEvent
 
   // Prevent navigating to tabs the user shouldn't access
   useEffect(() => {
@@ -1526,6 +1668,10 @@ export default function AdminDashboard() {
   if (!isAuthenticated) {
     return null
   }
+
+  const plusOneLockMessage = editingRsvp
+    ? plusOnePaymentLockMessage(editingRsvp.paymentStatus)
+    : null
 
   return (
     <AdminShell
@@ -1556,6 +1702,18 @@ export default function AdminDashboard() {
               </Button>
             )}
           </div>
+
+          {selectedEventId && (
+            <CheckinOverview
+              eventSlug={selectedEventId}
+              status={selectedCheckinStatus}
+              loading={selectedCheckinStatusLoading}
+              error={selectedCheckinStatusError || undefined}
+              arrived={checkinArrivalCount.arrived}
+              totalSeats={checkinArrivalCount.totalSeats}
+              onConfigure={canManageSelectedEvent ? () => openConfigSection('checkin') : undefined}
+            />
+          )}
 
           {/* H-008 FIX: Use extracted StatsCards component */}
           <StatsCards stats={stats} />
@@ -1730,720 +1888,684 @@ export default function AdminDashboard() {
       {/* Contenido de Configuración */}
       {activeTab === 'config' && canManageSelectedEvent && (
         <div className={`${styles.configContainer} ${styles.configPage}`}>
-          <div className={styles.configHeader}>
-            <p className={styles.configEyebrow}>Evento seleccionado</p>
-            <h2>⚙️ Configuración del Evento</h2>
-            <p className={styles.configDescription}>
-              Edita los detalles del evento. Los cambios se guardarán en la base de datos.
-            </p>
-          </div>
-
-          <ConfigNav />
-
-          <form className={styles.configForm} onSubmit={saveEventConfig}>
-            <div id="config-basic" className={styles.configSection}>
-              <h3 className={styles.configSectionTitle}>📝 Información Básica</h3>
-
-              <div className={styles.configFormGroup}>
-                <label className={styles.configLabel}>Nombre interno del evento *</label>
-                <input
-                  type="text"
-                  className={styles.configInput}
-                  value={configForm.title}
-                  onChange={(e) => setConfigForm({ ...configForm, title: e.target.value })}
-                  placeholder="Ej: Fiesta de Navidad 2024"
-                  required
-                />
-                <p className={styles.configHelper}>
-                  Este nombre se usa en emails, exportaciones y gestión admin.
+          <header className={styles.configHeader}>
+            <div className={styles.configHeaderMain}>
+              <div>
+                <p className={styles.configEyebrow}>Backstage runbook · {selectedEvent?.title || 'Evento seleccionado'}</p>
+                <h2>Configuración del evento</h2>
+                <p className={styles.configDescription}>
+                  Ajusta una etapa a la vez. Los cambios de check-in se aplican al momento; el resto se guarda con la barra inferior.
                 </p>
               </div>
-
-              <div className={styles.configFormGroup}>
-                <label className={styles.configLabel}>Título visible en la invitación (opcional)</label>
-                <input
-                  type="text"
-                  className={styles.configInput}
-                  value={configForm.displayTitle}
-                  onChange={(e) => setConfigForm({ ...configForm, displayTitle: e.target.value })}
-                  placeholder="Dejar vacío para NO mostrar título"
-                />
-                <p className={styles.configHelper}>
-                  Si lo dejas vacío, NO se mostrará ningún título en la invitación. Útil si la imagen de fondo ya tiene el título.
-                </p>
-              </div>
-
-              <div className={styles.configFormGroup}>
-                <label className={styles.configLabel}>Subtítulo (opcional)</label>
-                <input
-                  type="text"
-                  className={styles.configInput}
-                  value={configForm.subtitle}
-                  onChange={(e) => setConfigForm({ ...configForm, subtitle: e.target.value })}
-                />
-              </div>
-
-              <div className={styles.configFormRow}>
-                <div className={styles.configFormGroup}>
-                  <label className={styles.configLabel}>Fecha (opcional)</label>
-                  <input
-                    type="text"
-                    className={styles.configInput}
-                    value={configForm.date}
-                    onChange={(e) => setConfigForm({ ...configForm, date: e.target.value })}
-                    placeholder="Ej: Sábado 15 de Febrero"
-                  />
-                </div>
-
-                <div className={styles.configFormGroup}>
-                  <label className={styles.configLabel}>Hora (opcional)</label>
-                  <input
-                    type="text"
-                    className={styles.configInput}
-                    value={configForm.time}
-                    onChange={(e) => setConfigForm({ ...configForm, time: e.target.value })}
-                    placeholder="Ej: 7:00 PM"
-                  />
-                </div>
-              </div>
-
-              <div className={styles.configFormGroup}>
-                <label className={styles.configLabel}>Ubicación (opcional)</label>
-                <input
-                  type="text"
-                  className={styles.configInput}
-                  value={configForm.location}
-                  onChange={(e) => setConfigForm({ ...configForm, location: e.target.value })}
-                />
-              </div>
-
-              <div className={styles.configFormGroup}>
-                <label className={styles.configLabel}>Detalles adicionales (opcional)</label>
-                <textarea
-                  className={styles.configTextarea}
-                  value={configForm.details}
-                  onChange={(e) => setConfigForm({ ...configForm, details: e.target.value })}
-                  rows={4}
-                  placeholder="Descripción adicional del evento"
-                />
-              </div>
-            </div>
-
-            <div id="config-capacity" className={styles.configSection}>
-              <h3 className={styles.configSectionTitle}>💵 Precio</h3>
-
-              <div className={styles.configToggleGroup}>
-                <input
-                  type="checkbox"
-                  id="priceEnabled"
-                  className={styles.configCheckbox}
-                  checked={configForm.priceEnabled}
-                  onChange={(e) => setConfigForm({
-                    ...configForm,
-                    priceEnabled: e.target.checked,
-                    // ISSUE-010: turning off the price makes payment_required
-                    // invalid server-side too (lib/payment-config.ts) — clear
-                    // it client-side so the toggle below never renders
-                    // checked-but-disabled.
-                    paymentRequired: e.target.checked ? configForm.paymentRequired : false,
-                  })}
-                />
-                <label htmlFor="priceEnabled" className={styles.configToggleLabel}>
-                  Mostrar cuota de recuperación
-                </label>
-              </div>
-
-              {configForm.priceEnabled && (
-                <div className={styles.configFormGroup}>
-                  <label className={styles.configLabel}>Monto (MXN) *</label>
-                  <input
-                    type="number"
-                    className={styles.configInput}
-                    value={configForm.priceAmount}
-                    onChange={(e) => setConfigForm({
-                      ...configForm,
-                      priceAmount: parseInt(e.target.value) || 0,
-                      // Same auto-clear as disabling the price outright: a
-                      // $0 amount makes payment_required invalid too.
-                      paymentRequired: (parseInt(e.target.value) || 0) > 0 ? configForm.paymentRequired : false,
-                    })}
-                    min="0"
-                    required={configForm.priceEnabled}
-                  />
-                </div>
-              )}
-
-              {/* Requiere pago para confirmar (ISSUE-010) */}
-              <div className={styles.configToggleGroup} style={{ marginTop: '16px' }}>
-                <input
-                  type="checkbox"
-                  id="paymentRequired"
-                  className={styles.configCheckbox}
-                  checked={configForm.paymentRequired}
-                  disabled={!configForm.priceEnabled || !configForm.priceAmount}
-                  onChange={(e) => setConfigForm({ ...configForm, paymentRequired: e.target.checked })}
-                />
-                <label htmlFor="paymentRequired" className={styles.configToggleLabel}>
-                  💳 Requiere pago para confirmar
-                </label>
-              </div>
-              <p style={{ margin: '10px 0 0 28px', fontSize: '13px', color: '#64748b' }}>
-                {configForm.priceEnabled && configForm.priceAmount > 0
-                  ? `Se cobrará exactamente el precio mostrado ($${configForm.priceAmount} MXN) vía Stripe. Los links privados de invitación no pagan.`
-                  : 'Habilita y define una cuota de recuperación mayor a $0 para poder requerir pago.'}
-              </p>
-              {configForm.paymentRequired && !stripeConfigured && (
-                <p style={{ margin: '10px 0 0 28px', fontSize: '13px', color: '#b91c1c', fontWeight: 600 }}>
-                  ⚠️ Stripe no está configurado en este entorno (falta STRIPE_SECRET_KEY). Los cobros fallarán hasta configurarlo.
-                </p>
+              {selectedEventId && (
+                <a className={styles.configPreviewLink} href={`/${selectedEventId}`} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink size={16} />
+                  Previsualizar invitación
+                </a>
               )}
             </div>
+            <BackstageStatusStrip
+              rsvpClosed={configForm.rsvpClosed}
+              paymentRequired={configForm.paymentRequired}
+              priceAmount={configForm.priceAmount}
+              checkinStatus={selectedCheckinStatus}
+              checkinLoading={selectedCheckinStatusLoading}
+            />
+          </header>
 
-            <div className={styles.configSection}>
-              <h3 className={styles.configSectionTitle}>👥 Capacidad</h3>
+          <ConfigNav activeSection={activeConfigSection} onSectionChange={selectConfigSection} />
 
-              <div className={styles.configToggleGroup}>
-                <input
-                  type="checkbox"
-                  id="capacityEnabled"
-                  className={styles.configCheckbox}
-                  checked={configForm.capacityEnabled}
-                  onChange={(e) => setConfigForm({ ...configForm, capacityEnabled: e.target.checked })}
-                />
-                <label htmlFor="capacityEnabled" className={styles.configToggleLabel}>
-                  Limitar capacidad y mostrar cupo
-                </label>
-              </div>
-
-              {configForm.capacityEnabled && (
-                <div className={styles.configFormGroup}>
-                  <label className={styles.configLabel}>Límite de Personas *</label>
-                  <input
-                    type="number"
-                    className={styles.configInput}
-                    value={configForm.capacityLimit}
-                    onChange={(e) => setConfigForm({ ...configForm, capacityLimit: parseInt(e.target.value) || 0 })}
-                    min="1"
-                    required={configForm.capacityEnabled}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Plus-One Configuration */}
-            <div className={styles.configSection}>
-              <h3 className={styles.configSectionTitle}>👥 Acompañantes (+1)</h3>
-              <label className={styles.switchLabel}>
-                <input
-                  type="checkbox"
-                  className={styles.configCheckbox}
-                  checked={configForm.requirePlusOneName}
-                  onChange={(e) => setConfigForm({ ...configForm, requirePlusOneName: e.target.checked })}
-                />
-                <span>Requerir nombre del +1</span>
-              </label>
-              <p className={styles.configHelper}>
-                Si está activado, los invitados que marquen +1 deberán proporcionar el nombre de su acompañante.
-                Los nombres aparecerán en la lista de invitados y en las exportaciones (PDF/Excel).
-              </p>
-            </div>
-
-            {/* RSVP Closed Configuration */}
-            <div className={styles.configSection}>
-              <h3 className={styles.configSectionTitle}>🔒 Cerrar RSVP</h3>
-              <label className={styles.switchLabel}>
-                <input
-                  type="checkbox"
-                  className={styles.configCheckbox}
-                  checked={configForm.rsvpClosed}
-                  onChange={(e) => setConfigForm({ ...configForm, rsvpClosed: e.target.checked })}
-                />
-                <span>Cerrar periodo de RSVP</span>
-              </label>
-              <p className={styles.configHelper}>
-                Cuando está activado, la página pública del evento mostrará un mensaje en lugar del formulario de RSVP.
-              </p>
-              
-              {configForm.rsvpClosed && (
-                <div className={styles.configFormGroup}>
-                  <label className={styles.configLabel}>Mensaje cuando está cerrado</label>
-                  <input
-                    type="text"
-                    className={styles.configInput}
-                    value={configForm.rsvpClosedMessage}
-                    onChange={(e) => setConfigForm({ ...configForm, rsvpClosedMessage: e.target.value })}
-                    placeholder="¡Nos vemos en el próximo evento!"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div id="config-presentation" className={styles.configAnchor}>
-              <EventPresentationSettings
-                value={{
-                  presentationMode: configForm.presentationMode,
-                  rsvpTitle: configForm.rsvpTitle,
-                  rsvpButtonLabel: configForm.rsvpButtonLabel,
-                  backgroundOverlayStrength: configForm.backgroundOverlayStrength,
-                  backgroundImageFit: configForm.backgroundImageFit,
-                  backgroundImagePosition: configForm.backgroundImagePosition,
-                }}
-                onChange={(presentation) => setConfigForm(current => ({ ...current, ...presentation }))}
-                backgroundColor={configForm.backgroundColor}
-                backgroundImageUrl={configForm.backgroundImage}
-                onBackgroundColorChange={(backgroundColor) => (
-                  setConfigForm(current => ({ ...current, backgroundColor }))
-                )}
-              />
-            </div>
-
-            <div id="config-images" className={styles.configSection}>
-              <h3 className={styles.configSectionTitle}>🖼️ Imagen de Fondo</h3>
-
-              {/* Tabs para seleccionar método */}
-              <div className={styles.imageMethodTabs}>
-                <button
-                  type="button"
-                  className={`${styles.imageMethodTab} ${imageMethod === 'url' ? styles.imageMethodTabActive : ''}`}
-                  onClick={() => setImageMethod('url')}
+          <form className={styles.configForm} onSubmit={saveEventConfig} noValidate>
+              {activeConfigSection === 'checkin' && (
+                <div
+                  id="config-panel-checkin"
+                  className={styles.configTabPanel}
+                  role="tabpanel"
+                  aria-labelledby="config-tab-checkin"
+                  tabIndex={0}
                 >
-                  🔗 URL
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.imageMethodTab} ${imageMethod === 'upload' ? styles.imageMethodTabActive : ''}`}
-                  onClick={() => setImageMethod('upload')}
-                >
-                  📤 Subir Archivo
-                </button>
-              </div>
-
-              {/* Método: URL */}
-              {imageMethod === 'url' && (
-                <div className={styles.configFormGroup}>
-                  <label className={styles.configLabel}>URL de la Imagen</label>
-                  <input
-                    type="text"
-                    className={styles.configInput}
-                    value={configForm.backgroundImage}
-                    onChange={(e) => setConfigForm({ ...configForm, backgroundImage: e.target.value })}
-                    placeholder="/background.png o https://ejemplo.com/imagen.jpg"
-                  />
-                  <p className={styles.configHelper}>
-                    💡 Tip: Pega una URL de imagen externa o una ruta relativa
-                  </p>
+                  {selectedEventId && (
+                    <div className={styles.configSection}>
+                      <CheckinSettings
+                        eventSlug={selectedEventId}
+                        status={selectedCheckinStatus}
+                        loadingStatus={selectedCheckinStatusLoading}
+                        loadError={selectedCheckinStatusError || undefined}
+                        onStatusChange={handleCheckinStatusChange}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Método: Subir archivo */}
-              {imageMethod === 'upload' && (
-                <div className={styles.configFormGroup}>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    className={styles.hiddenFileInput}
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    onChange={handleFileChange}
-                  />
-                  <div
-                    className={`${styles.uploadZone} ${isUploading ? styles.uploadZoneActive : ''}`}
-                    onClick={() => fileInputRef.current?.click()}
+              {activeConfigSection === 'general' && (
+                <div
+                  id="config-panel-general"
+                  className={styles.configTabPanel}
+                  role="tabpanel"
+                  aria-labelledby="config-tab-general"
+                  tabIndex={0}
+                >
+                  <SettingsDisclosure
+                    title="Identidad del evento"
+                    summary={configForm.displayTitle || configForm.title || 'Sin título visible'}
+                    defaultOpen
+                    revealKey={configValidationReveal.id === 'identity' ? configValidationReveal.nonce : 0}
                   >
-                    <div className={styles.uploadZoneIcon}>📷</div>
-                    <p className={styles.uploadZoneText}>
-                      {isUploading ? 'Subiendo imagen...' : 'Haz clic o arrastra una imagen aquí'}
-                    </p>
-                    <p className={styles.uploadZoneHint}>
-                      Formatos: JPG, PNG, WebP, GIF • Máximo 10MB
-                    </p>
-                  </div>
+                    <div className={styles.configFields}>
+                      <div className={styles.configFormGroup}>
+                        <label className={styles.configLabel} htmlFor="config-title">Nombre interno del evento *</label>
+                        <input
+                          id="config-title"
+                          name="title"
+                          type="text"
+                          className={styles.configInput}
+                          value={configForm.title}
+                          onChange={(event) => setConfigForm({ ...configForm, title: event.target.value })}
+                          placeholder="Ej. Fiesta de Navidad 2026"
+                          autoComplete="off"
+                          required
+                        />
+                        <p className={styles.configHelper}>Se usa en emails, exportaciones y administración.</p>
+                      </div>
 
-                  {isUploading && (
-                    <div className={styles.uploadProgress}>
-                      <div className={styles.uploadProgressSpinner}></div>
-                      <p className={styles.uploadProgressText}>Subiendo imagen...</p>
+                      <div className={styles.configFormGroup}>
+                        <label className={styles.configLabel} htmlFor="config-display-title">Título visible en la invitación</label>
+                        <input
+                          id="config-display-title"
+                          name="displayTitle"
+                          type="text"
+                          className={styles.configInput}
+                          value={configForm.displayTitle}
+                          onChange={(event) => setConfigForm({ ...configForm, displayTitle: event.target.value })}
+                          placeholder="Déjalo vacío para ocultar el título"
+                          autoComplete="off"
+                        />
+                        <p className={styles.configHelper}>Útil cuando la imagen de fondo ya contiene el título.</p>
+                      </div>
+
+                      <div className={styles.configFormGroup}>
+                        <label className={styles.configLabel} htmlFor="config-subtitle">Subtítulo</label>
+                        <input
+                          id="config-subtitle"
+                          name="subtitle"
+                          type="text"
+                          className={styles.configInput}
+                          value={configForm.subtitle}
+                          onChange={(event) => setConfigForm({ ...configForm, subtitle: event.target.value })}
+                          autoComplete="off"
+                        />
+                      </div>
                     </div>
-                  )}
+                  </SettingsDisclosure>
 
-                  {uploadError && (
-                    <div className={styles.uploadError}>
-                      ❌ {uploadError}
-                    </div>
-                  )}
-                </div>
-              )}
-
-            </div>
-
-            {/* OG IMAGE SECTION - For social media previews */}
-            <div className={styles.configSection}>
-              <h3 className={styles.configSectionTitle}>📱 Imagen para Redes Sociales (OG Image)</h3>
-              <p className={styles.configHelper} style={{ marginBottom: '15px' }}>
-                Esta imagen aparece cuando compartes el evento en WhatsApp, Facebook o Twitter.
-                <br />
-                <strong>⚠️ Dimensiones requeridas: 1200 x 630 píxeles (horizontal)</strong>
-              </p>
-
-              {/* Tabs para seleccionar método */}
-              <div className={styles.imageMethodTabs}>
-                <button
-                  type="button"
-                  className={`${styles.imageMethodTab} ${ogImageMethod === 'url' ? styles.imageMethodTabActive : ''}`}
-                  onClick={() => setOgImageMethod('url')}
-                >
-                  🔗 URL
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.imageMethodTab} ${ogImageMethod === 'upload' ? styles.imageMethodTabActive : ''}`}
-                  onClick={() => setOgImageMethod('upload')}
-                >
-                  📤 Subir Archivo
-                </button>
-              </div>
-
-              {/* Método: URL */}
-              {ogImageMethod === 'url' && (
-                <div className={styles.configFormGroup}>
-                  <label className={styles.configLabel}>URL de la Imagen OG</label>
-                  <input
-                    type="text"
-                    className={styles.configInput}
-                    value={configForm.ogImage}
-                    onChange={(e) => setConfigForm({ ...configForm, ogImage: e.target.value })}
-                    placeholder="https://ejemplo.com/og-imagen-1200x630.jpg"
-                  />
-                  <p className={styles.configHelper}>
-                    💡 Usa una imagen horizontal de 1200x630px para mejor visualización en redes sociales.
-                  </p>
-                </div>
-              )}
-
-              {/* Método: Subir archivo */}
-              {ogImageMethod === 'upload' && (
-                <div className={styles.configFormGroup}>
-                  <input
-                    type="file"
-                    ref={ogFileInputRef}
-                    className={styles.hiddenFileInput}
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={handleOgFileChange}
-                  />
-                  <div
-                    className={`${styles.uploadZone} ${isUploadingOg ? styles.uploadZoneActive : ''}`}
-                    onClick={() => ogFileInputRef.current?.click()}
+                  <SettingsDisclosure
+                    title="Fecha y lugar"
+                    summary={[configForm.date, configForm.time, configForm.location].filter(Boolean).join(' · ') || 'Sin logística pública'}
+                    defaultOpen
                   >
-                    <div className={styles.uploadZoneIcon}>📷</div>
-                    <p className={styles.uploadZoneText}>
-                      {isUploadingOg ? 'Subiendo imagen OG...' : 'Haz clic o arrastra una imagen aquí'}
-                    </p>
-                    <p className={styles.uploadZoneHint}>
-                      Formatos: JPG, PNG, WebP • <strong>1200 x 630 px</strong> • Máximo 10MB
-                    </p>
-                  </div>
+                    <div className={styles.configFields}>
+                      <div className={styles.configFormRow}>
+                        <div className={styles.configFormGroup}>
+                          <label className={styles.configLabel} htmlFor="config-date">Fecha</label>
+                          <input
+                            id="config-date"
+                            name="date"
+                            type="text"
+                            className={styles.configInput}
+                            value={configForm.date}
+                            onChange={(event) => setConfigForm({ ...configForm, date: event.target.value })}
+                            placeholder="Ej. Sábado 15 de febrero"
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div className={styles.configFormGroup}>
+                          <label className={styles.configLabel} htmlFor="config-time">Hora</label>
+                          <input
+                            id="config-time"
+                            name="time"
+                            type="text"
+                            className={styles.configInput}
+                            value={configForm.time}
+                            onChange={(event) => setConfigForm({ ...configForm, time: event.target.value })}
+                            placeholder="Ej. 7:00 PM"
+                            autoComplete="off"
+                          />
+                        </div>
+                      </div>
 
-                  {isUploadingOg && (
-                    <div className={styles.uploadProgress}>
-                      <div className={styles.uploadProgressSpinner}></div>
-                      <p className={styles.uploadProgressText}>Subiendo imagen OG...</p>
-                    </div>
-                  )}
+                      <div className={styles.configFormGroup}>
+                        <label className={styles.configLabel} htmlFor="config-location">Ubicación</label>
+                        <input
+                          id="config-location"
+                          name="location"
+                          type="text"
+                          className={styles.configInput}
+                          value={configForm.location}
+                          onChange={(event) => setConfigForm({ ...configForm, location: event.target.value })}
+                          autoComplete="off"
+                        />
+                      </div>
 
-                  {uploadErrorOg && (
-                    <div className={styles.uploadError}>
-                      ❌ {uploadErrorOg}
+                      <div className={styles.configFormGroup}>
+                        <label className={styles.configLabel} htmlFor="config-details">Detalles adicionales</label>
+                        <textarea
+                          id="config-details"
+                          name="details"
+                          className={styles.configTextarea}
+                          value={configForm.details}
+                          onChange={(event) => setConfigForm({ ...configForm, details: event.target.value })}
+                          rows={4}
+                          placeholder="Descripción adicional del evento"
+                        />
+                      </div>
                     </div>
-                  )}
+                  </SettingsDisclosure>
                 </div>
               )}
 
-              {/* Vista previa (para ambos métodos) */}
-              {configForm.ogImage && (
-                <ImagePreview
-                  src={configForm.ogImage}
-                  alt="OG Preview"
-                  aspectRatio="1200/630"
-                  dimensionsLabel="1200 x 630"
-                />
-              )}
-
-              <p className={styles.configHelper} style={{ marginTop: '10px', fontStyle: 'italic' }}>
-                Si está vacío, se usará la imagen de fondo (si es horizontal) o un fallback generado.
-              </p>
-            </div>
-
-            <div id="config-colors" className={styles.configSection}>
-              <h3 className={styles.configSectionTitle}>🎨 Colores del Tema</h3>
-              <p className={styles.configHelper} style={{ marginBottom: '15px' }}>
-                Personaliza los colores de la página de tu evento
-              </p>
-
-              <div className={styles.configColorGrid}>
-                <div className={styles.configFormGroup}>
-                  <label className={styles.configLabel}>Color Primario (Título)</label>
-                  <div className={styles.configColorControl}>
-                    <input
-                      type="color"
-                      value={configForm.primaryColor}
-                      onChange={(e) => setConfigForm({ ...configForm, primaryColor: e.target.value })}
-                      style={{ width: '60px', height: '40px', border: 'none', cursor: 'pointer' }}
-                    />
-                    <input
-                      type="text"
-                      className={styles.configInput}
-                      value={configForm.primaryColor}
-                      onChange={(e) => setConfigForm({ ...configForm, primaryColor: e.target.value })}
-                      style={{ flex: 1 }}
-                    />
-                  </div>
-                </div>
-
-                <div className={styles.configFormGroup}>
-                  <label className={styles.configLabel}>Color Secundario (Subtítulo)</label>
-                  <div className={styles.configColorControl}>
-                    <input
-                      type="color"
-                      value={configForm.secondaryColor}
-                      onChange={(e) => setConfigForm({ ...configForm, secondaryColor: e.target.value })}
-                      style={{ width: '60px', height: '40px', border: 'none', cursor: 'pointer' }}
-                    />
-                    <input
-                      type="text"
-                      className={styles.configInput}
-                      value={configForm.secondaryColor}
-                      onChange={(e) => setConfigForm({ ...configForm, secondaryColor: e.target.value })}
-                      style={{ flex: 1 }}
-                    />
-                  </div>
-                </div>
-
-                <div className={styles.configFormGroup}>
-                  <label className={styles.configLabel}>Color Acento (RSVP)</label>
-                  <div className={styles.configColorControl}>
-                    <input
-                      type="color"
-                      value={configForm.accentColor}
-                      onChange={(e) => setConfigForm({ ...configForm, accentColor: e.target.value })}
-                      style={{ width: '60px', height: '40px', border: 'none', cursor: 'pointer' }}
-                    />
-                    <input
-                      type="text"
-                      className={styles.configInput}
-                      value={configForm.accentColor}
-                      onChange={(e) => setConfigForm({ ...configForm, accentColor: e.target.value })}
-                      style={{ flex: 1 }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Preview de colores */}
-              <div style={{ marginTop: '20px', padding: '20px', background: '#1a0033', borderRadius: '10px' }}>
-                <p style={{ color: 'white', marginBottom: '10px', fontSize: '14px' }}>Vista previa:</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-                  <span style={{ color: configForm.primaryColor, fontSize: '24px', fontWeight: 'bold', textShadow: `0 0 10px ${configForm.primaryColor}` }}>
-                    TÍTULO
-                  </span>
-                  <span style={{ color: configForm.secondaryColor, fontSize: '18px', textShadow: `0 0 10px ${configForm.secondaryColor}` }}>
-                    Subtítulo
-                  </span>
-                  <button
-                    type="button"
-                    style={{
-                      background: `linear-gradient(135deg, ${configForm.primaryColor}, ${configForm.secondaryColor})`,
-                      color: 'white',
-                      padding: '10px 20px',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontWeight: 'bold',
-                      cursor: 'default'
-                    }}
+              {activeConfigSection === 'guests' && (
+                <div
+                  id="config-panel-guests"
+                  className={styles.configTabPanel}
+                  role="tabpanel"
+                  aria-labelledby="config-tab-guests"
+                  tabIndex={0}
+                >
+                  <SettingsDisclosure
+                    title="Cuota y cobro"
+                    summary={configForm.paymentRequired
+                      ? `$${configForm.priceAmount} MXN por persona · cobro requerido`
+                      : configForm.priceEnabled ? `$${configForm.priceAmount} MXN informativos` : 'Sin cuota'}
+                    defaultOpen
+                    tone={configForm.paymentRequired ? 'warning' : 'default'}
+                    revealKey={configValidationReveal.id === 'payment' ? configValidationReveal.nonce : 0}
                   >
-                    CONFIRMAR
-                  </button>
-                  <span style={{ color: configForm.accentColor, fontWeight: 'bold' }}>
-                    RSVP INDISPENSABLE
-                  </span>
+                    <div className={styles.configFields}>
+                      <div className={styles.configToggleGroup}>
+                        <input
+                          type="checkbox"
+                          id="priceEnabled"
+                          className={styles.configCheckbox}
+                          checked={configForm.priceEnabled}
+                          onChange={(event) => setConfigForm({
+                            ...configForm,
+                            priceEnabled: event.target.checked,
+                            paymentRequired: event.target.checked ? configForm.paymentRequired : false,
+                          })}
+                        />
+                        <label htmlFor="priceEnabled" className={styles.configToggleLabel}>Mostrar cuota de recuperación</label>
+                      </div>
+
+                      {configForm.priceEnabled && (
+                        <div className={styles.configFormGroup}>
+                          <label className={styles.configLabel} htmlFor="config-price-amount">Monto por persona (MXN) *</label>
+                          <input
+                            id="config-price-amount"
+                            name="priceAmount"
+                            type="number"
+                            inputMode="numeric"
+                            className={styles.configInput}
+                            value={configForm.priceAmount}
+                            onChange={(event) => {
+                              const priceAmount = event.target.value === '' ? 0 : Number(event.target.value)
+                              setConfigForm({
+                                ...configForm,
+                                priceAmount,
+                                paymentRequired: Number.isInteger(priceAmount) && priceAmount > 0
+                                  ? configForm.paymentRequired
+                                  : false,
+                              })
+                            }}
+                            min="0"
+                            step="1"
+                            required={configForm.priceEnabled}
+                          />
+                        </div>
+                      )}
+
+                      <div className={styles.configToggleGroup}>
+                        <input
+                          type="checkbox"
+                          id="paymentRequired"
+                          className={styles.configCheckbox}
+                          checked={configForm.paymentRequired}
+                          disabled={!configForm.priceEnabled || !configForm.priceAmount}
+                          onChange={(event) => setConfigForm({ ...configForm, paymentRequired: event.target.checked })}
+                        />
+                        <label htmlFor="paymentRequired" className={styles.configToggleLabel}>Requerir pago para confirmar</label>
+                      </div>
+                      <p className={styles.configCallout} data-tone="payment">
+                        {configForm.paymentRequired
+                          ? `Stripe cobra $${configForm.priceAmount} MXN por persona. Si el invitado registra +1, paga 2 cuotas. Los links privados sin cortesía siguen la misma regla; los links de cortesía no pagan.`
+                          : configForm.priceEnabled && configForm.priceAmount > 0
+                            ? `La invitación mostrará una cuota de $${configForm.priceAmount} MXN por persona, pero no abrirá Checkout ni cobrará el +1.`
+                            : 'Habilita una cuota mayor a $0 para poder requerir pago.'}
+                      </p>
+                      {configForm.paymentRequired && !stripeConfigured && (
+                        <p className={styles.configCallout} data-tone="danger" role="alert">
+                          Stripe no está configurado en este entorno. Los cobros fallarán hasta agregar STRIPE_SECRET_KEY.
+                        </p>
+                      )}
+                    </div>
+                  </SettingsDisclosure>
+
+                  <SettingsDisclosure
+                    title="Capacidad"
+                    summary={configForm.capacityEnabled ? `${configForm.capacityLimit} lugares disponibles` : 'Sin límite visible'}
+                    defaultOpen
+                    revealKey={configValidationReveal.id === 'capacity' ? configValidationReveal.nonce : 0}
+                  >
+                    <div className={styles.configFields}>
+                      <div className={styles.configToggleGroup}>
+                        <input
+                          type="checkbox"
+                          id="capacityEnabled"
+                          className={styles.configCheckbox}
+                          checked={configForm.capacityEnabled}
+                          onChange={(event) => setConfigForm({ ...configForm, capacityEnabled: event.target.checked })}
+                        />
+                        <label htmlFor="capacityEnabled" className={styles.configToggleLabel}>Limitar capacidad y mostrar cupo</label>
+                      </div>
+                      {configForm.capacityEnabled && (
+                        <div className={styles.configFormGroup}>
+                          <label className={styles.configLabel} htmlFor="config-capacity-limit">Límite de personas *</label>
+                          <input
+                            id="config-capacity-limit"
+                            name="capacityLimit"
+                            type="number"
+                            inputMode="numeric"
+                            className={styles.configInput}
+                            value={configForm.capacityLimit}
+                            onChange={(event) => setConfigForm({
+                              ...configForm,
+                              capacityLimit: event.target.value === '' ? 0 : Number(event.target.value),
+                            })}
+                            min="1"
+                            step="1"
+                            required={configForm.capacityEnabled}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </SettingsDisclosure>
+
+                  <SettingsDisclosure
+                    title="Acompañantes (+1)"
+                    summary={configForm.requirePlusOneName ? 'Nombre del acompañante requerido' : 'Nombre opcional'}
+                  >
+                    <div className={styles.configFields}>
+                      <label className={styles.switchLabel}>
+                        <input
+                          type="checkbox"
+                          className={styles.configCheckbox}
+                          checked={configForm.requirePlusOneName}
+                          onChange={(event) => setConfigForm({ ...configForm, requirePlusOneName: event.target.checked })}
+                        />
+                        <span>Requerir nombre del +1</span>
+                      </label>
+                      <p className={styles.configHelper}>
+                        Los nombres aparecerán en la lista de invitados y en las exportaciones PDF y Excel.
+                      </p>
+                    </div>
+                  </SettingsDisclosure>
+
+                  <SettingsDisclosure
+                    title="Disponibilidad del RSVP"
+                    summary={configForm.rsvpClosed ? 'Registro cerrado' : 'Registro abierto'}
+                    tone={configForm.rsvpClosed ? 'warning' : 'success'}
+                  >
+                    <div className={styles.configFields}>
+                      <label className={styles.switchLabel}>
+                        <input
+                          type="checkbox"
+                          className={styles.configCheckbox}
+                          checked={configForm.rsvpClosed}
+                          onChange={(event) => setConfigForm({ ...configForm, rsvpClosed: event.target.checked })}
+                        />
+                        <span>Cerrar periodo de RSVP</span>
+                      </label>
+                      <p className={styles.configHelper}>
+                        La página pública mostrará un mensaje en lugar del formulario de registro.
+                      </p>
+                      {configForm.rsvpClosed && (
+                        <div className={styles.configFormGroup}>
+                          <label className={styles.configLabel} htmlFor="config-rsvp-closed-message">Mensaje cuando está cerrado</label>
+                          <input
+                            id="config-rsvp-closed-message"
+                            name="rsvpClosedMessage"
+                            type="text"
+                            className={styles.configInput}
+                            value={configForm.rsvpClosedMessage}
+                            onChange={(event) => setConfigForm({ ...configForm, rsvpClosedMessage: event.target.value })}
+                            placeholder="¡Nos vemos en el próximo evento!"
+                            autoComplete="off"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </SettingsDisclosure>
                 </div>
-              </div>
-            </div>
+              )}
 
-            {/* Configuración de Emails */}
-            <div id="config-email" className={styles.configSection}>
-              <h3 className={styles.configSectionTitle}>📧 Configuración de Emails</h3>
-              <p className={styles.configHelper} style={{ marginBottom: '20px' }}>
-                Configura el envío automático de emails para este evento
-              </p>
-
-              {/* Email de Confirmación Automática */}
-              <div style={{
-                padding: '20px',
-                background: '#f8fafc',
-                borderRadius: '12px',
-                marginBottom: '20px',
-                border: '1px solid #e2e8f0'
-              }}>
-                <div className={styles.configToggleGroup}>
-                  <input
-                    type="checkbox"
-                    id="emailConfirmationEnabled"
-                    className={styles.configCheckbox}
-                    checked={configForm.emailConfirmationEnabled}
-                    onChange={(e) => setConfigForm({ ...configForm, emailConfirmationEnabled: e.target.checked })}
-                  />
-                  <label htmlFor="emailConfirmationEnabled" className={styles.configToggleLabel} style={{ fontWeight: '600' }}>
-                    ✉️ Enviar email de confirmación automático
-                  </label>
-                </div>
-                <p style={{ margin: '10px 0 0 28px', fontSize: '13px', color: '#64748b' }}>
-                  {configForm.emailConfirmationEnabled
-                    ? '✅ Se enviará un email automáticamente cuando alguien confirme su asistencia'
-                    : '⏸️ Los emails de confirmación se enviarán manualmente desde el dashboard'}
-                </p>
-              </div>
-
-              {/* Verificación por email (ISSUE-008) */}
-              <div style={{
-                padding: '20px',
-                background: '#f8fafc',
-                borderRadius: '12px',
-                marginBottom: '20px',
-                border: '1px solid #e2e8f0'
-              }}>
-                <div className={styles.configToggleGroup}>
-                  <input
-                    type="checkbox"
-                    id="emailVerificationEnabled"
-                    className={styles.configCheckbox}
-                    checked={configForm.emailVerificationEnabled}
-                    onChange={(e) => setConfigForm({ ...configForm, emailVerificationEnabled: e.target.checked })}
-                  />
-                  <label htmlFor="emailVerificationEnabled" className={styles.configToggleLabel} style={{ fontWeight: '600' }}>
-                    📬 Verificación por email
-                  </label>
-                </div>
-                <p style={{ margin: '10px 0 0 28px', fontSize: '13px', color: '#64748b' }}>
-                  El invitado debe confirmar su correo para quedar registrado. Los links privados de
-                  invitación no lo requieren. En eventos de pago se ignora: el pago verifica el correo.
-                </p>
-              </div>
-
-              {/* Recordatorio Programado */}
-              <div style={{
-                padding: '20px',
-                background: configForm.reminderEnabled ? '#f0fdf4' : '#f8fafc',
-                borderRadius: '12px',
-                border: `1px solid ${configForm.reminderEnabled ? '#86efac' : '#e2e8f0'}`,
-                transition: 'all 0.3s ease'
-              }}>
-                <div className={styles.configToggleGroup}>
-                  <input
-                    type="checkbox"
-                    id="reminderEnabled"
-                    className={styles.configCheckbox}
-                    checked={configForm.reminderEnabled}
-                    onChange={(e) => setConfigForm({
-                      ...configForm,
-                      reminderEnabled: e.target.checked,
-                      // Clear date if disabling
-                      reminderScheduledAt: e.target.checked ? configForm.reminderScheduledAt : ''
-                    })}
-                  />
-                  <label htmlFor="reminderEnabled" className={styles.configToggleLabel} style={{ fontWeight: '600' }}>
-                    🔔 Programar recordatorio automático
-                  </label>
-                </div>
-
-                {configForm.reminderEnabled && (
-                  <div style={{ marginTop: '15px', marginLeft: '28px' }}>
-                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
-                      Fecha y hora del recordatorio:
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={configForm.reminderScheduledAt}
-                      onChange={(e) => setConfigForm({ ...configForm, reminderScheduledAt: e.target.value })}
-                      style={{
-                        padding: '10px 14px',
-                        borderRadius: '8px',
-                        border: '1px solid #d1d5db',
-                        fontSize: '14px',
-                        width: '100%',
-                        maxWidth: '300px'
+              {activeConfigSection === 'design' && (
+                <div
+                  id="config-panel-design"
+                  className={styles.configTabPanel}
+                  role="tabpanel"
+                  aria-labelledby="config-tab-design"
+                  tabIndex={0}
+                >
+                  <SettingsDisclosure
+                    title="Presentación pública"
+                    summary={`${configForm.presentationMode === 'artwork_only' ? 'Solo imagen + RSVP' : configForm.presentationMode === 'modern_details' ? 'Moderna con información' : 'Clásica'} · ${configForm.backgroundImageFit === 'contain' ? 'imagen completa' : 'cubrir pantalla'}`}
+                    defaultOpen
+                    revealKey={configValidationReveal.id === 'presentation' ? configValidationReveal.nonce : 0}
+                  >
+                    <EventPresentationSettings
+                      value={{
+                        presentationMode: configForm.presentationMode,
+                        rsvpTitle: configForm.rsvpTitle,
+                        rsvpButtonLabel: configForm.rsvpButtonLabel,
+                        backgroundOverlayStrength: configForm.backgroundOverlayStrength,
+                        backgroundImageFit: configForm.backgroundImageFit,
+                        backgroundImagePosition: configForm.backgroundImagePosition,
                       }}
-                      required={configForm.reminderEnabled}
+                      onChange={(presentation) => setConfigForm(current => ({ ...current, ...presentation }))}
+                      backgroundColor={configForm.backgroundColor}
+                      backgroundImageUrl={configForm.backgroundImage}
+                      onBackgroundColorChange={(backgroundColor) => setConfigForm(current => ({ ...current, backgroundColor }))}
                     />
-                    <p style={{ marginTop: '8px', fontSize: '13px', color: '#64748b' }}>
-                      💡 El recordatorio se enviará automáticamente a todos los confirmados en la fecha programada
-                    </p>
-                  </div>
-                )}
+                  </SettingsDisclosure>
 
-                {/* Estado del recordatorio */}
-                {configForm.reminderSentAt && (
-                  <div style={{
-                    marginTop: '15px',
-                    marginLeft: '28px',
-                    padding: '12px 16px',
-                    background: '#dcfce7',
-                    borderRadius: '8px',
-                    border: '1px solid #86efac'
-                  }}>
-                    <p style={{ margin: 0, fontSize: '14px', color: '#166534', fontWeight: '500' }}>
-                      ✅ Recordatorio enviado el {new Date(configForm.reminderSentAt).toLocaleDateString('es-MX', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                  </div>
-                )}
+                  <SettingsDisclosure
+                    title="Imagen de fondo"
+                    summary={configForm.backgroundImage ? 'Imagen configurada' : 'Sin imagen'}
+                  >
+                    <div className={styles.configFields}>
+                      <div className={styles.imageMethodTabs} aria-label="Origen de la imagen de fondo">
+                        <button
+                          type="button"
+                          aria-pressed={imageMethod === 'url'}
+                          className={`${styles.imageMethodTab} ${imageMethod === 'url' ? styles.imageMethodTabActive : ''}`}
+                          onClick={() => setImageMethod('url')}
+                        >
+                          Usar URL
+                        </button>
+                        <button
+                          type="button"
+                          aria-pressed={imageMethod === 'upload'}
+                          className={`${styles.imageMethodTab} ${imageMethod === 'upload' ? styles.imageMethodTabActive : ''}`}
+                          onClick={() => setImageMethod('upload')}
+                        >
+                          Subir archivo
+                        </button>
+                      </div>
+                      {imageMethod === 'url' ? (
+                        <div className={styles.configFormGroup}>
+                          <label className={styles.configLabel} htmlFor="config-background-image">URL de la imagen</label>
+                          <input
+                            id="config-background-image"
+                            name="backgroundImage"
+                            type="url"
+                            className={styles.configInput}
+                            value={configForm.backgroundImage}
+                            onChange={(event) => setConfigForm({ ...configForm, backgroundImage: event.target.value })}
+                            placeholder="/background.png o https://ejemplo.com/imagen.jpg"
+                            autoComplete="off"
+                          />
+                          <p className={styles.configHelper}>Pega una URL externa o una ruta relativa del proyecto.</p>
+                        </div>
+                      ) : (
+                        <div className={styles.configFormGroup}>
+                          <input
+                            id="config-background-file"
+                            name="backgroundFile"
+                            type="file"
+                            ref={fileInputRef}
+                            className={styles.hiddenFileInput}
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            onChange={handleFileChange}
+                          />
+                          <label
+                            htmlFor="config-background-file"
+                            className={`${styles.uploadZone} ${isUploading ? styles.uploadZoneActive : ''}`}
+                          >
+                            <span className={styles.uploadZoneIcon} aria-hidden="true">▧</span>
+                            <span className={styles.uploadZoneText}>{isUploading ? 'Subiendo imagen…' : 'Seleccionar imagen de fondo'}</span>
+                            <span className={styles.uploadZoneHint}>JPG, PNG, WebP o GIF · máximo 10 MB</span>
+                          </label>
+                          {isUploading && <p className={styles.uploadProgressText} role="status">Subiendo imagen…</p>}
+                          {uploadError && <p className={styles.uploadError} role="alert">{uploadError}</p>}
+                        </div>
+                      )}
+                    </div>
+                  </SettingsDisclosure>
 
-                {!configForm.reminderEnabled && (
-                  <p style={{ margin: '10px 0 0 28px', fontSize: '13px', color: '#64748b' }}>
-                    ⏸️ No hay recordatorio programado para este evento
-                  </p>
-                )}
-              </div>
+                  <SettingsDisclosure
+                    title="Imagen para compartir"
+                    summary={configForm.ogImage ? 'OG 1200 × 630 configurada' : 'Usará el respaldo automático'}
+                  >
+                    <div className={styles.configFields}>
+                      <p className={styles.configHelper}>Aparece al compartir en WhatsApp, Facebook y otras redes. Recomendado: 1200 × 630 px.</p>
+                      <div className={styles.imageMethodTabs} aria-label="Origen de la imagen para compartir">
+                        <button
+                          type="button"
+                          aria-pressed={ogImageMethod === 'url'}
+                          className={`${styles.imageMethodTab} ${ogImageMethod === 'url' ? styles.imageMethodTabActive : ''}`}
+                          onClick={() => setOgImageMethod('url')}
+                        >
+                          Usar URL
+                        </button>
+                        <button
+                          type="button"
+                          aria-pressed={ogImageMethod === 'upload'}
+                          className={`${styles.imageMethodTab} ${ogImageMethod === 'upload' ? styles.imageMethodTabActive : ''}`}
+                          onClick={() => setOgImageMethod('upload')}
+                        >
+                          Subir archivo
+                        </button>
+                      </div>
+                      {ogImageMethod === 'url' ? (
+                        <div className={styles.configFormGroup}>
+                          <label className={styles.configLabel} htmlFor="config-og-image">URL de la imagen para compartir</label>
+                          <input
+                            id="config-og-image"
+                            name="ogImage"
+                            type="url"
+                            className={styles.configInput}
+                            value={configForm.ogImage}
+                            onChange={(event) => setConfigForm({ ...configForm, ogImage: event.target.value })}
+                            placeholder="https://ejemplo.com/imagen-1200x630.jpg"
+                            autoComplete="off"
+                          />
+                        </div>
+                      ) : (
+                        <div className={styles.configFormGroup}>
+                          <input
+                            id="config-og-file"
+                            name="ogFile"
+                            type="file"
+                            ref={ogFileInputRef}
+                            className={styles.hiddenFileInput}
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={handleOgFileChange}
+                          />
+                          <label
+                            htmlFor="config-og-file"
+                            className={`${styles.uploadZone} ${isUploadingOg ? styles.uploadZoneActive : ''}`}
+                          >
+                            <span className={styles.uploadZoneIcon} aria-hidden="true">▧</span>
+                            <span className={styles.uploadZoneText}>{isUploadingOg ? 'Subiendo imagen…' : 'Seleccionar imagen 1200 × 630'}</span>
+                            <span className={styles.uploadZoneHint}>JPG, PNG o WebP · máximo 10 MB</span>
+                          </label>
+                          {isUploadingOg && <p className={styles.uploadProgressText} role="status">Subiendo imagen…</p>}
+                          {uploadErrorOg && <p className={styles.uploadError} role="alert">{uploadErrorOg}</p>}
+                        </div>
+                      )}
+                      {configForm.ogImage && (
+                        <ImagePreview src={configForm.ogImage} alt="Vista previa para compartir" aspectRatio="1200/630" dimensionsLabel="1200 × 630" />
+                      )}
+                      <p className={styles.configHelper}>Si está vacía, se usa la imagen de fondo o un respaldo generado.</p>
+                    </div>
+                  </SettingsDisclosure>
 
-              {/* Nota informativa */}
-              <div style={{
-                marginTop: '20px',
-                padding: '15px',
-                background: '#fef3c7',
-                borderRadius: '8px',
-                border: '1px solid #fcd34d'
-              }}>
-                <p style={{ margin: 0, fontSize: '13px', color: '#92400e' }}>
-                  <strong>📌 Nota:</strong> Los recordatorios solo se envían a invitados <strong>confirmados</strong> de este evento específico.
-                  Los cancelados no recibirán el recordatorio automático.
-                </p>
-              </div>
+                  <SettingsDisclosure
+                    title="Colores del tema"
+                    summary={`${configForm.primaryColor} · ${configForm.secondaryColor} · ${configForm.accentColor}`}
+                  >
+                    <div className={styles.configFields}>
+                      <div className={styles.configColorGrid}>
+                        {([
+                          ['primaryColor', 'Color primario', configForm.primaryColor],
+                          ['secondaryColor', 'Color secundario', configForm.secondaryColor],
+                          ['accentColor', 'Color de acento', configForm.accentColor],
+                        ] as const).map(([key, label, value]) => (
+                          <div className={styles.configFormGroup} key={key}>
+                            <label className={styles.configLabel} htmlFor={`config-${key}`}>{label}</label>
+                            <div className={styles.configColorControl}>
+                              <input
+                                id={`config-${key}`}
+                                type="color"
+                                className={styles.configColorPicker}
+                                value={value}
+                                onChange={(event) => setConfigForm({ ...configForm, [key]: event.target.value })}
+                                aria-label={`Seleccionar ${label.toLowerCase()}`}
+                              />
+                              <input
+                                type="text"
+                                className={styles.configInput}
+                                value={value}
+                                onChange={(event) => setConfigForm({ ...configForm, [key]: event.target.value })}
+                                aria-label={`${label} en formato HEX`}
+                                pattern="^#[0-9A-Fa-f]{6}$"
+                                maxLength={7}
+                                spellCheck={false}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className={styles.themePreview} style={{ backgroundColor: configForm.backgroundColor }} aria-label="Vista previa de colores">
+                        <span style={{ color: configForm.primaryColor }}>TÍTULO</span>
+                        <span style={{ color: configForm.secondaryColor }}>Subtítulo</span>
+                        <span
+                          className={styles.themePreviewButton}
+                          style={{
+                            background: configForm.presentationMode === 'classic'
+                              ? `linear-gradient(135deg, ${configForm.primaryColor}, ${configForm.secondaryColor})`
+                              : configForm.primaryColor,
+                          }}
+                        >
+                          CONFIRMAR
+                        </span>
+                        <span style={{ color: configForm.accentColor }}>RSVP INDISPENSABLE</span>
+                      </div>
+                    </div>
+                  </SettingsDisclosure>
+                </div>
+              )}
 
-              {/* Sección de Estado de Recordatorios */}
-              <ReminderStatusSection eventSlug={selectedEventId} />
-            </div>
+              {activeConfigSection === 'messages' && (
+                <div
+                  id="config-panel-messages"
+                  className={styles.configTabPanel}
+                  role="tabpanel"
+                  aria-labelledby="config-tab-messages"
+                  tabIndex={0}
+                >
+                  <SettingsDisclosure
+                    title="Confirmación y verificación"
+                    summary={`${configForm.emailConfirmationEnabled ? 'Confirmación automática' : 'Confirmación manual'} · ${configForm.emailVerificationEnabled ? 'verificación activa' : 'sin verificación'}`}
+                    defaultOpen
+                  >
+                    <div className={styles.configFields}>
+                      <div className={styles.configToggleGroup}>
+                        <input
+                          type="checkbox"
+                          id="emailConfirmationEnabled"
+                          className={styles.configCheckbox}
+                          checked={configForm.emailConfirmationEnabled}
+                          onChange={(event) => setConfigForm({ ...configForm, emailConfirmationEnabled: event.target.checked })}
+                        />
+                        <label htmlFor="emailConfirmationEnabled" className={styles.configToggleLabel}>Enviar confirmación automática</label>
+                      </div>
+                      <p className={styles.configHelper}>
+                        {configForm.emailConfirmationEnabled
+                          ? 'Se enviará un email cuando alguien confirme su asistencia.'
+                          : 'Las confirmaciones se enviarán manualmente desde el dashboard.'}
+                      </p>
 
-            {/* Check-in (ISSUE-018): self-contained section, same pattern as
-                InvitationLinkManager/ReminderStatusSection above — manages
-                its own fetches against /api/admin/checkin-config rather than
-                going through configForm/saveEventConfig, since the endpoint
-                is a dedicated write-only-password contract (see that
-                route's own doc comment). Only ever rendered here, i.e. only
-                for canManageSelectedEvent — a viewer never reaches the
-                config tab at all (see the activeTab==='config' guard
-                above), which is this app's existing RBAC pattern for every
-                other manager-only settings surface. */}
-            {selectedEventId && (
-              <div id="config-checkin" className={styles.configSection}>
-                <h3 className={styles.configSectionTitle} id="checkin-settings-title">📲 Check-in</h3>
-                <CheckinSettings eventSlug={selectedEventId} onStatusChange={handleCheckinStatusChange} />
-              </div>
-            )}
+                      <div className={styles.configToggleGroup}>
+                        <input
+                          type="checkbox"
+                          id="emailVerificationEnabled"
+                          className={styles.configCheckbox}
+                          checked={configForm.emailVerificationEnabled}
+                          onChange={(event) => setConfigForm({ ...configForm, emailVerificationEnabled: event.target.checked })}
+                        />
+                        <label htmlFor="emailVerificationEnabled" className={styles.configToggleLabel}>Verificación por email</label>
+                      </div>
+                      <p className={styles.configHelper}>
+                        El invitado debe confirmar su correo. Los links privados pueden omitirla; en eventos de pago, el pago verifica el correo.
+                      </p>
+                    </div>
+                  </SettingsDisclosure>
 
-            <SaveBar saving={loading} statusLabel={message || undefined} />
+                  <SettingsDisclosure
+                    title="Recordatorio automático"
+                    summary={configForm.reminderEnabled && configForm.reminderScheduledAt
+                      ? `Programado: ${new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(configForm.reminderScheduledAt))}`
+                      : 'Sin recordatorio programado'}
+                    defaultOpen
+                    tone={configForm.reminderEnabled ? 'success' : 'default'}
+                    revealKey={configValidationReveal.id === 'reminder' ? configValidationReveal.nonce : 0}
+                  >
+                    <div className={styles.configFields}>
+                      <div className={styles.configToggleGroup}>
+                        <input
+                          type="checkbox"
+                          id="reminderEnabled"
+                          className={styles.configCheckbox}
+                          checked={configForm.reminderEnabled}
+                          onChange={(event) => setConfigForm({
+                            ...configForm,
+                            reminderEnabled: event.target.checked,
+                            reminderScheduledAt: event.target.checked ? configForm.reminderScheduledAt : '',
+                          })}
+                        />
+                        <label htmlFor="reminderEnabled" className={styles.configToggleLabel}>Programar recordatorio automático</label>
+                      </div>
+                      {configForm.reminderEnabled && (
+                        <div className={styles.configFormGroup}>
+                          <label className={styles.configLabel} htmlFor="config-reminder-at">Fecha y hora del recordatorio *</label>
+                          <input
+                            id="config-reminder-at"
+                            name="reminderScheduledAt"
+                            type="datetime-local"
+                            className={styles.configInput}
+                            value={configForm.reminderScheduledAt}
+                            onChange={(event) => setConfigForm({ ...configForm, reminderScheduledAt: event.target.value })}
+                            required
+                          />
+                          <p className={styles.configHelper}>Se envía automáticamente a todos los confirmados.</p>
+                        </div>
+                      )}
+                      {configForm.reminderSentAt && (
+                        <p className={styles.configCallout} data-tone="success">
+                          Último recordatorio enviado el {new Intl.DateTimeFormat('es-MX', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(configForm.reminderSentAt))}.
+                        </p>
+                      )}
+                      <p className={styles.configCallout} data-tone="note">
+                        Los recordatorios solo se envían a invitados confirmados de este evento. Los cancelados no los reciben.
+                      </p>
+                      <ReminderStatusSection eventSlug={selectedEventId} />
+                    </div>
+                  </SettingsDisclosure>
+                </div>
+              )}
+
+              <SaveBar saving={loading} statusLabel={message || undefined} />
           </form>
         </div>
       )}
@@ -2711,10 +2833,17 @@ export default function AdminDashboard() {
                     id="editPlusOne"
                     className={styles.editFormCheckbox}
                     checked={editForm.plusOne}
+                    disabled={Boolean(plusOneLockMessage)}
+                    aria-describedby={plusOneLockMessage ? 'edit-plus-one-payment-lock' : undefined}
                     onChange={(e) => setEditForm({ ...editForm, plusOne: e.target.checked, plusOneName: e.target.checked ? editForm.plusOneName : '' })}
                   />
                   <label htmlFor="editPlusOne" className={styles.editFormLabel}>+1 Acompañante</label>
                 </div>
+                {plusOneLockMessage && (
+                  <p id="edit-plus-one-payment-lock" className={styles.editFormLockedNote} role="note">
+                    {plusOneLockMessage}
+                  </p>
+                )}
                 {editForm.plusOne && (
                   <input
                     type="text"

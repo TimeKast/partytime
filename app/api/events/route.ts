@@ -11,6 +11,40 @@ export const dynamic = 'force-dynamic'
 // Mock storage for demo mode
 const mockEvents: Event[] = []
 
+type EventAccessRole = 'manager' | 'viewer'
+type EventWithAccessRole = Event & { accessRole?: EventAccessRole }
+
+function eventAccessRole(value: string): EventAccessRole | undefined {
+    return value === 'manager' || value === 'viewer' ? value : undefined
+}
+
+/**
+ * Explicit allowlist for the authenticated event picker/list. Database Event
+ * rows contain server-only fields (most importantly checkinPasswordHash), so
+ * returning a spread of the Drizzle row would make every new schema column
+ * public to the browser by default. Keep this DTO intentionally small: these
+ * are the fields the current admin UI consumes plus a hash-free check-in
+ * readiness summary.
+ */
+function toAdminEventDto(event: EventWithAccessRole) {
+    return {
+        id: event.id,
+        slug: event.slug,
+        title: event.title,
+        subtitle: event.subtitle ?? '',
+        date: event.date ?? '',
+        time: event.time ?? '',
+        location: event.location ?? '',
+        isActive: event.isActive ?? false,
+        ...(event.accessRole ? { accessRole: event.accessRole } : {}),
+        checkin: {
+            enabled: event.checkinEnabled,
+            hasPassword: !!event.checkinPasswordHash,
+            updatedAt: event.checkinPasswordUpdatedAt,
+        },
+    }
+}
+
 /**
  * GET /api/events
  * List all events (optionally filter by active status)
@@ -35,12 +69,17 @@ export async function GET(request: NextRequest) {
 
         if (isDatabaseConfigured()) {
             const { getAllEvents } = await import('@/lib/queries')
-            let events = await getAllEvents(activeOnly)
+            let events: EventWithAccessRole[] = await getAllEvents(activeOnly)
 
             // Filter for non-super-admins
             if (currentUser.role !== 'super_admin') {
                 const assignments = await getUserEventAssignments(currentUser.id)
-                const roleByEventId = new Map(assignments.map(a => [a.event.id, a.assignment.role]))
+                const roleByEventId = new Map<string, EventAccessRole>(
+                    assignments.flatMap(assignment => {
+                        const role = eventAccessRole(assignment.assignment.role)
+                        return role ? [[assignment.event.id, role]] : []
+                    }),
+                )
                 events = events
                     .filter(e => roleByEventId.has(e.id))
                     .map(e => ({ ...e, accessRole: roleByEventId.get(e.id) }))
@@ -49,10 +88,12 @@ export async function GET(request: NextRequest) {
                 events = events.map(e => ({ ...e, accessRole: 'manager' }))
             }
 
+            const eventDtos = events.map(toAdminEventDto)
+
             return NextResponse.json({
                 success: true,
-                count: events.length,
-                events
+                count: eventDtos.length,
+                events: eventDtos
             })
         } else {
             // Demo mode logic (omitted or kept simple)
@@ -104,7 +145,9 @@ export async function POST(request: NextRequest) {
 
             return NextResponse.json({
                 success: true,
-                event
+                // POST is super-admin-only. Apply the same allowlist as GET so
+                // a future create path can never echo a server-only column.
+                event: toAdminEventDto({ ...event, accessRole: 'manager' })
             }, { status: 201 })
         } else {
             // Demo mode - save to mock array
@@ -119,7 +162,7 @@ export async function POST(request: NextRequest) {
 
             return NextResponse.json({
                 success: true,
-                event: mockEvent,
+                event: toAdminEventDto({ ...mockEvent, accessRole: 'manager' }),
                 note: 'Modo Demo: Datos en memoria temporal'
             }, { status: 201 })
         }

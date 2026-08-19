@@ -49,6 +49,11 @@ export const RSVP_PAYMENT_STATUS = {
 
 export type RsvpPaymentStatus = typeof RSVP_PAYMENT_STATUS[keyof typeof RSVP_PAYMENT_STATUS]
 
+// An open or paid Checkout fixes the number of people priced for that session.
+// Both RSVP update routes map this sentinel to a human 409 instead of silently
+// desynchronizing the companion flag from a payable/already-paid amount.
+export const RSVP_PAYMENT_PARTY_SIZE_LOCKED_MESSAGE = 'No puedes cambiar el acompañante mientras hay un pago en curso o completado'
+
 // drizzle >= 0.44 wraps driver errors in DrizzleQueryError: err.message is
 // "Failed query: <sql>" and the real NeonDbError (with .code / the PG
 // message) lives in err.cause. Walk the cause chain so classification sees
@@ -791,10 +796,11 @@ async function saveRSVPOnce(
 // ISSUE-011: statuses saveRSVPPendingPayment may move a row FROM. Unlike
 // RSVP_REACTIVATABLE_STATUSES above, PENDING_PAYMENT itself is included —
 // a re-submit while the guest's OWN pending_payment row is still valid
-// reuses that SAME row in place (refreshing its TTL) rather than erroring,
-// per the ISSUE-011 Gherkin ("el mismo email reintenta mientras su pending
-// sigue vivo"). CONFIRMED is deliberately excluded: a live registration is a
-// duplicate, not something a public-flow payment attempt may overwrite.
+// reuses that SAME row in place (refreshing its TTL) only when party size is
+// unchanged, per the ISSUE-011 Gherkin ("el mismo email reintenta mientras su
+// pending sigue vivo"). CONFIRMED is deliberately excluded: a live
+// registration is a duplicate, not something a public-flow payment attempt
+// may overwrite.
 const RSVP_PENDING_PAYMENT_REACTIVATABLE_STATUSES: readonly string[] = [
     RSVP_STATUS.CANCELLED,
     RSVP_STATUS.EXPIRED,
@@ -811,7 +817,9 @@ const RSVP_PENDING_PAYMENT_REACTIVATABLE_STATUSES: readonly string[] = [
  * here, so a plain select-then-update/insert is enough; the reactivation
  * UPDATE's `WHERE status = ${prev.status}` predicate still makes concurrent
  * re-submits/reactivations race-safe (loser matches zero rows, treated as a
- * duplicate) exactly like `saveRSVPOnce`.
+ * duplicate) exactly like `saveRSVPOnce`. Reusing an already-pending row also
+ * requires the same plusOne value; changing party size is allowed only after
+ * the previous attempt becomes expired/cancelled.
  *
  * The caller (app/api/rsvp/route.ts) is responsible for everything Stripe:
  * this function only ever returns the RSVP row so the route can decide,
@@ -861,6 +869,18 @@ async function saveRSVPPendingPaymentOnce(
         const prev = existing[0]
         if (!RSVP_PENDING_PAYMENT_REACTIVATABLE_STATUSES.includes(prev.status)) {
             throw new Error('Ya existe un RSVP con este email para este evento')
+        }
+        // Once an RSVP is pending_payment, its party size is tied to the
+        // current Checkout attempt. Do not mutate it before the route proves
+        // that any previous Stripe session is safely expired: F-002 may need
+        // to preserve a still-open/completed payment row. Same-size re-submit
+        // remains valid and can refresh contact data/TTL; expired rows may be
+        // reactivated with a different size because no live price is attached.
+        if (
+            prev.status === RSVP_STATUS.PENDING_PAYMENT
+            && (prev.plusOne === true) !== rsvpData.plusOne
+        ) {
+            throw new Error(RSVP_PAYMENT_PARTY_SIZE_LOCKED_MESSAGE)
         }
         try {
             const [updated] = await db.update(rsvps)
@@ -955,9 +975,9 @@ export async function expirePendingPaymentRsvp(rsvpId: string): Promise<RSVP | n
 /**
  * ISSUE-011: the most recent still-open (`created`) Checkout Session row for
  * an RSVP, if any. Used by the route to detect a re-submit of the guest's own
- * pending_payment row so the previous Stripe session can be expired
- * best-effort before a new one is created (PLAN §3.3 Gherkin: "solo hay una
- * sesión activa").
+ * pending_payment row. A replacement is created only after Stripe confirms
+ * the previous session is expired (PLAN §3.3 Gherkin: "solo hay una sesión
+ * activa").
  */
 export async function getActivePaymentForRsvp(rsvpId: string): Promise<RsvpPayment | null> {
     if (!db) throw new Error('Database not configured')
@@ -1013,9 +1033,9 @@ export async function expireRsvpPaymentRecord(id: string): Promise<void> {
 
 /**
  * ISSUE-011: insert the `rsvp_payments` row for a freshly created Checkout
- * Session. `amountCents`/`currency` are passed in rather than re-derived here
- * so the route can guarantee the EXACT same value it sent to Stripe is what
- * gets persisted (PLAN §3.3 "Fuente única de precio").
+ * Session. `amountCents` is the exact total Stripe collects (unit amount ×
+ * guest quantity), passed in rather than re-derived here so admin reporting
+ * and reconciliation never mistake a per-person unit for the charged total.
  */
 export async function createRsvpPaymentRecord(input: {
     rsvpId: string
@@ -1038,6 +1058,51 @@ export async function createRsvpPaymentRecord(input: {
         .returning()
 
     return created
+}
+
+/**
+ * Post-insert party-size validation for Checkout pricing. `FOR SHARE` waits
+ * for an RSVP UPDATE that already holds the row lock, then reads its committed
+ * plusOne value. updateRSVP also rejects party-size writes once the RSVP row
+ * itself is pending_payment, forcing Postgres EPQ to recheck the committed row
+ * even for a writer whose statement snapshot predates the payment insert.
+ * Neon HTTP executes this as one self-contained statement; no interactive
+ * transaction is required.
+ */
+export async function getRsvpPlusOneForPaymentValidation(rsvpId: string): Promise<boolean | null> {
+    if (!db) throw new Error('Database not configured')
+
+    const result = await db.execute(sql`
+        SELECT plus_one
+        FROM rsvps
+        WHERE id = ${rsvpId}
+        FOR SHARE
+    `)
+
+    const row = result.rows[0] as Record<string, unknown> | undefined
+    return row ? row.plus_one === true : null
+}
+
+/**
+ * Whether this RSVP has a Checkout whose price is already fixed: either an
+ * open (`created`) session or a completed (`paid`) payment. Projects only the
+ * boolean existence result: no amount, Stripe id, or guest data leaves the
+ * query. Routes use this for an early human-readable 409; updateRSVP repeats
+ * the invariant atomically in its UPDATE predicate to close both race orders.
+ */
+export async function hasRsvpPaymentLockingPartySize(rsvpId: string): Promise<boolean> {
+    if (!db) throw new Error('Database not configured')
+
+    const result = await db.execute(sql`
+        SELECT EXISTS (
+            SELECT 1
+            FROM rsvp_payments
+            WHERE rsvp_id = ${rsvpId}
+              AND status IN (${RSVP_PAYMENT_STATUS.CREATED}, ${RSVP_PAYMENT_STATUS.PAID})
+        ) AS locks_party_size
+    `)
+
+    return result.rows[0]?.locks_party_size === true
 }
 
 /**
@@ -1382,15 +1447,40 @@ export async function updateRSVP(
     // ISSUE-009: 'verifiedAt' is settable so the cancel-token update route
     // can clear it (to null) when the guest changes their email — never to
     // set it, there is no verification flow on this path.
-    data: Partial<Pick<RSVP, 'name' | 'email' | 'phone' | 'plusOne' | 'plusOneName' | 'status' | 'verifiedAt'>>
+    data: Partial<Pick<RSVP, 'name' | 'email' | 'phone' | 'plusOne' | 'plusOneName' | 'status' | 'verifiedAt'>>,
+    options?: {
+        /**
+         * Set only when the caller already established that this request
+         * changes plusOne. The row-status and NOT EXISTS predicates make the
+         * check atomic with pending-payment creation and payment webhooks.
+         */
+        rejectPaymentLockedPlusOneChange?: boolean
+    },
 ): Promise<RSVP> {
     if (!db) throw new Error('Database not configured')
+
+    const updatePredicate = options?.rejectPaymentLockedPlusOneChange
+        ? and(
+            eq(rsvps.id, rsvpId),
+            // A saveRSVPPendingPayment transition updates this same row. If
+            // it won the lock first, Postgres EPQ rechecks this predicate on
+            // the committed tuple and rejects a stale plusOne writer even if
+            // that writer's statement snapshot predates the payment insert.
+            sql`${rsvps.status} <> ${RSVP_STATUS.PENDING_PAYMENT}`,
+            sql`NOT EXISTS (
+                SELECT 1
+                FROM rsvp_payments
+                WHERE rsvp_id = ${rsvpId}
+                  AND status IN (${RSVP_PAYMENT_STATUS.CREATED}, ${RSVP_PAYMENT_STATUS.PAID})
+            )`,
+        )
+        : eq(rsvps.id, rsvpId)
 
     let updated
     try {
         [updated] = await withDeadlockRetry(() => db!.update(rsvps)
             .set(data)
-            .where(eq(rsvps.id, rsvpId))
+            .where(updatePredicate)
             .returning())
     } catch (err: any) {
         // Editing an email to one already used for this event trips the unique
@@ -1404,6 +1494,14 @@ export async function updateRSVP(
         throw err
     }
 
+    if (!updated && options?.rejectPaymentLockedPlusOneChange) {
+        // A guarded UPDATE can match zero because the RSVP became
+        // pending_payment or a Checkout row was inserted/paid after the
+        // route's precheck. Distinguish that from a missing RSVP without
+        // weakening the atomic predicate.
+        const existing = await getRSVPById(rsvpId)
+        if (existing) throw new Error(RSVP_PAYMENT_PARTY_SIZE_LOCKED_MESSAGE)
+    }
     if (!updated) throw new Error('RSVP no encontrado')
     return updated
 }

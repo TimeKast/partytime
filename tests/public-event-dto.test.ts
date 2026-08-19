@@ -67,6 +67,7 @@ describe('public event DTO', () => {
             'displayTitle',
             'isActive',
             'location',
+            'paymentRequired',
             'presentationMode',
             'price',
             'requirePlusOneName',
@@ -85,11 +86,21 @@ describe('public event DTO', () => {
             title: 'Nombre interno accesible',
             backgroundImage: { url: '/fiesta.jpg' },
             price: { enabled: true, amount: 500, currency: 'MXN' },
+            paymentRequired: false,
             capacity: { enabled: true, limit: 100 },
             presentationMode: 'modern_details',
             backgroundImagePosition: 'top',
             requirePlusOneName: true,
         })
+    })
+
+    it('exposes only the safe payment-required signal, without payment records or Stripe identifiers', () => {
+        const dto = buildPublicEventDto({ ...databaseEvent, paymentRequired: true })
+
+        expect(dto.paymentRequired).toBe(true)
+        expect(dto).not.toHaveProperty('rsvpPayments')
+        expect(dto).not.toHaveProperty('stripeSessionId')
+        expect(dto).not.toHaveProperty('stripePaymentIntentId')
     })
 
     it.each([

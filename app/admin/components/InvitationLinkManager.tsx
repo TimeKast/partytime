@@ -381,7 +381,7 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
                 </label>
                 {!isCourtesy && (
                   <p className={styles.invitationFlagHelp}>
-                    El invitado pagará ${eventFlags.priceAmount} {eventFlags.priceCurrency} al registrarse.
+                    La cuota es por persona: pagará ${eventFlags.priceAmount} {eventFlags.priceCurrency}, o 2 cuotas si registra +1.
                   </p>
                 )}
               </div>

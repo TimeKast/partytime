@@ -21,6 +21,7 @@ const baseEvent: Event = {
     location: 'Terraza',
     details: 'Código de vestir',
     price: { enabled: true, amount: 500, currency: 'MXN' },
+    paymentRequired: false,
     capacity: { enabled: true, limit: 100 },
     backgroundImage: { url: 'https://example.com/art.jpg' },
     presentationMode: 'classic',

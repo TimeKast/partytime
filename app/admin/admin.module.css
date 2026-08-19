@@ -234,23 +234,65 @@
 }
 
 .configPage {
-  --ad-config-nav-frame-height: 54px;
+  --ad-runbook-ink: #29271f;
+  --ad-runbook-paper: #fffdf7;
+  --ad-runbook-paper-2: #f5f0e5;
+  --ad-runbook-line: #d8cfbd;
+  --ad-runbook-muted: #6d685e;
+  --ad-runbook-amber: #b66f18;
+  --ad-runbook-green: #147653;
 
-  width: min(100%, 1024px);
+  width: min(100%, 1080px);
+  max-width: 100%;
   margin: 0 auto;
   padding: 0;
   background: transparent;
   border-radius: 0;
   box-shadow: none;
+  color: var(--ad-runbook-ink);
 }
 
 .configHeader {
   margin-bottom: var(--ad-4);
-  padding: var(--ad-6) var(--ad-6) var(--ad-5);
-  border: 1px solid var(--ad-border);
-  border-radius: var(--ad-r-lg);
-  background: var(--ad-surface);
-  box-shadow: var(--ad-shadow-sm);
+  overflow: hidden;
+  border: 1px solid var(--ad-runbook-line);
+  border-top: 4px solid var(--ad-runbook-ink);
+  border-radius: 2px;
+  background: var(--ad-runbook-paper);
+  box-shadow: 0 5px 0 rgba(41, 39, 31, .06);
+}
+
+.configHeaderMain {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ad-6);
+  padding: var(--ad-6);
+}
+
+.configPreviewLink {
+  display: inline-flex;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ad-2);
+  padding: 10px 14px;
+  border: 1px solid var(--ad-runbook-ink);
+  color: var(--ad-runbook-ink);
+  font-size: var(--ad-fs-sm);
+  font-weight: var(--ad-weight-bold);
+  text-decoration: none;
+}
+
+.configPreviewLink:hover {
+  background: var(--ad-runbook-ink);
+  color: var(--ad-runbook-paper);
+}
+
+.configPreviewLink:focus-visible {
+  outline: 3px solid var(--ad-focus);
+  outline-offset: 3px;
 }
 
 .configEyebrow {
@@ -264,8 +306,10 @@
 
 .configContainer h2 {
   margin: 0 0 10px 0;
-  color: #333;
-  font-size: 24px;
+  color: var(--ad-runbook-ink, #333);
+  font-size: clamp(24px, 4vw, 34px);
+  line-height: 1.08;
+  text-wrap: balance;
 }
 
 .configDescription {
@@ -277,53 +321,66 @@
 }
 
 .configForm {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  gap: var(--ad-4);
+}
+
+.configTabPanel {
+  display: grid;
+  gap: var(--ad-4);
+  min-width: 0;
+}
+
+.configTabPanel:focus {
+  outline: none;
+}
+
+.configTabPanel:focus-visible {
+  outline: 2px solid var(--ad-focus);
+  outline-offset: 4px;
+}
+
+.configFields {
+  display: grid;
   gap: var(--ad-5);
+  padding-top: var(--ad-5);
 }
 
 .configSection {
   padding: var(--ad-6);
-  border: 1px solid var(--ad-border);
-  border-radius: var(--ad-r-lg);
-  background: var(--ad-surface);
-  box-shadow: var(--ad-shadow-sm);
-  scroll-margin-top: calc(var(--ad-topbar-h) + var(--ad-config-nav-frame-height) + var(--ad-2));
+  border: 1px solid var(--ad-runbook-line, var(--ad-border));
+  border-top: 3px solid var(--ad-runbook-ink, var(--ad-text));
+  border-radius: 2px;
+  background: var(--ad-runbook-paper, var(--ad-surface));
+  box-shadow: 0 4px 0 rgba(41, 39, 31, .05);
 }
 
 .configSection:last-of-type {
   border-bottom: 1px solid var(--ad-border);
 }
 
-@media (max-width: 1023px) {
-  .configPage {
-    --ad-config-nav-frame-height: 62px;
-
-    padding-top: var(--ad-config-nav-frame-height);
-  }
-
-  .configAnchor,
-  .configSection {
-    scroll-margin-top: calc(var(--ad-mobile-top-offset) + var(--ad-config-nav-frame-height) + var(--ad-2));
-  }
-}
-
 .configAnchor {
-  scroll-margin-top: calc(var(--ad-topbar-h) + var(--ad-config-nav-frame-height) + var(--ad-2));
+  scroll-margin-top: calc(var(--ad-topbar-h) + var(--ad-4));
 }
 
 .configSectionTitle {
-  margin: 0 0 var(--ad-5);
-  padding-bottom: var(--ad-3);
-  border-bottom: 1px solid var(--ad-border);
-  color: var(--ad-text);
+  margin: 0;
+  color: var(--ad-runbook-ink, var(--ad-text));
   font-size: var(--ad-fs-xl);
   font-weight: var(--ad-weight-bold);
 }
 
+.configSectionKicker {
+  margin: 0 0 5px;
+  color: var(--ad-runbook-amber, var(--ad-warning));
+  font: 700 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
 .configFormGroup {
   min-width: 0;
-  margin-bottom: var(--ad-5);
+  margin: 0;
 }
 
 .configFormRow {
@@ -335,9 +392,9 @@
 .configLabel {
   display: block;
   margin-bottom: 8px;
-  color: #333;
+  color: var(--ad-runbook-ink, #333);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .configInput,
@@ -345,9 +402,9 @@
   width: 100%;
   min-height: var(--ad-control-h);
   padding: var(--ad-3);
-  border: 1px solid var(--ad-border-strong);
-  border-radius: var(--ad-r-md);
-  background: var(--ad-surface);
+  border: 1px solid var(--ad-runbook-line, var(--ad-border-strong));
+  border-radius: 3px;
+  background: #fff;
   color: var(--ad-text);
   font-size: var(--ad-fs-md);
   font-family: inherit;
@@ -370,16 +427,23 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 15px;
-  background: #f5f5f5;
-  border-radius: 8px;
-  margin-bottom: 15px;
+  min-height: 52px;
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--ad-runbook-amber, var(--ad-warning));
+  background: var(--ad-runbook-paper-2, #f5f5f5);
 }
 
 .configCheckbox {
   width: 20px;
   height: 20px;
+  flex: 0 0 auto;
+  accent-color: var(--ad-runbook-green, #147653);
   cursor: pointer;
+}
+
+.configCheckbox:disabled {
+  cursor: not-allowed;
 }
 
 .configToggleLabel {
@@ -390,11 +454,52 @@
   cursor: pointer;
 }
 
+.switchLabel {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--ad-runbook-amber, var(--ad-warning));
+  background: var(--ad-runbook-paper-2, #f5f5f5);
+  color: var(--ad-runbook-ink, #333);
+  font-size: var(--ad-fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .configHelper {
   margin: 8px 0 0 0;
   color: var(--ad-text-muted);
   font-size: var(--ad-fs-xs);
   line-height: 1.55;
+}
+
+.configCallout {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--ad-runbook-line);
+  background: var(--ad-runbook-paper-2);
+  color: var(--ad-runbook-muted);
+  font-size: var(--ad-fs-sm);
+  line-height: 1.55;
+}
+
+.configCallout[data-tone='payment'],
+.configCallout[data-tone='note'] {
+  border-left-color: var(--ad-runbook-amber);
+}
+
+.configCallout[data-tone='success'] {
+  border-left-color: var(--ad-runbook-green);
+  background: #edf8f2;
+  color: #0b5d40;
+}
+
+.configCallout[data-tone='danger'] {
+  border-left-color: #b4232c;
+  background: #fff0f0;
+  color: #8c1d24;
 }
 
 .configColorGrid {
@@ -408,6 +513,51 @@
   align-items: center;
   gap: var(--ad-3);
   min-width: 0;
+}
+
+.configColorControl .configInput {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.configColorPicker {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  padding: 3px;
+  border: 1px solid var(--ad-runbook-line);
+  border-radius: 2px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.configColorPicker:focus-visible {
+  outline: 3px solid var(--ad-focus);
+  outline-offset: 2px;
+}
+
+.themePreview {
+  display: grid;
+  min-height: 180px;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: var(--ad-5);
+  border: 1px solid var(--ad-runbook-line);
+  color: var(--ad-runbook-ink);
+  font-weight: 700;
+  text-align: center;
+}
+
+.themePreviewButton {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  padding: 8px 18px;
+  color: #fff;
+  font-size: var(--ad-fs-xs);
+  letter-spacing: .08em;
 }
 
 .presentationIntro {
@@ -655,12 +805,21 @@
 
   .configPage {
     padding: 0;
-    padding-top: var(--ad-config-nav-frame-height);
   }
 
-  .configHeader,
+  .configHeaderMain,
   .configSection {
     padding: var(--ad-5);
+  }
+
+  .configHeaderMain {
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--ad-4);
+  }
+
+  .configPreviewLink {
+    width: 100%;
   }
 
   .configFormRow {
@@ -670,7 +829,7 @@
 
   .configColorGrid {
     grid-template-columns: 1fr;
-    gap: var(--ad-1);
+    gap: var(--ad-4);
   }
 
   .configInput,
@@ -738,6 +897,25 @@
     padding: 6px 10px;
     font-size: 12px;
     white-space: nowrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .configContainer.configPage {
+    padding: 0;
+  }
+
+  .configHeaderMain,
+  .configSection {
+    padding: var(--ad-4);
+  }
+
+  .configFormRow {
+    gap: var(--ad-4);
+  }
+
+  .configColorControl {
+    align-items: stretch;
   }
 }
 
@@ -1523,6 +1701,21 @@
   cursor: pointer;
 }
 
+.editFormCheckbox:disabled {
+  cursor: not-allowed;
+  opacity: .65;
+}
+
+.editFormLockedNote {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid #b66f18;
+  background: #fff8e8;
+  color: #74420c;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .editFormButtons {
   display: flex;
   gap: 12px;
@@ -1793,6 +1986,302 @@
   color: #6b7280;
 }
 
+/* Backstage check-in overview: operational status is visible before staff
+   enters Configuration, including for read-only event viewers. */
+.checkinOverview {
+  --checkin-ink: #29271f;
+  --checkin-paper: #fffdf7;
+  --checkin-paper-2: #f5f0e5;
+  --checkin-line: #d8cfbd;
+  --checkin-green: #147653;
+  --checkin-amber: #b66f18;
+
+  display: grid;
+  grid-template-columns: minmax(210px, .8fr) minmax(260px, 1.4fr) auto;
+  align-items: stretch;
+  margin: 0 0 var(--ad-5);
+  overflow: hidden;
+  border: 1px solid var(--checkin-line);
+  border-top: 4px solid var(--checkin-ink);
+  border-radius: 2px;
+  background: var(--checkin-paper);
+  color: var(--checkin-ink);
+  box-shadow: 0 5px 0 rgba(41, 39, 31, .06);
+}
+
+.checkinOverviewHeader {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ad-3);
+  padding: var(--ad-5);
+  border-right: 1px solid var(--checkin-line);
+}
+
+.checkinOverviewHeader h3 {
+  margin: 3px 0 0;
+  font-size: var(--ad-fs-lg);
+  line-height: 1.2;
+}
+
+.checkinOverviewEyebrow {
+  margin: 0;
+  color: #8b5514;
+  font: 700 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.checkinOverviewStatus {
+  display: inline-flex;
+  min-height: 26px;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: #625d53;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.checkinOverviewStatus[data-tone='success'] {
+  color: #0d6a49;
+}
+
+.checkinOverviewStatus[data-tone='warning'] {
+  color: #985b12;
+}
+
+.checkinOverviewStatus[data-tone='danger'] {
+  color: #a5222a;
+}
+
+.checkinOverviewBody {
+  display: grid;
+  align-content: center;
+  gap: var(--ad-3);
+  min-width: 0;
+  padding: var(--ad-5);
+}
+
+.checkinOverviewProgress {
+  display: grid;
+  gap: var(--ad-2);
+}
+
+.checkinOverviewCount {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ad-2);
+  min-width: 0;
+}
+
+.checkinOverviewCount strong {
+  font-size: clamp(26px, 4vw, 38px);
+  line-height: .9;
+}
+
+.checkinOverviewCount span {
+  color: #625d53;
+  font-size: var(--ad-fs-sm);
+}
+
+.checkinProgressTrack {
+  height: 8px;
+  overflow: hidden;
+  border: 1px solid var(--checkin-line);
+  background: var(--checkin-paper-2);
+}
+
+.checkinProgressTrack > span {
+  display: block;
+  height: 100%;
+  background: var(--checkin-green);
+}
+
+.checkinOverviewEmpty,
+.checkinOverviewDetail {
+  margin: 0;
+  color: #625d53;
+  font-size: var(--ad-fs-xs);
+  line-height: 1.5;
+}
+
+.checkinOverviewActions {
+  display: grid;
+  align-content: center;
+  gap: var(--ad-2);
+  padding: var(--ad-4);
+  border-left: 1px solid var(--checkin-line);
+  background: var(--checkin-paper-2);
+}
+
+.checkinOverviewActions a,
+.checkinOverviewActions button {
+  display: inline-flex;
+  min-width: 132px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ad-2);
+  padding: 9px 12px;
+  border: 1px solid var(--checkin-ink);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--checkin-ink);
+  font: inherit;
+  font-size: var(--ad-fs-xs);
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.checkinOverviewActions a {
+  background: var(--checkin-ink);
+  color: var(--checkin-paper);
+}
+
+.checkinOverviewActions a:hover,
+.checkinOverviewActions button:hover {
+  filter: brightness(.92);
+}
+
+.checkinOverviewActions a:focus-visible,
+.checkinOverviewActions button:focus-visible {
+  outline: 3px solid var(--ad-focus);
+  outline-offset: 2px;
+}
+
+.checkinControlHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ad-4);
+  margin-bottom: var(--ad-5);
+  padding-bottom: var(--ad-4);
+  border-bottom: 1px dashed var(--ad-runbook-line, var(--ad-border));
+}
+
+.checkinInlineConfirmation {
+  display: grid;
+  gap: var(--ad-4);
+  margin-top: var(--ad-5);
+  padding: var(--ad-4);
+  border: 1px solid var(--ad-runbook-amber, #b66f18);
+  border-left-width: 4px;
+  background: #fff8e8;
+  color: var(--ad-runbook-ink, #29271f);
+}
+
+.checkinInlineConfirmation p {
+  margin: 6px 0 0;
+  color: var(--ad-runbook-muted, #6d685e);
+  font-size: var(--ad-fs-sm);
+  line-height: 1.5;
+}
+
+.checkinConfirmationActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ad-2);
+}
+
+.checkinConfirmationActions button {
+  min-height: 44px;
+  padding: 9px 14px;
+  border: 1px solid var(--ad-runbook-ink, #29271f);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ad-runbook-ink, #29271f);
+  font: inherit;
+  font-size: var(--ad-fs-xs);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.checkinConfirmationActions button:last-child {
+  background: var(--ad-runbook-ink, #29271f);
+  color: var(--ad-runbook-paper, #fffdf7);
+}
+
+.checkinConfirmationActions button:focus-visible {
+  outline: 3px solid var(--ad-focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .checkinOverview {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .checkinOverviewHeader {
+    border-right: 0;
+    border-bottom: 1px solid var(--checkin-line);
+  }
+
+  .checkinOverviewBody {
+    grid-column: 1;
+  }
+
+  .checkinOverviewActions {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+@media (max-width: 560px) {
+  .checkinOverview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .checkinOverviewHeader,
+  .checkinOverviewBody,
+  .checkinOverviewActions {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .checkinOverviewHeader,
+  .checkinOverviewBody {
+    padding: var(--ad-4);
+  }
+
+  .checkinOverviewActions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-top: 1px solid var(--checkin-line);
+    border-left: 0;
+  }
+
+  .checkinOverviewActions a,
+  .checkinOverviewActions button {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .checkinOverviewActions > :only-child {
+    grid-column: 1 / -1;
+  }
+
+  .checkinControlHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .checkinOverviewStatus {
+    align-self: flex-start;
+  }
+
+  .checkinConfirmationActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* ISSUE-018: check-in settings section (CheckinSettings.tsx) — password
    field + suggestion buttons. */
 .checkinPasswordForm {
@@ -1827,6 +2316,13 @@
 .checkinSuggestionButton:disabled {
   cursor: not-allowed;
   opacity: .6;
+}
+
+.checkinSuggestionButton:focus-visible,
+.checkinPasswordForm button:focus-visible,
+.invitationSecretRow button:focus-visible {
+  outline: 3px solid var(--ad-focus);
+  outline-offset: 2px;
 }
 
 /* Desktop-specific styles */
@@ -2051,26 +2547,28 @@
 .imageMethodTabs {
   display: flex;
   gap: 0;
-  margin-bottom: 20px;
-  border-radius: 10px;
+  margin: 0;
   overflow: hidden;
-  border: 2px solid #e0e0e0;
+  border: 1px solid var(--ad-runbook-line, #d8cfbd);
+  border-radius: 2px;
 }
 
 .imageMethodTab {
-  flex: 1;
-  padding: 12px 20px;
-  background: #f8f9fa;
-  border: none;
-  font-size: 14px;
-  font-weight: 600;
-  color: #666;
-  cursor: pointer;
-  transition: all 0.3s;
   display: flex;
+  min-height: 44px;
+  flex: 1;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  padding: 10px 14px;
+  background: var(--ad-runbook-paper-2, #f8f9fa);
+  border: none;
+  color: var(--ad-runbook-muted, #666);
+  font: inherit;
+  font-size: var(--ad-fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--ad-dur) var(--ad-ease), color var(--ad-dur) var(--ad-ease);
 }
 
 .imageMethodTab:first-child {
@@ -2078,50 +2576,67 @@
 }
 
 .imageMethodTab:hover:not(.imageMethodTabActive) {
-  background: #eef1f5;
+  background: #fff;
 }
 
 .imageMethodTabActive {
-  background: #667eea;
-  color: white;
+  background: var(--ad-runbook-ink, #29271f);
+  color: var(--ad-runbook-paper, #fffdf7);
+}
+
+.imageMethodTab:focus-visible {
+  position: relative;
+  outline: 3px solid var(--ad-focus);
+  outline-offset: -3px;
 }
 
 .uploadZone {
-  border: 3px dashed #d1d5db;
-  border-radius: 12px;
-  padding: 40px 20px;
+  display: grid;
+  min-height: 176px;
+  place-content: center;
+  gap: 8px;
+  padding: 28px 20px;
+  border: 2px dashed var(--ad-runbook-line, #d1d5db);
+  border-radius: 2px;
+  background: var(--ad-runbook-paper-2, #fafafa);
+  color: var(--ad-runbook-ink, #29271f);
   text-align: center;
   cursor: pointer;
-  transition: all 0.3s;
-  background: #fafafa;
+  transition: border-color var(--ad-dur) var(--ad-ease), background var(--ad-dur) var(--ad-ease);
 }
 
 .uploadZone:hover {
-  border-color: #667eea;
-  background: #f5f7ff;
+  border-color: var(--ad-runbook-amber, #b66f18);
+  background: #fff8e8;
 }
 
 .uploadZoneActive {
-  border-color: #667eea;
-  background: #eef1ff;
+  border-color: var(--ad-runbook-green, #147653);
+  background: #edf8f2;
+}
+
+.hiddenFileInput:focus-visible + .uploadZone,
+.uploadZone:focus-visible {
+  outline: 3px solid var(--ad-focus);
+  outline-offset: 3px;
 }
 
 .uploadZoneIcon {
-  font-size: 48px;
-  margin-bottom: 15px;
+  font-size: 34px;
+  line-height: 1;
 }
 
 .uploadZoneText {
-  margin: 0 0 10px 0;
+  margin: 0;
   font-size: 16px;
-  font-weight: 600;
-  color: #333;
+  font-weight: 800;
+  color: inherit;
 }
 
 .uploadZoneHint {
   margin: 0;
   font-size: 13px;
-  color: #888;
+  color: var(--ad-runbook-muted, #6d685e);
 }
 
 .uploadProgress {
@@ -2166,7 +2681,31 @@
 }
 
 .hiddenFileInput {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  border: 0;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .configInput,
+  .configTextarea,
+  .checkinSuggestionButton,
+  .imageMethodTab,
+  .uploadZone,
+  .invitationPrimaryAction,
+  .invitationSecretRow button {
+    transition: none;
+  }
+
+  .uploadProgressSpinner {
+    animation: none;
+  }
 }
 
 @media (max-width: 640px) {

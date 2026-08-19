@@ -137,11 +137,10 @@ describe('admin email-verification toggle (ISSUE-008)', () => {
         expect(verificationToggleIndex).toBeGreaterThan(confirmationToggleIndex)
 
         expect(adminPageSource).toContain('checked={configForm.emailVerificationEnabled}')
-        expect(adminPageSource).toContain('emailVerificationEnabled: e.target.checked')
-        expect(adminPageSource).toContain('El invitado debe confirmar su correo para quedar registrado.')
-        expect(adminPageSource).toContain('Los links privados de')
-        expect(adminPageSource).toContain('invitación no lo requieren.')
-        expect(adminPageSource).toContain('En eventos de pago se ignora: el pago verifica el correo.')
+        expect(adminPageSource).toContain('emailVerificationEnabled: event.target.checked')
+        expect(adminPageSource).toContain('El invitado debe confirmar su correo.')
+        expect(adminPageSource).toContain('Los links privados pueden omitirla')
+        expect(adminPageSource).toContain('en eventos de pago, el pago verifica el correo.')
     })
 
     it('loads the persisted value from settings and sends it back on save', () => {

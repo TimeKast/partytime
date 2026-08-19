@@ -13,7 +13,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
     PENDING_PAYMENT_RSVP_TTL_MS,
     buildCheckoutSessionParams,
+    isCheckoutSessionConfirmedExpired,
 } from '@/lib/stripe-checkout'
+import { deriveRsvpPaymentPricing } from '@/lib/payment-config'
 
 describe('lib/stripe-checkout.ts — buildCheckoutSessionParams (pure, ISSUE-011)', () => {
     const baseInput = {
@@ -21,7 +23,8 @@ describe('lib/stripe-checkout.ts — buildCheckoutSessionParams (pure, ISSUE-011
         eventSlug: 'fiesta',
         email: 'alex@example.com',
         eventTitle: 'Fiesta de Alex',
-        amountCents: 25000,
+        unitAmountCents: 25000,
+        quantity: 1 as const,
         currency: 'MXN',
     }
 
@@ -38,6 +41,17 @@ describe('lib/stripe-checkout.ts — buildCheckoutSessionParams (pure, ISSUE-011
         })
         expect(lineItem.price_data!.product_data).toMatchObject({
             name: 'Reservación — Fiesta de Alex',
+        })
+    })
+
+    it('keeps the per-person unit amount and sends quantity 2 for an RSVP with a companion', () => {
+        const params = buildCheckoutSessionParams({ ...baseInput, quantity: 2 })
+
+        const [lineItem] = params.line_items!
+        expect(lineItem.quantity).toBe(2)
+        expect(lineItem.price_data).toMatchObject({
+            currency: 'mxn',
+            unit_amount: 25000,
         })
     })
 
@@ -92,6 +106,45 @@ describe('lib/stripe-checkout.ts — buildCheckoutSessionParams (pure, ISSUE-011
     })
 })
 
+describe('isCheckoutSessionConfirmedExpired — Stripe ledger reconciliation', () => {
+    it('accepts only an explicitly expired and unpaid Checkout', () => {
+        expect(isCheckoutSessionConfirmedExpired({ status: 'expired', payment_status: 'unpaid' })).toBe(true)
+    })
+
+    it.each([
+        ['complete', 'paid'],
+        ['open', 'unpaid'],
+        ['expired', 'paid'],
+        [null, 'unpaid'],
+    ] as const)('rejects an unsafe or unverifiable %s/%s Checkout state', (status, paymentStatus) => {
+        expect(isCheckoutSessionConfirmedExpired({ status, payment_status: paymentStatus })).toBe(false)
+    })
+})
+
+describe('deriveRsvpPaymentPricing — per-person recovery fee', () => {
+    it('charges one unit for a persisted RSVP without a companion', () => {
+        expect(deriveRsvpPaymentPricing(
+            { priceAmount: 250 },
+            { plusOne: false },
+        )).toEqual({
+            unitAmountCents: 25000,
+            quantity: 1,
+            totalAmountCents: 25000,
+        })
+    })
+
+    it('charges two units for a persisted RSVP with a companion', () => {
+        expect(deriveRsvpPaymentPricing(
+            { priceAmount: 250 },
+            { plusOne: true },
+        )).toEqual({
+            unitAmountCents: 25000,
+            quantity: 2,
+            totalAmountCents: 50000,
+        })
+    })
+})
+
 const { executeMock, selectMock, insertMock, updateMock } = vi.hoisted(() => ({
     executeMock: vi.fn(),
     selectMock: vi.fn(),
@@ -115,9 +168,13 @@ import {
     expirePendingPaymentRsvp,
     expireRsvpPaymentRecord,
     getActivePaymentForRsvp,
+    getRsvpPlusOneForPaymentValidation,
     getRsvpPaymentStatusBySessionId,
+    hasRsvpPaymentLockingPartySize,
+    RSVP_PAYMENT_PARTY_SIZE_LOCKED_MESSAGE,
     saveRSVPPendingPayment,
     saveRsvpWithInvitation,
+    updateRSVP,
 } from '@/lib/queries'
 
 function sqlTextOf(query: unknown): string {
@@ -244,6 +301,37 @@ describe('saveRSVPPendingPayment (ISSUE-011, public flow)', () => {
         expect(rsvp.pendingExpiresAt).toEqual(refreshedExpiry)
         expect(insertMock).not.toHaveBeenCalled()
         expect(executeMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects changing plusOne when reusing an already-pending_payment row', async () => {
+        mockSelectOnce([camelRsvp({ status: RSVP_STATUS.PENDING_PAYMENT, plusOne: false })])
+
+        await expect(saveRSVPPendingPayment({
+            name: 'Alex', email: 'alex@example.com', phone: '+525500000000',
+            plusOne: true, plusOneName: 'Sam', eventId: 'fiesta',
+        }, pendingExpiresAt)).rejects.toThrow(RSVP_PAYMENT_PARTY_SIZE_LOCKED_MESSAGE)
+
+        expect(updateMock).not.toHaveBeenCalled()
+        expect(insertMock).not.toHaveBeenCalled()
+    })
+
+    it('allows a different plusOne after the prior pending row has expired', async () => {
+        mockSelectOnce([camelRsvp({ status: RSVP_STATUS.EXPIRED, plusOne: false })])
+        mockUpdateReturning([camelRsvp({
+            status: RSVP_STATUS.PENDING_PAYMENT,
+            plusOne: true,
+            plusOneName: 'Sam',
+            pendingExpiresAt,
+        })])
+
+        const rsvp = await saveRSVPPendingPayment({
+            name: 'Alex', email: 'alex@example.com', phone: '+525500000000',
+            plusOne: true, plusOneName: 'Sam', eventId: 'fiesta',
+        }, pendingExpiresAt)
+
+        expect(rsvp).toMatchObject({ status: RSVP_STATUS.PENDING_PAYMENT, plusOne: true })
+        const updateArgs = (updateMock.mock.results[0]!.value.set as ReturnType<typeof vi.fn>).mock.calls[0][0]
+        expect(updateArgs).toMatchObject({ plusOne: true, plusOneName: 'Sam' })
     })
 
     it.each([RSVP_STATUS.CANCELLED, RSVP_STATUS.EXPIRED, RSVP_STATUS.PENDING_VERIFICATION])(
@@ -396,6 +484,69 @@ describe('rsvp_payments row helpers (ISSUE-011)', () => {
         expect(payment).toMatchObject({ stripeSessionId: 'cs_new', amountCents: 25000, currency: 'MXN' })
         const insertedValues = (insertMock.mock.results[0]!.value.values as ReturnType<typeof vi.fn>).mock.calls[0][0]
         expect(insertedValues.status).toBe(RSVP_PAYMENT_STATUS.CREATED)
+    })
+
+    it('reads plusOne with FOR SHARE after insert so a concurrent RSVP UPDATE must finish first', async () => {
+        executeMock.mockResolvedValueOnce({ rows: [{ plus_one: true }] })
+
+        await expect(getRsvpPlusOneForPaymentValidation('rsvp-1')).resolves.toBe(true)
+
+        const statement = sqlTextOf(executeMock.mock.calls[0][0])
+        expect(statement).toContain('SELECT plus_one')
+        expect(statement).toContain('FROM rsvps')
+        expect(statement).toContain('FOR SHARE')
+        expect(statement).not.toContain('email')
+        expect(statement).not.toContain('stripe_session_id')
+    })
+
+    it('returns null when the locked RSVP row no longer exists', async () => {
+        executeMock.mockResolvedValueOnce({ rows: [] })
+        await expect(getRsvpPlusOneForPaymentValidation('missing')).resolves.toBeNull()
+    })
+
+    it('hasRsvpPaymentLockingPartySize projects only created/paid existence', async () => {
+        executeMock
+            .mockResolvedValueOnce({ rows: [{ locks_party_size: true }] })
+            .mockResolvedValueOnce({ rows: [{ locks_party_size: false }] })
+
+        await expect(hasRsvpPaymentLockingPartySize('rsvp-1')).resolves.toBe(true)
+        await expect(hasRsvpPaymentLockingPartySize('rsvp-2')).resolves.toBe(false)
+
+        const statement = sqlTextOf(executeMock.mock.calls[0][0])
+        expect(statement).toContain('SELECT EXISTS')
+        expect(statement).toContain(RSVP_PAYMENT_STATUS.CREATED)
+        expect(statement).toContain(RSVP_PAYMENT_STATUS.PAID)
+        expect(statement).not.toContain(RSVP_PAYMENT_STATUS.EXPIRED)
+        expect(statement).not.toContain(RSVP_PAYMENT_STATUS.REFUNDED)
+        expect(statement).not.toContain('stripe_session_id')
+    })
+
+    it('updateRSVP atomically rejects plusOne writes for pending_payment or created/paid payment rows', async () => {
+        let capturedPredicate: unknown
+        updateMock.mockReturnValueOnce({
+            set: vi.fn(() => ({
+                where: vi.fn((predicate: unknown) => {
+                    capturedPredicate = predicate
+                    return { returning: vi.fn(async () => []) }
+                }),
+            })),
+        })
+        mockSelectOnce([camelRsvp({ status: RSVP_STATUS.PENDING_PAYMENT, plusOne: false })])
+
+        await expect(updateRSVP(
+            'rsvp-1',
+            { plusOne: true },
+            { rejectPaymentLockedPlusOneChange: true },
+        )).rejects.toThrow(RSVP_PAYMENT_PARTY_SIZE_LOCKED_MESSAGE)
+
+        const predicate = sqlTextOf(capturedPredicate)
+        expect(predicate).toContain(RSVP_STATUS.PENDING_PAYMENT)
+        expect(predicate).toContain('NOT EXISTS')
+        expect(predicate).toContain('rsvp_payments')
+        expect(predicate).toContain(RSVP_PAYMENT_STATUS.CREATED)
+        expect(predicate).toContain(RSVP_PAYMENT_STATUS.PAID)
+        expect(predicate).not.toContain(RSVP_PAYMENT_STATUS.EXPIRED)
+        expect(predicate).not.toContain(RSVP_PAYMENT_STATUS.REFUNDED)
     })
 
     it('getRsvpPaymentStatusBySessionId returns ONLY the status field — no PII, no rsvp id', async () => {

@@ -297,8 +297,9 @@ export const rsvpPayments = pgTable('rsvp_payments', {
     // session, ever.
     stripeSessionId: varchar('stripe_session_id', { length: 255 }).notNull().unique(),
     stripePaymentIntentId: varchar('stripe_payment_intent_id', { length: 255 }),
-    // Always derived as price_amount * 100 (lib/payment-config.ts) — never a
-    // second, independently-editable amount that could diverge from display.
+    // Exact Checkout total in cents: the server derives the per-person unit
+    // from price_amount * 100, then multiplies by the persisted RSVP party
+    // size (owner + optional companion). Never accepts a client-provided total.
     amountCents: integer('amount_cents').notNull(),
     currency: varchar('currency', { length: 10 }).notNull(),
     // 'created' | 'paid' | 'expired' | 'refunded'

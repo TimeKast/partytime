@@ -16,6 +16,74 @@ export interface EventPresentation {
     backgroundImagePosition: BackgroundImagePosition
 }
 
+/**
+ * Whole-currency-unit pricing shown before RSVP submission. The amount is the
+ * same per-person recovery fee configured on the event; Stripe converts it to
+ * cents only on the server.
+ */
+export interface PublicPaymentPricing {
+    unitAmount: number
+    currency: string
+}
+
+export interface PublicPaymentBreakdown extends PublicPaymentPricing {
+    quantity: 1 | 2
+    totalAmount: number
+}
+
+interface PublicPaymentPriceInput {
+    enabled?: boolean
+    amount?: number
+    currency?: string
+}
+
+/**
+ * Fail closed unless the current registration path truly requires payment and
+ * exposes a valid whole-unit fee. Invitation links pass their own effective
+ * `requiresPayment` flag so courtesy links never inherit the event-level fee.
+ */
+export function getPublicPaymentPricing(
+    requiresPayment: boolean,
+    price: PublicPaymentPriceInput,
+): PublicPaymentPricing | null {
+    const currency = normalizeOptionalString(price.currency).toUpperCase()
+
+    if (
+        !requiresPayment
+        || price.enabled !== true
+        || !Number.isSafeInteger(price.amount)
+        || Number(price.amount) <= 0
+        || !/^[A-Z]{3}$/.test(currency)
+    ) {
+        return null
+    }
+
+    return {
+        unitAmount: Number(price.amount),
+        currency,
+    }
+}
+
+export function getPublicPaymentBreakdown(
+    pricing: PublicPaymentPricing,
+    hasPlusOne: boolean,
+): PublicPaymentBreakdown {
+    const quantity: 1 | 2 = hasPlusOne ? 2 : 1
+
+    return {
+        ...pricing,
+        quantity,
+        totalAmount: pricing.unitAmount * quantity,
+    }
+}
+
+export function formatWholeCurrencyAmount(amount: number, currency: string): string {
+    return `$${new Intl.NumberFormat('es-MX', {
+        maximumFractionDigits: 0,
+        minimumFractionDigits: 0,
+    }).format(amount)} ${currency}`
+}
+
 export const LEGACY_PRESENTATION_DEFAULTS: EventPresentation = {
     presentationMode: 'classic',
     rsvpTitle: 'RSVP INDISPENSABLE',

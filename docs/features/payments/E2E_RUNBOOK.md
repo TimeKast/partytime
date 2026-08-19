@@ -13,8 +13,9 @@ idempotencia del webhook a nivel de query, rate-limit de la rama de pago) ya
 vive en `tests/` con el SDK de Stripe mockeado — ver
 `tests/rsvp-payment-route.test.ts`, `tests/stripe-checkout.test.ts`,
 `tests/stripe-webhook.test.ts`, `tests/stripe-webhook-queries.test.ts`,
-`tests/stripe-config.test.ts`. Este documento cubre lo que esos tests NO
-pueden probar: la integración real contra la API de Stripe.
+`tests/stripe-config.test.ts`, `tests/paid-plus-one-lock.test.ts`. Este
+documento cubre lo que esos tests NO pueden probar: la integración real contra
+la API de Stripe.
 
 ## Prerequisitos exactos
 
@@ -53,7 +54,7 @@ pueden probar: la integración real contra la API de Stripe.
 6. **Tarjetas de prueba de Stripe** (https://stripe.com/docs/testing):
    - Pago exitoso: `4242 4242 4242 4242`, cualquier fecha futura, cualquier
      CVC, cualquier código postal.
-   - No se necesita tarjeta de fallo para estos 4 escenarios (todos ejercitan
+   - No se necesita tarjeta de fallo para estos escenarios (todos ejercitan
      el camino de éxito/expiración/replay/capacidad, no un decline).
 
 ---
@@ -82,8 +83,8 @@ pueden probar: la integración real contra la API de Stripe.
 - [x] 1.7 Verificar que llegó el email de confirmación a la bandeja usada en
       1.1, con el link de cancelación.
 - [x] 1.8 En el dashboard de Stripe (test mode → Payments), verificar que el
-      cargo aparece como `Succeeded` por el monto exacto configurado (en
-      centavos: monto configurado × 100).
+      cargo aparece como `Succeeded` por el total correcto (sin acompañante:
+      monto por persona × 1 × 100).
 
 **Fecha ejecutado:** 2026-08-18 **Resultado:** ☒ PASS ☐ FAIL — notas:
 Rama Neon desechable, servidor en `localhost:3001` porque el puerto 3000 estaba
@@ -93,6 +94,41 @@ ocupado por el bridge local de WhatsApp. Checkout real test-mode por MXN 10.00
 al inbox de prueba `delivered@resend.dev` (`email_history_count=1`). La página
 de retorno quedó en “Pago recibido”. La fila se verificó directamente en la
 base aislada (misma fuente de `/admin`) y el cargo mediante Stripe API test.
+
+---
+
+## Escenario 1B — Cuota por persona con acompañante
+
+**Objetivo:** un RSVP con +1 debe cobrar dos cuotas, persistir el mismo total
+y congelar la cantidad mientras el pago esté abierto o completado.
+
+> Este escenario se añadió tras la corrección del 2026-08-18 y está pendiente
+> de una nueva corrida real. Usa un evento dedicado con capacidad mínima 2 o
+> eleva temporalmente el límite; el evento de capacidad 1 del escenario 4 no
+> puede aceptar titular + acompañante.
+
+- [ ] 1B.1 Configurar cuota de `10 MXN`, `payment_required=true` y capacidad
+      disponible de al menos 2 lugares.
+- [ ] 1B.2 Abrir el modal, marcar acompañante y verificar **antes de enviar**
+      que el resumen cambia de 1 cuota / `$10 MXN` a 2 cuotas / total
+      `$20 MXN`; el CTA debe decir “Continuar al pago”.
+- [ ] 1B.3 Enviar el RSVP, confirmar el redirect y verificar en Checkout que
+      el precio unitario es `MXN 10.00`, la cantidad es `2` y el total es
+      `MXN 20.00`.
+- [ ] 1B.4 Pagar con `4242 4242 4242 4242` y esperar el webhook 200.
+- [ ] 1B.5 Verificar en `/admin` que el RSVP está `confirmed`, conserva el +1
+      y el total de pago mostrado es `MXN 20.00`.
+- [ ] 1B.6 Verificar en DB/Stripe test que `rsvp_payments.amount_cents=2000`
+      y que el cargo exitoso tiene `amount_total=2000`.
+- [ ] 1B.7 Mientras el RSVP/sesión de prueba esté `pending_payment`/`created`, intentar
+      cambiar el flag +1 desde el editor invitado y desde admin: ambos deben
+      responder 409 con mensaje claro; tras expirar la sesión debe permitirse.
+- [ ] 1B.8 Reenviar el webhook completado y comprobar de nuevo que no hay
+      segundo email ni segundo cargo.
+
+**Fecha ejecutado:** pendiente **Resultado:** ☐ PASS ☐ FAIL — notas:
+Pendiente ejecutar contra Stripe test mode después de desplegar esta
+corrección.
 
 ---
 
@@ -309,8 +345,11 @@ de la moneda) y `amountCents: integer('amount_cents').notNull()`
 de pago.
 
 `lib/payment-config.ts::derivePaymentAmountCents` — `(event.priceAmount ??
-0) * 100`, multiplicación entera sobre entero, sin división ni redondeo
-(`Number.isFinite`/`toFixed`/`parseFloat` no aparecen en este archivo).
+0) * 100`, multiplicación entera sobre entero, sin división ni redondeo.
+`deriveRsvpPaymentPricing` multiplica esa cuota unitaria por `quantity=1|2`
+derivada del RSVP persistido; el resultado entero es el total guardado en
+`rsvp_payments.amount_cents` (`Number.isFinite`/`toFixed`/`parseFloat` no
+aparecen en este archivo).
 
 ```bash
 $ grep -rn "parseFloat\|toFixed\|Number(" app/api/rsvp/route.ts \

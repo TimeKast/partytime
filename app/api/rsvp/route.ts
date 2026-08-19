@@ -16,8 +16,12 @@ import {
 } from '@/lib/verification'
 import { buildVerificationEmailSubject, generateVerificationEmail } from '@/lib/verification-email'
 import { stripe } from '@/lib/stripe'
-import { buildCheckoutSessionParams, PENDING_PAYMENT_RSVP_TTL_MS } from '@/lib/stripe-checkout'
-import { derivePaymentAmountCents } from '@/lib/payment-config'
+import {
+  buildCheckoutSessionParams,
+  isCheckoutSessionConfirmedExpired,
+  PENDING_PAYMENT_RSVP_TTL_MS,
+} from '@/lib/stripe-checkout'
+import { deriveRsvpPaymentPricing } from '@/lib/payment-config'
 import { BoundedFixedWindowRateLimiter } from '@/lib/bounded-rate-limiter'
 
 export const dynamic = 'force-dynamic'
@@ -48,6 +52,43 @@ function requestIpOf(request: NextRequest): string {
   const forwarded = request.headers.get('x-forwarded-for')
   const firstHop = forwarded?.split(',', 1)[0]?.trim()
   return firstHop ? firstHop.slice(0, 64) : 'unknown'
+}
+
+/**
+ * Expire a Checkout without ever guessing its ledger state. Stripe returns
+ * the expired session on success. If the expire call rejects (already
+ * expired, completed, network ambiguity, etc.), retrieve the session and
+ * proceed only when Stripe explicitly reports `expired` + `unpaid`.
+ */
+async function expireCheckoutSessionConfirmed(sessionId: string): Promise<boolean> {
+  let session
+  try {
+    session = await stripe.checkout.sessions.expire(sessionId)
+  } catch (expireError) {
+    console.error(
+      'Stripe checkout expiration failed; reconciling session state:',
+      expireError instanceof Error ? expireError.name : 'UnknownError',
+    )
+    try {
+      session = await stripe.checkout.sessions.retrieve(sessionId)
+    } catch (retrieveError) {
+      console.error(
+        'Stripe checkout state could not be verified after expiration failure:',
+        retrieveError instanceof Error ? retrieveError.name : 'UnknownError',
+      )
+      return false
+    }
+  }
+
+  const confirmedExpired = isCheckoutSessionConfirmedExpired(session)
+  if (!confirmedExpired) {
+    console.warn(JSON.stringify({
+      event: 'stripe.checkout.expiration_not_confirmed',
+      status: session.status,
+      paymentStatus: session.payment_status,
+    }))
+  }
+  return confirmedExpired
 }
 
 export async function POST(request: NextRequest) {
@@ -271,39 +312,46 @@ export async function POST(request: NextRequest) {
           expireRsvpPaymentRecord,
           createRsvpPaymentRecord,
           expirePendingPaymentRsvp,
+          getRsvpPlusOneForPaymentValidation,
         } = await import('@/lib/queries')
 
         // ISSUE-011: a re-submit while this guest's OWN pending_payment row
-        // is still valid reuses the row (saveRSVPPendingPayment above) but
-        // must never leave two live Stripe sessions. Best-effort expire the
-        // previous session and mark its row 'expired' ourselves now, rather
-        // than waiting on the ISSUE-012 webhook — which doesn't exist yet
-        // and, once it does, simply no-ops on an already-'expired' row (see
-        // expireRsvpPaymentRecord's status='created' guard). Unreachable on
+        // is still valid reuses the row only with the same party size
+        // (saveRSVPPendingPayment above) and must never leave two live Stripe
+        // sessions. Only after Stripe proves the previous session is expired
+        // do we mark its row and create a replacement; complete/open/
+        // unverifiable sessions stay `created` for the webhook to reconcile.
+        // Unreachable on
         // the invitation path: a link is single-use, so a second POST with
         // the same token never re-matches eligible_invitation and 409s above
         // instead of reaching this branch.
         const previousPayment = await getActivePaymentForRsvp(rsvp.id)
         if (previousPayment) {
-          try {
-            await stripe.checkout.sessions.expire(previousPayment.stripeSessionId)
-          } catch (expireError) {
-            console.error(
-              'Failed to expire previous Stripe checkout session (best-effort):',
-              expireError instanceof Error ? expireError.name : 'UnknownError',
+          const previousSessionExpired = await expireCheckoutSessionConfirmed(previousPayment.stripeSessionId)
+          if (!previousSessionExpired) {
+            return NextResponse.json(
+              { error: 'No pudimos cerrar el pago anterior de forma segura. Revisa su estado e intenta de nuevo.' },
+              { status: 409 },
             )
           }
           await expireRsvpPaymentRecord(previousPayment.id)
         }
 
-        const amountCents = derivePaymentAmountCents(event)
+        // Price from the event; seat quantity from the row that was actually
+        // persisted/reserved. Never trust the request body as the money
+        // authority after the database write has completed.
+        const {
+          unitAmountCents,
+          quantity,
+          totalAmountCents,
+        } = deriveRsvpPaymentPricing(event, rsvp)
         const currency = event.priceCurrency || 'MXN'
 
         // Defensive: payment_required should never be true without a
         // positive price (checkPaymentRequiredEligibility enforces this at
         // write time in the admin API), but never send Stripe a zero/
         // negative amount — release the seat instead of a broken checkout.
-        if (amountCents <= 0) {
+        if (unitAmountCents <= 0 || totalAmountCents <= 0) {
           await expirePendingPaymentRsvp(rsvp.id)
           console.error(`payment_required event with non-positive derived amount: ${eventId}`)
           return NextResponse.json(
@@ -319,7 +367,8 @@ export async function POST(request: NextRequest) {
             eventSlug: eventId,
             email: rsvp.email,
             eventTitle: buildEventEmailData(event).title,
-            amountCents,
+            unitAmountCents,
+            quantity,
             currency,
           }))
         } catch (stripeError) {
@@ -353,29 +402,47 @@ export async function POST(request: NextRequest) {
           rsvpId: rsvp.id,
           eventId,
           stripeSessionId: session.id,
-          amountCents,
+          // This is the total Stripe collects, not the per-person unit amount.
+          amountCents: totalAmountCents,
           currency,
         })
+
+        // There is one narrow window before the `created` payment row exists
+        // where an admin (or a still-valid legacy guest edit link) can change
+        // plusOne after this request persisted/read the RSVP but before Stripe
+        // pricing is locked. The atomic updateRSVP predicate rejects both an
+        // RSVP that became pending_payment and `created`/`paid` payment rows;
+        // this FOR SHARE read remains a second defense that waits for an
+        // UPDATE already holding the RSVP row and sees its committed size.
+        const latestPlusOne = await getRsvpPlusOneForPaymentValidation(rsvp.id)
+        const latestQuantity = latestPlusOne !== null
+          ? (latestPlusOne ? 2 : 1)
+          : null
+        if (latestQuantity !== quantity) {
+          const mismatchedSessionExpired = await expireCheckoutSessionConfirmed(session.id)
+          if (mismatchedSessionExpired) {
+            await expireRsvpPaymentRecord(paymentRecord.id)
+          }
+          return NextResponse.json(
+            { error: 'Tu selección de acompañante cambió mientras iniciábamos el pago. Intenta de nuevo.' },
+            { status: 409 },
+          )
+        }
 
         // Tier-4 review finding F1: two concurrent POSTs can both pass the
         // getActivePaymentForRsvp pre-check above and each create a live
         // Checkout session — a guest with two tabs could pay both. After
         // inserting our own row, elect a single survivor (oldest 'created'
-        // row wins); every loser expires its own session AND its own row,
-        // and answers with a retryable error. At most one payable session
-        // ever survives, without needing a partial-unique index migration.
+        // row wins); every loser attempts to expire its own session and only
+        // expires its row after Stripe confirms `expired` + `unpaid`. It never
+        // exposes the losing URL and answers with a retryable error.
         const { electSurvivingCreatedPayment } = await import('@/lib/queries')
         const survivorId = await electSurvivingCreatedPayment(rsvp.id)
         if (survivorId !== null && survivorId !== paymentRecord.id) {
-          try {
-            await stripe.checkout.sessions.expire(session.id)
-          } catch (expireError) {
-            console.error(
-              'Failed to expire losing concurrent checkout session (best-effort):',
-              expireError instanceof Error ? expireError.name : 'UnknownError',
-            )
+          const losingSessionExpired = await expireCheckoutSessionConfirmed(session.id)
+          if (losingSessionExpired) {
+            await expireRsvpPaymentRecord(paymentRecord.id)
           }
-          await expireRsvpPaymentRecord(paymentRecord.id)
           return NextResponse.json(
             { error: 'Ya hay un pago en curso para este registro. Intenta de nuevo en unos minutos.' },
             { status: 409 },
@@ -540,6 +607,13 @@ export async function POST(request: NextRequest) {
     console.error('Error en POST /api/rsvp:', error instanceof Error ? error.name : 'UnknownError')
 
     // Manejar error de duplicado
+    if (error.message === 'No puedes cambiar el acompañante mientras hay un pago en curso o completado') {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 409 }
+      )
+    }
+
     if (error.message?.includes('Ya existe un RSVP')) {
       return NextResponse.json(
         { error: 'Ya confirmaste tu asistencia anteriormente' },

@@ -110,6 +110,7 @@ describe('app/api/admin/checkin-config/route.ts — RBAC + DTO shape (relied on,
             success: true,
             checkin: { enabled: true, hasPassword: true, updatedAt: '2026-08-01T00:00:00.000Z' },
         })
+        expect(mocks.userHasEventAccess).toHaveBeenCalledWith('user-1', 'event-id', 'viewer')
         expect(JSON.stringify(data)).not.toContain('bcrypt-hash-should-never-leak')
     })
 
@@ -123,6 +124,7 @@ describe('app/api/admin/checkin-config/route.ts — RBAC + DTO shape (relied on,
 
         expect(response.status).toBe(403)
         expect(data.success).toBe(false)
+        expect(mocks.userHasEventAccess).toHaveBeenCalledWith('user-1', 'event-id', 'manager')
         expect(mocks.updateEvent).not.toHaveBeenCalled()
     })
 
@@ -136,6 +138,7 @@ describe('app/api/admin/checkin-config/route.ts — RBAC + DTO shape (relied on,
 
         expect(response.status).toBe(403)
         expect(data.success).toBe(false)
+        expect(mocks.userHasEventAccess).toHaveBeenCalledWith('user-1', 'event-id', 'manager')
         expect(mocks.hashPassword).not.toHaveBeenCalled()
     })
 
@@ -149,6 +152,7 @@ describe('app/api/admin/checkin-config/route.ts — RBAC + DTO shape (relied on,
 
         expect(response.status).toBe(200)
         expect(data).toEqual({ success: true, checkin: { enabled: true, hasPassword: false, updatedAt: null } })
+        expect(mocks.userHasEventAccess).toHaveBeenCalledWith('user-1', 'event-id', 'manager')
         expect(mocks.updateEvent).toHaveBeenCalledWith('event-id', { checkinEnabled: true })
     })
 
@@ -260,16 +264,39 @@ describe('UI wiring — ISSUE-018 (source contracts, same style as tests/rsvp-pa
         expect(table).toContain('Sin llegar')
     })
 
-    it('app/admin/page.tsx gates every check-in surface (table column, counter, exports) behind checkinEnabled, sourced from CheckinSettings\' onStatusChange', () => {
+    it('loads one frozen page-level status DTO and shares it with Dashboard and controlled CheckinSettings', () => {
         const page = read('app/admin/page.tsx')
+        const settings = read('app/admin/components/CheckinSettings.tsx')
 
-        expect(page).toContain('const checkinEnabled = checkinStatus?.enabled ?? false')
+        expect(page).toContain('const checkinEnabled = selectedCheckinStatus?.enabled ?? false')
         expect((page.match(/showCheckin=\{checkinEnabled\}/g) ?? []).length).toBe(5)
         expect(page).toContain('{checkinEnabled && (')
         expect(page).toContain('describeCheckinArrivals(checkinArrivalCount)')
         expect(page).toContain('const showCheckinColumns = checkinEnabled')
         expect((page.match(/const showCheckinColumns = checkinEnabled/g) ?? []).length).toBe(2)
-        expect(page).toContain('<CheckinSettings eventSlug={selectedEventId} onStatusChange={handleCheckinStatusChange} />')
+        expect(page).toContain('/api/admin/checkin-config?eventSlug=${encodeURIComponent(selectedEventId)}')
+        expect(page).toContain('const status = parseCheckinStatusPayload(data)')
+        expect(page).toContain('<CheckinOverview')
+        expect(page).toContain('status={selectedCheckinStatus}')
+        expect(page).toContain('loadingStatus={selectedCheckinStatusLoading}')
+        expect(page).toContain('onStatusChange={handleCheckinStatusChange}')
+        expect(settings).not.toContain("method: 'GET'")
+        expect((settings.match(/method: 'PATCH'/g) ?? []).length).toBe(2)
+        expect((settings.match(/parseCheckinStatusPayload\(data\)/g) ?? []).length).toBe(2)
+    })
+
+    it('shows portal status to event viewers while keeping configuration manager-only', () => {
+        const page = read('app/admin/page.tsx')
+        const dashboardStart = page.indexOf("{activeTab === 'dashboard' && (")
+        const configStart = page.indexOf('{/* Contenido de Configuración */}', dashboardStart)
+        const dashboard = page.slice(dashboardStart, configStart)
+
+        expect(dashboard).toContain('<CheckinOverview')
+        expect(dashboard).toContain("onConfigure={canManageSelectedEvent ? () => openConfigSection('checkin') : undefined}")
+        expect(page).toContain('if (!isAuthenticated || !selectedEventId)')
+        expect(page).not.toContain('if (!isAuthenticated || !selectedEventId || !canManageSelectedEvent)')
+        expect(page).toContain('const checkinStatusMatchesSelection = checkinStatusEventSlug === selectedEventId')
+        expect(page).toContain('const selectedCheckinStatus = checkinStatusMatchesSelection ? checkinStatus : null')
     })
 
     it('the CheckinSettings section is only ever rendered inside the manager-only config tab — a viewer never reaches it (same RBAC pattern as InvitationLinkManager)', () => {
@@ -312,5 +339,55 @@ describe('UI wiring — ISSUE-018 (source contracts, same style as tests/rsvp-pa
 
         expect(component).toContain("setPasswordDraft('')")
         expect(component).not.toMatch(/value=\{status\??\.\w*[Pp]assword/)
+    })
+
+    it('replaces native confirmation UI with an accessible inline alertdialog and restores trigger focus', () => {
+        const component = read('app/admin/components/CheckinSettings.tsx')
+
+        expect(component).toContain('role="alertdialog"')
+        expect(component).toContain('aria-labelledby="checkin-confirm-title"')
+        expect(component).toContain('confirmationReturnFocusRef.current = document.activeElement')
+        expect(component).toContain('const restoreConfirmationFocus = (returnTarget: HTMLElement | null) => {')
+        expect(component).toContain('restoreConfirmationFocus(returnTarget)')
+        expect(component).toContain('const targetIsDisabled = returnTarget instanceof HTMLButtonElement')
+        expect(component).toContain('settingsSectionRef.current')
+        expect(component).toContain("if (event.key === 'Escape') dismissConfirmation()")
+        expect(component).not.toContain('window.confirm')
+        expect(component).not.toContain('window.prompt')
+        expect(component).not.toMatch(/\bconfirm\(/)
+        expect(component).not.toMatch(/\bprompt\(/)
+    })
+
+    it('clears mutation busy state when the selected event changes mid-request', () => {
+        const component = read('app/admin/components/CheckinSettings.tsx')
+        const resetEffectStart = component.indexOf('useEffect(() => {')
+        const resetEffectEnd = component.indexOf('}, [eventSlug])', resetEffectStart)
+        const resetEffect = component.slice(resetEffectStart, resetEffectEnd)
+
+        expect(resetEffect).toContain("setPasswordDraft('')")
+        expect(resetEffect).toContain('setTogglingEnabled(false)')
+        expect(resetEffect).toContain('setSavingPassword(false)')
+        expect(resetEffect).toContain('confirmationReturnFocusRef.current = null')
+    })
+
+    it('freezes the safe status shape and discards any extra password material', async () => {
+        const { parseCheckinStatusPayload } = await import('@/app/admin/components/CheckinStatus')
+        const status = parseCheckinStatusPayload({
+            success: true,
+            checkin: {
+                enabled: true,
+                hasPassword: true,
+                updatedAt: '2026-08-18T12:00:00.000Z',
+                passwordHash: 'must-not-cross-the-client-boundary',
+            },
+        })
+
+        expect(status).toEqual({
+            enabled: true,
+            hasPassword: true,
+            updatedAt: '2026-08-18T12:00:00.000Z',
+        })
+        expect(Object.isFrozen(status)).toBe(true)
+        expect(status).not.toHaveProperty('passwordHash')
     })
 })

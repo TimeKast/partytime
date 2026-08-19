@@ -47,3 +47,14 @@
   llegada — ahora COALESCE preserva el timestamp original (test fijado).
 - **Pendiente para producción:** aplicar 0011 en rama Neon desechable → prod
   (runbook), configurar CHECKIN_SESSION_SECRET en Vercel.
+
+## Delivery addendum — visibilidad admin (2026-08-18)
+
+- El dashboard carga el estado del portal al seleccionar el evento y muestra
+  disponibilidad, acceso directo y progreso sin exigir visitar Configuración.
+- Viewer puede leer estado/stats; PATCH de toggle/password sigue reservado a
+  manager. El estado se comparte entre dashboard y settings.
+- `/api/events` dejó de serializar filas Drizzle completas: un DTO allowlist
+  evita exponer `checkin_password_hash` o futuras columnas server-only.
+- Configuración se reorganizó en cinco pestañas accesibles con disclosures y
+  navegación mobile-first; todos los controles previos se conservaron.

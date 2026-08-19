@@ -26,6 +26,12 @@ Todo lo que el organizador ve/controla del check-in desde el admin.
 - Lista de invitados admin: columna "Llegada" (hora + quién marcó + nota,
   y llegada del +1) cuando `checkin_enabled`.
 - Contadores: "Llegados X / Confirmados Y" en el header del evento.
+- Tarjeta de estado en el dashboard con disponibilidad del portal, progreso
+  de llegadas y CTA "Abrir portal". Se carga al seleccionar el evento, sin
+  exigir visitar primero la configuración; viewer puede verla, pero solo
+  manager puede cambiar toggle/password.
+- Settings reorganizado en pestañas mobile-first (General, Invitados, Diseño,
+  Mensajes y Check-in) con una sola superficie activa y bloques desplegables.
 - Exports PDF/Excel: columnas "Llegó (hora)", "Llegada +1", "Marcó", "Nota
   check-in". Coordinar con las columnas de pago de ISSUE-013 (mismo bloque de
   código de export — por eso estos dos issues van secuenciados entre sí).
@@ -49,3 +55,12 @@ Then ve stats de llegada pero no puede rotar el password (RBAC)
 
 Test de RBAC del endpoint de config y del shape del export (columnas
 presentes solo con checkin_enabled).
+
+## Corrección posterior a entrega — 2026-08-18
+
+El estado de check-in se elevó al contenedor del admin: antes solo se pedía al
+montar la sección de settings, por lo que el dashboard inicial ocultaba stats
+y columnas hasta visitar Configuración y volver. `GET /api/admin/checkin-config`
+acepta ahora el rol `viewer`; `PATCH` conserva mínimo `manager`. La lista de
+eventos autenticada usa un DTO allowlist y nunca serializa
+`checkin_password_hash`.

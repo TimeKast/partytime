@@ -31,6 +31,7 @@ export function buildPublicEventDto(event: DatabaseEvent): PublicEvent {
             amount: event.priceAmount ?? 0,
             currency: event.priceCurrency ?? 'MXN',
         },
+        paymentRequired: event.paymentRequired ?? false,
         capacity: {
             enabled: event.capacityEnabled ?? false,
             limit: event.capacityLimit ?? 0,

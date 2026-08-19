@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { validateSession } from '@/lib/auth-utils'
 import { userHasEventAccess } from '@/lib/user-queries'
-import { getRSVPById, updateRSVP, getEventBySlug } from '@/lib/queries'
+import {
+  getRSVPById,
+  updateRSVP,
+  getEventBySlug,
+  hasRsvpPaymentLockingPartySize,
+  RSVP_PAYMENT_PARTY_SIZE_LOCKED_MESSAGE,
+} from '@/lib/queries'
 
 export async function POST(request: NextRequest) {
   // Check auth
@@ -29,9 +35,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!updates || Object.keys(updates).length === 0) {
+    if (!updates || typeof updates !== 'object' || Array.isArray(updates) || Object.keys(updates).length === 0) {
       return NextResponse.json(
         { error: 'No hay cambios para actualizar' },
+        { status: 400 }
+      )
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'plusOne') && typeof updates.plusOne !== 'boolean') {
+      return NextResponse.json(
+        { error: 'El campo de acompañante debe ser verdadero o falso' },
         { status: 400 }
       )
     }
@@ -74,8 +87,29 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const plusOneChanged = Object.prototype.hasOwnProperty.call(sanitizedUpdates, 'plusOne')
+      && sanitizedUpdates.plusOne !== (rsvp.plusOne === true)
+
+    // An unchanged plusOne is only a stale snapshot, not an intended write.
+    // Omit it so this request cannot revert a concurrent party-size change
+    // that subsequently became locked by a created/paid Checkout.
+    if (Object.prototype.hasOwnProperty.call(sanitizedUpdates, 'plusOne') && !plusOneChanged) {
+      delete sanitizedUpdates.plusOne
+    }
+
+    if (plusOneChanged && await hasRsvpPaymentLockingPartySize(rsvpId)) {
+      return NextResponse.json(
+        { error: RSVP_PAYMENT_PARTY_SIZE_LOCKED_MESSAGE },
+        { status: 409 }
+      )
+    }
+
     // Actualizar RSVP sin enviar email
-    await updateRSVP(rsvpId, sanitizedUpdates)
+    if (Object.keys(sanitizedUpdates).length > 0) {
+      await updateRSVP(rsvpId, sanitizedUpdates, {
+        rejectPaymentLockedPlusOneChange: plusOneChanged,
+      })
+    }
 
     return NextResponse.json({
       success: true,
@@ -84,6 +118,13 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Error en POST /api/admin/update-rsvp:', error)
+
+    if (error.message === RSVP_PAYMENT_PARTY_SIZE_LOCKED_MESSAGE) {
+      return NextResponse.json(
+        { error: RSVP_PAYMENT_PARTY_SIZE_LOCKED_MESSAGE },
+        { status: 409 }
+      )
+    }
 
     // A2-H02: el trigger de capacidad también aplica a ediciones de admin
     // (reconfirmar / añadir +1 en evento lleno) — 409, no 500.

@@ -55,16 +55,18 @@ journal, igual que ISSUE-005. Aplicar solo en rama Neon desechable.
   `payment_required=true` **solo** es válido si `price_enabled=true`,
   `price_amount > 0` y `price_currency ∈ {MXN, USD}`. Al desactivar
   `price_enabled` con `payment_required=true` → 400 con mensaje claro.
-- El monto a cobrar SIEMPRE se deriva: `amount_cents = price_amount * 100`.
-  No existe un segundo campo de monto (fuente única, PLAN §3.3).
+- `price_amount * 100` es la **cuota unitaria por persona**. El total de cada
+  pago se deriva en servidor desde el RSVP persistido:
+  `amount_cents = price_amount * 100 * (plus_one ? 2 : 1)`. No existe un
+  segundo campo editable de monto (fuente única, PLAN §3.3).
 
 ### Admin UI
 
 - Toggle "Requiere pago para confirmar" en settings del evento, solo
-  habilitado si hay precio configurado; helper text: "Se cobrará exactamente
-  el precio mostrado ($X MXN) vía Stripe. Los links privados de invitación
-  no pagan." Aviso si `isStripeConfigured()` es false (exponer flag por la
-  ruta admin, nunca la key).
+  habilitado si hay precio configurado; el helper deja explícito que el monto
+  mostrado es **por persona** y que un acompañante agrega una segunda cuota.
+  Los links privados de cortesía no pagan. Aviso si `isStripeConfigured()` es
+  false (exponer flag por la ruta admin, nunca la key).
 
 ## Acceptance criteria
 
@@ -82,10 +84,22 @@ When corren db:preflight y verify-db-contract
 Then pasan y rsvp_payments existe con su unique de sesión
 
 Given un evento con precio $250 MXN y payment_required
-Then el monto derivado es exactamente 25000 centavos MXN (test unitario)
+When el RSVP no tiene acompañante
+Then el total derivado es exactamente 25000 centavos MXN
+
+Given el mismo evento y un RSVP persistido con acompañante
+Then Stripe recibe unit_amount=25000, quantity=2 y amount_cents=50000
 ```
 
 ## Tests requeridos
 
-`tests/stripe-config.test.ts`: derivación de monto, whitelist de moneda,
-validación cruzada de settings, cliente lazy sin env.
+`tests/stripe-config.test.ts` y `tests/stripe-checkout.test.ts`: derivación de
+cuota/total, quantity por RSVP persistido, whitelist de moneda, validación
+cruzada de settings y cliente lazy sin env.
+
+## Corrección posterior a entrega — 2026-08-18
+
+Feedback E2E reveló que la primera entrega cobraba una sola cuota aun con
+`plus_one=true`. Se corrigió el contrato para cobrar por persona, manteniendo
+`price_amount` como única cuota configurable y `amount_cents` como el total
+exacto efectivamente enviado a Stripe.

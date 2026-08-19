@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { updateRSVP, validateCancelToken, CANCEL_TOKEN_SECRET_MISSING_MESSAGE, getRSVPById, getEventBySlug, isSeatAddingChange, RSVP_STATUS } from '@/lib/queries'
+import {
+  updateRSVP,
+  validateCancelToken,
+  CANCEL_TOKEN_SECRET_MISSING_MESSAGE,
+  RSVP_PAYMENT_PARTY_SIZE_LOCKED_MESSAGE,
+  getRSVPById,
+  getEventBySlug,
+  hasRsvpPaymentLockingPartySize,
+  isSeatAddingChange,
+  RSVP_STATUS,
+} from '@/lib/queries'
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,6 +19,13 @@ export async function POST(request: NextRequest) {
     if (!rsvpId || !token || !name || !email || !phone) {
       return NextResponse.json(
         { error: 'Faltan campos requeridos' },
+        { status: 400 }
+      )
+    }
+
+    if (plusOne !== undefined && typeof plusOne !== 'boolean') {
+      return NextResponse.json(
+        { error: 'El campo de acompañante debe ser verdadero o falso' },
         { status: 400 }
       )
     }
@@ -45,14 +62,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const normalizedPlusOne = plusOne === true
+    const plusOneChanged = normalizedPlusOne !== (currentRSVP.plusOne === true)
+
+    // An open or completed Stripe payment fixes how many people are priced.
+    // Keep contact/name edits available, but never silently add or remove a
+    // companion. updateRSVP repeats this as an atomic write predicate in case
+    // the payment row is inserted/paid after this precheck.
+    if (plusOneChanged && await hasRsvpPaymentLockingPartySize(rsvpId)) {
+      return NextResponse.json(
+        { error: RSVP_PAYMENT_PARTY_SIZE_LOCKED_MESSAGE },
+        { status: 409 }
+      )
+    }
+
     // Preparar datos a actualizar
     const trimmedEmail = email.trim()
     const updateData: any = {
       name,
       email: trimmedEmail,
       phone,
-      plusOne: plusOne || false,
-      plusOneName: plusOne ? (plusOneName?.trim() || null) : null
+      plusOneName: normalizedPlusOne ? (plusOneName?.trim() || null) : null
+    }
+    // Do not write an unchanged party-size snapshot back to the database. A
+    // concurrent request may change plusOne and open a priced Checkout after
+    // our read; omitting this column prevents this contact edit from silently
+    // reverting that newer, payment-locked value.
+    if (plusOneChanged) {
+      updateData.plusOne = normalizedPlusOne
     }
 
     // ISSUE-009 (EPIC-003): this route DOES allow the guest to change their
@@ -87,7 +124,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Actualizar RSVP
-    const updatedRSVP = await updateRSVP(rsvpId, updateData)
+    const updatedRSVP = await updateRSVP(rsvpId, updateData, {
+      rejectPaymentLockedPlusOneChange: plusOneChanged,
+    })
 
     return NextResponse.json({
       success: true,
@@ -104,6 +143,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Servicio no disponible' },
         { status: 503 }
+      )
+    }
+
+    if (error.message === RSVP_PAYMENT_PARTY_SIZE_LOCKED_MESSAGE) {
+      return NextResponse.json(
+        { error: RSVP_PAYMENT_PARTY_SIZE_LOCKED_MESSAGE },
+        { status: 409 }
       )
     }
 

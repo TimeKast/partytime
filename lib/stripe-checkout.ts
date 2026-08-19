@@ -1,4 +1,5 @@
 import type Stripe from 'stripe'
+import type { RsvpPaymentQuantity } from '@/lib/payment-config'
 
 /**
  * ISSUE-011 (EPIC-004): the Stripe Checkout session itself always expires 30
@@ -15,15 +16,24 @@ export interface CheckoutSessionInput {
     eventSlug: string
     email: string
     eventTitle: string
-    /**
-     * Always `derivePaymentAmountCents(event)` (lib/payment-config.ts) — the
-     * SAME value the caller also persists on the `rsvp_payments` row, never a
-     * second independently-computed amount (PLAN §3.3 "Fuente única de
-     * precio").
-     */
-    amountCents: number
+    /** Per-person recovery fee; the caller persists unit × quantity as total. */
+    unitAmountCents: number
+    /** One RSVP owner, plus one companion when present on the persisted RSVP. */
+    quantity: RsvpPaymentQuantity
     /** Whitelisted, stored casing (e.g. 'MXN') — lower-cased below for Stripe. */
     currency: string
+}
+
+/**
+ * A Checkout may be superseded only after Stripe itself proves that the
+ * session is expired and unpaid. `status = expired` alone is not enough for
+ * ledger safety if an unexpected/partial response says money was collected;
+ * the webhook remains the only authority allowed to turn our row `paid`.
+ */
+export function isCheckoutSessionConfirmedExpired(
+    session: Pick<Stripe.Checkout.Session, 'status' | 'payment_status'>,
+): boolean {
+    return session.status === 'expired' && session.payment_status === 'unpaid'
 }
 
 /**
@@ -48,12 +58,12 @@ export function buildCheckoutSessionParams(input: CheckoutSessionInput): Stripe.
                     // stored/display casing (event.priceCurrency) stays
                     // uppercase everywhere else in the app.
                     currency: input.currency.toLowerCase(),
-                    unit_amount: input.amountCents,
+                    unit_amount: input.unitAmountCents,
                     product_data: {
                         name: `Reservación — ${input.eventTitle}`,
                     },
                 },
-                quantity: 1,
+                quantity: input.quantity,
             },
         ],
         metadata,

@@ -11,9 +11,9 @@ interface SaveBarProps {
 export function SaveBar({ saving, statusLabel }: SaveBarProps) {
   return (
     <div className={styles.bar}>
-      {statusLabel && <span className={styles.status}>{statusLabel}</span>}
+      {statusLabel && <span className={styles.status} role="status" aria-live="polite">{statusLabel}</span>}
       <Button type="submit" variant="primary" disabled={saving}>
-        {saving ? 'Guardando...' : 'Guardar Configuración'}
+        {saving ? 'Guardando…' : 'Guardar cambios'}
       </Button>
     </div>
   )

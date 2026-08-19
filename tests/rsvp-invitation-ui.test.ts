@@ -99,7 +99,8 @@ describe('admin one-time invitation link UI contract', () => {
   })
 
   it('ISSUE-020: shows unchecked-flag helper copy and per-link badges only when the event behavior applies', () => {
-    expect(manager).toContain('El invitado pagará')
+    expect(manager).toContain('La cuota es por persona')
+    expect(manager).toContain('o 2 cuotas si registra +1')
     expect(manager).toContain('El invitado deberá confirmar su correo.')
     expect(manager).toContain("{link.isCourtesy ? 'Cortesía' : 'Paga'}")
     expect(manager).toContain("{link.skipVerification ? 'Sin verificación' : 'Verifica'}")
@@ -148,6 +149,9 @@ describe('public invitation registration UI contract', () => {
     expect(client).toContain('requiresPayment: boolean; requiresVerification: boolean')
     expect(client).toContain('{(requiresPayment || requiresVerification) && (')
     expect(client).toContain('Tu invitación requiere pago para confirmar')
+    expect(client).toContain('getPublicPaymentPricing(requiresPayment, registrationEvent.price)')
+    expect(client).toContain('por persona; si registras +1 se cobran 2 cuotas')
+    expect(client).toContain('paymentPricing={paymentPricing ?? undefined}')
     expect(client).toContain('Te pediremos confirmar tu correo.')
   })
 

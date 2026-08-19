@@ -119,9 +119,13 @@ de la frecuencia de crons de Vercel.
   frontend, sin `NEXT_PUBLIC_STRIPE_*`. Solo `STRIPE_SECRET_KEY` y
   `STRIPE_WEBHOOK_SECRET` server-side.
 - **Fuente única de precio:** `payment_required` (bool nuevo en `events`)
-  exige `price_enabled && price_amount > 0`. El cobro es
-  `price_amount * 100` centavos en `price_currency` (whitelist MXN/USD).
-  Nunca hay dos montos que puedan divergir entre display y cobro.
+  exige `price_enabled && price_amount > 0`. `price_amount * 100` es la cuota
+  unitaria por persona en `price_currency` (whitelist MXN/USD); Checkout usa
+  `quantity=1|2` desde el RSVP persistido y guarda como `amount_cents` el total
+  unitario × cantidad. Nunca hay un monto editable paralelo que pueda
+  divergir entre display y cobro. Antes de enviar el RSVP, el modal público
+  presenta la cuota por persona y recalcula el total visible al marcar +1;
+  links de cortesía no presentan cobro.
 - Tabla nueva `rsvp_payments` (sigue convención `event_id = slug`):
   id, rsvp_id, event_id, stripe_session_id (unique), stripe_payment_intent_id,
   amount_cents, currency, status (`created|paid|expired|refunded`),
@@ -154,8 +158,10 @@ de la frecuencia de crons de Vercel.
 - Refresh por polling (10–15 s), contadores X/Y llegados, búsqueda por nombre.
   Mobile-first (recepción usa teléfono).
 - Headers `no-store` + `noindex` como `/invite` (`next.config.js`).
-- Admin: toggle, set/rotate password, stats de llegada, export PDF/Excel con
-  columnas de check-in.
+- Admin: estado operativo visible desde el dashboard para viewer/manager,
+  acceso directo al portal, toggle/set/rotate password solo para manager y
+  stats/export PDF/Excel con columnas de check-in. Settings usa navegación
+  por pestañas y disclosures mobile-first para evitar una página monolítica.
 
 ## 4. Cambios de schema (migraciones 0009+, secuenciales, single-owner)
 

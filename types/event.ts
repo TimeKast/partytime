@@ -21,6 +21,8 @@ export interface PublicEvent {
         amount: number
         currency: string
     }
+    /** Whether this RSVP must complete Stripe Checkout to be confirmed. */
+    paymentRequired: boolean
     capacity: {
         enabled: boolean
         limit: number

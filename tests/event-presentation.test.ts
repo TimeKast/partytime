@@ -3,6 +3,9 @@ import {
     LEGACY_PRESENTATION_DEFAULTS,
     NEW_EVENT_PRESENTATION_DEFAULTS,
     clampOverlayStrength,
+    formatWholeCurrencyAmount,
+    getPublicPaymentBreakdown,
+    getPublicPaymentPricing,
     getVisibleEventDetails,
     getContrastTextColor,
     getContrastRatio,
@@ -115,6 +118,46 @@ describe('event presentation contract', () => {
             price: { enabled: true, amount: 500, currency: 'MXN' },
             capacity: { enabled: true, limit: 80 },
         })).toEqual([])
+    })
+
+    it('builds a whole-unit public payment disclosure only for an effectively paid flow', () => {
+        expect(getPublicPaymentPricing(true, {
+            enabled: true,
+            amount: 250,
+            currency: 'mxn',
+        })).toEqual({ unitAmount: 250, currency: 'MXN' })
+
+        expect(getPublicPaymentPricing(false, {
+            enabled: true,
+            amount: 250,
+            currency: 'MXN',
+        })).toBeNull()
+        expect(getPublicPaymentPricing(true, {
+            enabled: true,
+            amount: 250.5,
+            currency: 'MXN',
+        })).toBeNull()
+        expect(getPublicPaymentPricing(true, {
+            enabled: true,
+            amount: 250,
+            currency: 'not-a-currency',
+        })).toBeNull()
+    })
+
+    it('updates the disclosed total from one to two per-person fees for a +1', () => {
+        const pricing = { unitAmount: 250, currency: 'MXN' }
+
+        expect(getPublicPaymentBreakdown(pricing, false)).toEqual({
+            ...pricing,
+            quantity: 1,
+            totalAmount: 250,
+        })
+        expect(getPublicPaymentBreakdown(pricing, true)).toEqual({
+            ...pricing,
+            quantity: 2,
+            totalAmount: 500,
+        })
+        expect(formatWholeCurrencyAmount(500, 'MXN')).toBe('$500 MXN')
     })
 
     it('requires a trimmed RSVP button label between 1 and 80 characters', () => {

@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import type { PublicEvent } from '@/types/event'
 import { buildEventInvitationViewModel } from '@/lib/event-invitation-view-model'
+import {
+  formatWholeCurrencyAmount,
+  getPublicPaymentPricing,
+} from '@/lib/event-presentation'
 import EventInvitation from '@/app/[slug]/components/EventInvitation'
 import RSVPModal from '@/app/components/RSVPModal'
 import styles from '@/app/page.module.css'
@@ -141,9 +145,17 @@ export default function InvitationRegistrationClient({
     )
   }
 
-  const registrationEvent: PublicEvent = { ...state.event, rsvpClosed: false }
+  const isCourtesyRegistration = state.event.paymentRequired && !state.requiresPayment
+  const registrationEvent: PublicEvent = {
+    ...state.event,
+    rsvpClosed: false,
+    price: isCourtesyRegistration
+      ? { ...state.event.price, enabled: false }
+      : state.event.price,
+  }
   const invitationViewModel = buildEventInvitationViewModel(registrationEvent)
   const { requiresPayment, requiresVerification } = state
+  const paymentPricing = getPublicPaymentPricing(requiresPayment, registrationEvent.price)
 
   return (
     <>
@@ -164,8 +176,8 @@ export default function InvitationRegistrationClient({
           {requiresPayment && (
             <p style={{ margin: 0 }}>
               Tu invitación requiere pago para confirmar
-              {registrationEvent.price.enabled && registrationEvent.price.amount > 0
-                ? ` (${registrationEvent.price.currency} $${registrationEvent.price.amount}).`
+              {paymentPricing
+                ? ` (${formatWholeCurrencyAmount(paymentPricing.unitAmount, paymentPricing.currency)} por persona; si registras +1 se cobran 2 cuotas).`
                 : '.'}
             </p>
           )}
@@ -189,6 +201,7 @@ export default function InvitationRegistrationClient({
             eventSlug={invitationViewModel.rsvp.modal.eventSlug}
             invitationToken={state.token}
             requirePlusOneName={invitationViewModel.rsvp.modal.requirePlusOneName}
+            paymentPricing={paymentPricing ?? undefined}
             theme={registrationEvent.theme}
           />
         )}

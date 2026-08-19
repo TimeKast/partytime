@@ -1,0 +1,104 @@
+.disclosure {
+  border-top: 3px solid var(--ad-runbook-line, var(--ad-border-strong));
+  border-inline: 1px solid var(--ad-runbook-line, var(--ad-border));
+  border-bottom: 1px solid var(--ad-runbook-line, var(--ad-border));
+  background: var(--ad-runbook-paper, var(--ad-surface));
+}
+
+.disclosure[data-tone='warning'] {
+  border-top-color: var(--ad-runbook-amber, var(--ad-warning));
+}
+
+.disclosure[data-tone='success'] {
+  border-top-color: var(--ad-runbook-green, var(--ad-success));
+}
+
+.heading {
+  margin: 0;
+}
+
+.trigger {
+  display: flex;
+  width: 100%;
+  min-height: 72px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ad-4);
+  padding: var(--ad-4) var(--ad-5);
+  border: 0;
+  background: transparent;
+  color: var(--ad-runbook-ink, var(--ad-text));
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.trigger:hover {
+  background: var(--ad-runbook-paper-2, var(--ad-surface-2));
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--ad-focus);
+  outline-offset: -3px;
+}
+
+.titleBlock {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.titleBlock strong {
+  font-size: var(--ad-fs-lg);
+  font-weight: var(--ad-weight-bold);
+  text-wrap: balance;
+}
+
+.titleBlock small {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ad-runbook-muted, var(--ad-text-muted));
+  font-size: var(--ad-fs-xs);
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.chevron {
+  flex: 0 0 auto;
+  color: var(--ad-runbook-amber, var(--ad-warning));
+  font-size: 24px;
+  line-height: 1;
+  transition: transform var(--ad-dur) var(--ad-ease);
+}
+
+.trigger[aria-expanded='true'] .chevron {
+  transform: rotate(180deg);
+}
+
+.content {
+  padding: 0 var(--ad-5) var(--ad-5);
+  border-top: 1px dashed var(--ad-runbook-line, var(--ad-border));
+}
+
+.content[hidden] {
+  display: none;
+}
+
+@media (max-width: 480px) {
+  .trigger {
+    min-height: 68px;
+    padding-inline: var(--ad-4);
+  }
+
+  .content {
+    padding-inline: var(--ad-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}
