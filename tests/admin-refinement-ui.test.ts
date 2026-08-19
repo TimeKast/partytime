@@ -79,7 +79,7 @@ describe('admin refinement UI contracts', () => {
     expect(pagination).toContain('Paginación ${positionLabel} de invitados')
   })
 
-  it('uses a controlled five-tab configuration model with keyboard navigation and motion-safe track scrolling', () => {
+  it('uses a controlled five-tab configuration model with keyboard navigation and no scripted scrolling', () => {
     const configNav = read('app/admin/components/config/ConfigNav.tsx')
     const page = read('app/admin/page.tsx')
 
@@ -93,15 +93,15 @@ describe('admin refinement UI contracts', () => {
     expect(configNav).toContain('aria-selected={active}')
     expect(configNav).toContain('aria-controls={active ? `config-panel-${section.id}` : undefined}')
     expect(configNav).toContain("['ArrowLeft', 'ArrowRight', 'Home', 'End']")
-    expect(configNav).toContain("window.matchMedia('(prefers-reduced-motion: reduce)').matches")
-    expect(configNav).toContain("behavior: reducedMotion ? 'auto' : 'smooth'")
+    expect(configNav).not.toContain('scrollTo(')
+    expect(configNav).not.toContain('scrollIntoView')
     expect(page).toContain('window.history.replaceState(null, \'\', `#config-${section}`)')
     expect(page).toContain("activeConfigSection === 'general'")
     expect(page).toContain("activeConfigSection === 'checkin'")
     expect(configNav).not.toMatch(/>\s*0[1-5]\s*</)
   })
 
-  it('keeps only the tab track horizontally scrollable and exposes accessible disclosures', () => {
+  it('keeps tabs in a no-scroll responsive grid and exposes compact accessible disclosures', () => {
     const configNav = read('app/admin/components/config/ConfigNav.tsx')
     const navCss = read('app/admin/components/config/ConfigNav.module.css')
     const disclosure = read('app/admin/components/config/SettingsDisclosure.tsx')
@@ -114,25 +114,23 @@ describe('admin refinement UI contracts', () => {
     expect(configNav).toContain('<div ref={trackRef} className={styles.track} role="tablist"')
     expect(navRule).toContain('position: sticky;')
     expect(navRule).not.toContain('overflow-x: auto;')
-    expect(trackRule).toContain('overflow-x: auto;')
-    expect(trackRule).toContain('overscroll-behavior-inline: contain;')
-    expect(trackRule).toContain('-webkit-overflow-scrolling: touch;')
+    expect(trackRule).toContain('grid-template-columns: repeat(5, minmax(0, 1fr));')
+    expect(trackRule).not.toMatch(/overflow-x:\s*(?:auto|scroll)/)
     expect(navRule).toContain('z-index: 20;')
     expect(mobileNavRule).toContain('top: var(--ad-mobile-top-offset);')
     expect(mobileNavRule).not.toContain('position: fixed;')
-    expect(configNav).toContain('const trackRect = track.getBoundingClientRect()')
-    expect(configNav).toContain('const tabRect = activeTab.getBoundingClientRect()')
-    expect(configNav).toContain('track.scrollTo({')
+    expect(navCss).toMatch(/@media \(max-width: 340px\)[\s\S]*?grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/)
     expect(configNav).not.toContain('scrollIntoView')
 
     expect(disclosure).toContain('aria-expanded={open}')
     expect(disclosure).toContain('aria-controls={contentId}')
     expect(disclosure).toContain('hidden={!open}')
     expect(disclosureCss).toMatch(/\.titleBlock small\s*\{[\s\S]*?-webkit-line-clamp:\s*2;/)
+    expect(disclosureCss).toMatch(/\.trigger\s*\{[\s\S]*?min-height:\s*48px;/)
     expect(disclosureCss).toContain('@media (prefers-reduced-motion: reduce)')
   })
 
-  it('uses the Backstage Runbook surface, equivalent custom validation, responsive grids, and a compact save bar', () => {
+  it('uses light fintech surfaces, equivalent validation, responsive grids, and a compact save bar', () => {
     const page = read('app/admin/page.tsx')
     const css = read('app/admin/admin.module.css')
     const saveCss = read('app/admin/components/config/SaveBar.module.css')
@@ -146,12 +144,53 @@ describe('admin refinement UI contracts', () => {
     expect(page).toContain("revealKey={configValidationReveal.id === 'identity'")
     expect(page).toContain("revealKey={configValidationReveal.id === 'reminder'")
     expect(page).toContain('className={styles.configColorGrid}')
-    expect(css).toMatch(/\.configPage\s*\{[\s\S]*?--ad-runbook-ink:\s*#29271f;[\s\S]*?width:\s*min\(100%, 1080px\);/)
-    expect(css).toMatch(/\.configSection\s*\{[\s\S]*?border:\s*1px solid var\(--ad-runbook-line,[\s\S]*?background:\s*var\(--ad-runbook-paper,/)
+    expect(css).toMatch(/\.configPage\s*\{[\s\S]*?width:\s*min\(100%, 1080px\);/)
+    expect(css).not.toMatch(/runbook|#fffdf7|#f5f0e5|#d8cfbd/i)
+    expect(css).toMatch(/\.configSection\s*\{[\s\S]*?border:\s*1px solid var\(--ad-border\);[\s\S]*?background:\s*var\(--ad-surface\);/)
     expect(css).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))')
     expect(css).toMatch(/\.configColorGrid\s*\{[\s\S]*?grid-template-columns:\s*1fr;/)
-    expect(saveCss).toMatch(/\.bar\s*\{[\s\S]*?position:\s*sticky;[\s\S]*?border-left:\s*4px solid var\(--ad-runbook-amber/)
+    expect(saveCss).toMatch(/\.bar\s*\{[\s\S]*?position:\s*sticky;[\s\S]*?border-left:\s*3px solid var\(--ad-primary/)
     expect(saveCss).toMatch(/@media \(max-width: 640px\)[\s\S]*?\.bar button\s*\{[\s\S]*?width:\s*auto;/)
+  })
+
+  it('keeps fee and capacity compact and collapsed until requested', () => {
+    const page = read('app/admin/page.tsx')
+    const css = read('app/admin/admin.module.css')
+    const paymentStart = page.indexOf('title="Cuota y cobro"')
+    const capacityStart = page.indexOf('title="Capacidad"', paymentStart)
+    const plusOneStart = page.indexOf('title="Acompañantes (+1)"', capacityStart)
+
+    expect(page.slice(paymentStart, capacityStart)).not.toContain('defaultOpen')
+    expect(page.slice(capacityStart, plusOneStart)).not.toContain('defaultOpen')
+    expect(page).toContain('styles.configNumberField')
+    expect(css).toMatch(/\.configNumberField\s*\{[\s\S]*?width:\s*min\(100%, 220px\);/)
+    expect(css).toMatch(/\.configToggleGroup\s*\{[\s\S]*?min-height:\s*44px;/)
+  })
+
+  it('does not reintroduce horizontal scrolling or decorative purple/beige styling in admin', () => {
+    const cssFiles = [
+      read('app/admin/admin.module.css'),
+      read('app/admin/components/config/ConfigNav.module.css'),
+      read('app/admin/components/config/SettingsDisclosure.module.css'),
+      read('app/admin/components/config/BackstageStatusStrip.module.css'),
+      read('app/admin/components/config/SaveBar.module.css'),
+    ].join('\n')
+
+    expect(cssFiles).not.toMatch(/overflow-x:\s*(?:auto|scroll)/)
+    expect(cssFiles).not.toMatch(/#(?:fffdf7|f5f0e5|d8cfbd|667eea|764ba2|a78bfa)/i)
+  })
+
+  it('stacks event and user management grids before they can overflow narrow phones', () => {
+    const page = read('app/admin/page.tsx')
+    const users = read('app/admin/components/UserManagement.tsx')
+    const css = read('app/admin/admin.module.css')
+
+    expect(page).toContain('className={styles.eventCreateRow}')
+    expect(users).toContain('className={selectedUser ? styles.userSplit : styles.userSingleColumn}')
+    expect(users).toContain('className={styles.userAssignmentForm}')
+    expect(css).toMatch(/\.eventCreateRow\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/)
+    expect(css).toMatch(/@media \(max-width: 768px\)[\s\S]*?\.eventCreateRow,[\s\S]*?\.userSplit\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\);/)
+    expect(css).toMatch(/\.userAssignmentForm\s*\{[\s\S]*?flex-wrap:\s*wrap;/)
   })
 
   it('keeps the save affordance mounted on Check-in and expands a collapsed disclosure before focusing invalid input', () => {

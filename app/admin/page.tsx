@@ -1891,7 +1891,7 @@ export default function AdminDashboard() {
           <header className={styles.configHeader}>
             <div className={styles.configHeaderMain}>
               <div>
-                <p className={styles.configEyebrow}>Backstage runbook · {selectedEvent?.title || 'Evento seleccionado'}</p>
+                <p className={styles.configEyebrow}>Panel del evento · {selectedEvent?.title || 'Evento seleccionado'}</p>
                 <h2>Configuración del evento</h2>
                 <p className={styles.configDescription}>
                   Ajusta una etapa a la vez. Los cambios de check-in se aplican al momento; el resto se guarda con la barra inferior.
@@ -2002,7 +2002,6 @@ export default function AdminDashboard() {
                   <SettingsDisclosure
                     title="Fecha y lugar"
                     summary={[configForm.date, configForm.time, configForm.location].filter(Boolean).join(' · ') || 'Sin logística pública'}
-                    defaultOpen
                   >
                     <div className={styles.configFields}>
                       <div className={styles.configFormRow}>
@@ -2077,7 +2076,6 @@ export default function AdminDashboard() {
                     summary={configForm.paymentRequired
                       ? `$${configForm.priceAmount} MXN por persona · cobro requerido`
                       : configForm.priceEnabled ? `$${configForm.priceAmount} MXN informativos` : 'Sin cuota'}
-                    defaultOpen
                     tone={configForm.paymentRequired ? 'warning' : 'default'}
                     revealKey={configValidationReveal.id === 'payment' ? configValidationReveal.nonce : 0}
                   >
@@ -2098,7 +2096,7 @@ export default function AdminDashboard() {
                       </div>
 
                       {configForm.priceEnabled && (
-                        <div className={styles.configFormGroup}>
+                        <div className={`${styles.configFormGroup} ${styles.configNumberField}`}>
                           <label className={styles.configLabel} htmlFor="config-price-amount">Monto por persona (MXN) *</label>
                           <input
                             id="config-price-amount"
@@ -2153,7 +2151,6 @@ export default function AdminDashboard() {
                   <SettingsDisclosure
                     title="Capacidad"
                     summary={configForm.capacityEnabled ? `${configForm.capacityLimit} lugares disponibles` : 'Sin límite visible'}
-                    defaultOpen
                     revealKey={configValidationReveal.id === 'capacity' ? configValidationReveal.nonce : 0}
                   >
                     <div className={styles.configFields}>
@@ -2168,7 +2165,7 @@ export default function AdminDashboard() {
                         <label htmlFor="capacityEnabled" className={styles.configToggleLabel}>Limitar capacidad y mostrar cupo</label>
                       </div>
                       {configForm.capacityEnabled && (
-                        <div className={styles.configFormGroup}>
+                        <div className={`${styles.configFormGroup} ${styles.configNumberField}`}>
                           <label className={styles.configLabel} htmlFor="config-capacity-limit">Límite de personas *</label>
                           <input
                             id="config-capacity-limit"
@@ -2517,7 +2514,6 @@ export default function AdminDashboard() {
                     summary={configForm.reminderEnabled && configForm.reminderScheduledAt
                       ? `Programado: ${new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(configForm.reminderScheduledAt))}`
                       : 'Sin recordatorio programado'}
-                    defaultOpen
                     tone={configForm.reminderEnabled ? 'success' : 'default'}
                     revealKey={configValidationReveal.id === 'reminder' ? configValidationReveal.nonce : 0}
                   >
@@ -2582,29 +2578,29 @@ export default function AdminDashboard() {
           <div style={{ marginBottom: '30px' }}>
             <h3 style={{ marginBottom: '15px' }}>📋 Eventos Existentes</h3>
             {events.length === 0 ? (
-              <p style={{ color: '#666', fontStyle: 'italic' }}>No hay eventos creados aún. ¡Crea tu primera fiesta!</p>
+              <p style={{ color: '#526078', fontStyle: 'italic' }}>No hay eventos creados aún. ¡Crea tu primera fiesta!</p>
             ) : (
               <div style={{ display: 'grid', gap: '15px' }}>
                 {events.map((evt) => (
                   <div key={evt.id} style={{
                     padding: '15px 20px',
-                    background: evt.isActive ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#ddd',
+                    background: evt.isActive ? '#1e40af' : '#d1d5db',
                     borderRadius: '10px',
-                    color: evt.isActive ? 'white' : '#666',
+                    color: evt.isActive ? 'white' : '#526078',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     flexWrap: 'wrap',
                     gap: '10px'
                   }}>
-                    <div>
+                    <div className={styles.eventCardInfo}>
                       <strong style={{ fontSize: '18px' }}>{evt.title}</strong>
                       {evt.subtitle && <span> - {evt.subtitle}</span>}
                       <div style={{ fontSize: '14px', opacity: 0.9, marginTop: '5px' }}>
                         📅 {evt.date} | 📍 {evt.location} | 🔗 /{evt.slug}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <div className={styles.eventCardActions}>
                       <a
                         href={`/${evt.slug}`}
                         target="_blank"
@@ -2629,7 +2625,7 @@ export default function AdminDashboard() {
                         style={{
                           padding: '8px 15px',
                           background: 'white',
-                          color: '#667eea',
+                          color: '#1e40af',
                           borderRadius: '6px',
                           border: 'none',
                           cursor: 'pointer',
@@ -2683,7 +2679,7 @@ export default function AdminDashboard() {
 
 
           {/* Formulario para crear nuevo evento */}
-          <div style={{ borderTop: '2px solid #eee', paddingTop: '30px' }}>
+          <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '24px' }}>
             <h3 style={{ marginBottom: '20px' }}>➕ Crear Nuevo Evento</h3>
             <form onSubmit={async (e) => {
               e.preventDefault()
@@ -2725,7 +2721,7 @@ export default function AdminDashboard() {
               } finally {
                 setLoading(false)
               }
-            }} style={{ display: 'grid', gap: '15px', maxWidth: '600px' }}>
+            }} className={styles.eventCreateForm}>
               <div>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Slug (URL) *</label>
                 <input
@@ -2734,44 +2730,44 @@ export default function AdminDashboard() {
                   pattern="[a-z0-9-]+"
                   required
                   placeholder="mi-fiesta-2025"
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '16px' }}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '16px' }}
                 />
-                <small style={{ color: '#666' }}>Solo letras minúsculas, números y guiones. Ej: fiesta-enero</small>
+                <small style={{ color: '#526078' }}>Solo letras minúsculas, números y guiones. Ej: fiesta-enero</small>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+              <div className={styles.eventCreateRow}>
                 <div>
                   <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Nombre interno del evento *</label>
-                  <input name="title" type="text" required placeholder="Party Time!" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '16px' }} />
+                  <input name="title" type="text" required placeholder="Party Time!" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '16px' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Subtítulo</label>
-                  <input name="subtitle" type="text" placeholder="ENERO 2025" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '16px' }} />
+                  <input name="subtitle" type="text" placeholder="ENERO 2025" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '16px' }} />
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+              <div className={styles.eventCreateRow}>
                 <div>
                   <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Fecha (opcional)</label>
-                  <input name="date" type="text" placeholder="SÁBADO, 15 ENE" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '16px' }} />
+                  <input name="date" type="text" placeholder="SÁBADO, 15 ENE" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '16px' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Hora (opcional)</label>
-                  <input name="time" type="text" placeholder="DESDE LAS 7:00 PM" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '16px' }} />
+                  <input name="time" type="text" placeholder="DESDE LAS 7:00 PM" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '16px' }} />
                 </div>
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Ubicación (opcional)</label>
-                <input name="location" type="text" placeholder="HAMBURGO 108, ZONA ROSA" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '16px' }} />
+                <input name="location" type="text" placeholder="HAMBURGO 108, ZONA ROSA" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '16px' }} />
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Detalles</label>
-                <textarea name="details" rows={3} placeholder="🍺 Chelas incluidas..." style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '16px' }} />
+                <textarea name="details" rows={3} placeholder="🍺 Chelas incluidas..." style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '16px' }} />
               </div>
               <button
                 type="submit"
                 disabled={loading}
                 style={{
                   padding: '15px 30px',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  background: '#1e40af',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
@@ -2902,7 +2898,7 @@ export default function AdminDashboard() {
         <div className={styles.editModal} onClick={closeEditSlugModal}>
           <div className={styles.editModalCard} onClick={(e) => e.stopPropagation()}>
             <h2 className={styles.editModalTitle}>✏️ Editar Slug (URL)</h2>
-            <p style={{ marginBottom: '20px', color: '#666', fontSize: '14px' }}>
+            <p style={{ marginBottom: '20px', color: '#526078', fontSize: '14px' }}>
               Cambiar el slug modificará la URL del evento y actualizará todas las referencias incluyendo los RSVPs.
             </p>
 
@@ -2916,7 +2912,7 @@ export default function AdminDashboard() {
               <div className={styles.editFormGroup}>
                 <label className={styles.editFormLabel}>Nuevo Slug *</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <span style={{ color: '#666', fontSize: '16px' }}>/</span>
+                  <span style={{ color: '#526078', fontSize: '16px' }}>/</span>
                   <input
                     type="text"
                     className={styles.editFormInput}

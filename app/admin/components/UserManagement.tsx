@@ -313,8 +313,8 @@ export default function UserManagement({ events }: UserManagementProps) {
     }
 
     return (
-        <div style={{ padding: '20px', color: '#1f2937' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div className={styles.userManagement}>
+            <div className={styles.userManagementHeader}>
                 <h2>👥 Gestión de Usuarios</h2>
                 <button
                     onClick={() => setShowCreateForm(!showCreateForm)}
@@ -351,7 +351,7 @@ export default function UserManagement({ events }: UserManagementProps) {
                     marginBottom: '20px',
                 }}>
                     <h3 style={{ marginBottom: '15px' }}>Crear Nuevo Usuario</h3>
-                    <form onSubmit={handleCreateUser} style={{ display: 'grid', gap: '15px', maxWidth: '500px' }}>
+                    <form onSubmit={handleCreateUser} className={styles.userCreateForm}>
                         <div>
                             <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Nombre *</label>
                             <input
@@ -418,7 +418,7 @@ export default function UserManagement({ events }: UserManagementProps) {
             )}
 
             {/* Users List */}
-            <div style={{ display: 'grid', gridTemplateColumns: selectedUser ? '1fr 1fr' : '1fr', gap: '20px' }}>
+            <div className={selectedUser ? styles.userSplit : styles.userSingleColumn}>
                 <div>
                     <h3 style={{ marginBottom: '15px' }}>Usuarios ({users.length})</h3>
                     {loading && users.length === 0 ? (
@@ -431,8 +431,8 @@ export default function UserManagement({ events }: UserManagementProps) {
                                     onClick={() => selectUser(user)}
                                     style={{
                                         padding: '15px',
-                                        background: selectedUser?.id === user.id ? '#e0e7ff' : 'white',
-                                        border: selectedUser?.id === user.id ? '2px solid #4f46e5' : '1px solid #e5e7eb',
+                                        background: selectedUser?.id === user.id ? '#dbeafe' : 'white',
+                                        border: selectedUser?.id === user.id ? '2px solid #1e40af' : '1px solid #e5e7eb',
                                         borderRadius: '10px',
                                         cursor: 'pointer',
                                         opacity: user.isActive ? 1 : 0.6,
@@ -568,7 +568,7 @@ export default function UserManagement({ events }: UserManagementProps) {
                                         {user.role !== 'super_admin' && (
                                             <div style={{ marginTop: '15px' }}>
                                                 <h5 style={{ marginBottom: '10px' }}>Asignar Evento</h5>
-                                                <div style={{ display: 'flex', gap: '10px' }}>
+                                                <div className={styles.userAssignmentForm}>
                                                     <select
                                                         id="assignEventSelect"
                                                         style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}

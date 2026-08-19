@@ -8,11 +8,11 @@
   min-height: 60px;
   margin-top: var(--ad-2);
   padding: 8px 10px 8px 14px;
-  border: 1px solid var(--ad-runbook-line, var(--ad-border-strong));
-  border-left: 4px solid var(--ad-runbook-amber, var(--ad-warning));
-  border-radius: 2px;
-  background: var(--ad-runbook-paper, var(--ad-surface));
-  box-shadow: 0 10px 28px rgba(41, 39, 31, .18);
+  border: 1px solid var(--ad-border-strong);
+  border-left: 3px solid var(--ad-primary);
+  border-radius: var(--ad-r-md);
+  background: var(--ad-surface);
+  box-shadow: var(--ad-shadow-md);
   z-index: 6;
 }
 

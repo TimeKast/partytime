@@ -498,13 +498,24 @@ describe('app/checkin/[slug]/checkin.module.css (ISSUE-017: tap targets and mobi
     })
 
     it('is mobile-safe: no horizontal scroll, safe-area insets respected', () => {
-        expect(cssSource).toContain('overflow-x: hidden;')
+        expect(cssSource).toContain('overflow-x: clip;')
+        expect(cssSource).not.toMatch(/overflow-x:\s*(?:auto|scroll)/)
         expect(cssSource).toContain('env(safe-area-inset-top)')
         expect(cssSource).toContain('env(safe-area-inset-bottom)')
         expect(cssSource).toContain('@media (max-width: 480px)')
     })
 
-    it('marked rows/checks reuse the app-established green success color', () => {
-        expect(cssSource).toContain('#4ade80')
+    it('uses the light fintech palette and semantic green arrival state', () => {
+        expect(cssSource).toContain('--ci-bg: #f6f7f9;')
+        expect(cssSource).toContain('--ci-surface: #fff;')
+        expect(cssSource).toContain('--ci-primary: #1e40af;')
+        expect(cssSource).toContain('--ci-success: #047857;')
+        expect(cssSource).not.toMatch(/#(?:0f0f10|111113|17171a|fffdf7|f5f0e5)/i)
+    })
+
+    it('keeps the sticky controls and quick filters visible without a horizontal carousel', () => {
+        expect(cssSource).toMatch(/\.listHeader\s*\{[^}]*position:\s*sticky;/)
+        expect(cssSource).toMatch(/\.filterRow\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/)
+        expect(cssSource).toMatch(/@media \(max-width: 340px\)[\s\S]*?\.filterRow\s*\{[^}]*grid-template-columns:\s*1fr 1fr;/)
     })
 })

@@ -102,23 +102,24 @@ base aislada (misma fuente de `/admin`) y el cargo mediante Stripe API test.
 **Objetivo:** un RSVP con +1 debe cobrar dos cuotas, persistir el mismo total
 y congelar la cantidad mientras el pago esté abierto o completado.
 
-> Este escenario se añadió tras la corrección del 2026-08-18 y está pendiente
-> de una nueva corrida real. Usa un evento dedicado con capacidad mínima 2 o
-> eleva temporalmente el límite; el evento de capacidad 1 del escenario 4 no
-> puede aceptar titular + acompañante.
+> Este escenario se añadió tras la corrección del 2026-08-18. La primera
+> corrida real en producción se hizo el 2026-08-19 con el evento `demo`, cuota
+> de 250 MXN y capacidad 200; por eso la evidencia observada fue 2 × 250 =
+> 500 MXN, aunque los pasos conservan 10/20 MXN como configuración mínima
+> reproducible.
 
-- [ ] 1B.1 Configurar cuota de `10 MXN`, `payment_required=true` y capacidad
+- [x] 1B.1 Configurar cuota de `10 MXN`, `payment_required=true` y capacidad
       disponible de al menos 2 lugares.
-- [ ] 1B.2 Abrir el modal, marcar acompañante y verificar **antes de enviar**
+- [x] 1B.2 Abrir el modal, marcar acompañante y verificar **antes de enviar**
       que el resumen cambia de 1 cuota / `$10 MXN` a 2 cuotas / total
       `$20 MXN`; el CTA debe decir “Continuar al pago”.
-- [ ] 1B.3 Enviar el RSVP, confirmar el redirect y verificar en Checkout que
+- [x] 1B.3 Enviar el RSVP, confirmar el redirect y verificar en Checkout que
       el precio unitario es `MXN 10.00`, la cantidad es `2` y el total es
       `MXN 20.00`.
-- [ ] 1B.4 Pagar con `4242 4242 4242 4242` y esperar el webhook 200.
-- [ ] 1B.5 Verificar en `/admin` que el RSVP está `confirmed`, conserva el +1
+- [x] 1B.4 Pagar con `4242 4242 4242 4242` y esperar el webhook 200.
+- [x] 1B.5 Verificar en `/admin` que el RSVP está `confirmed`, conserva el +1
       y el total de pago mostrado es `MXN 20.00`.
-- [ ] 1B.6 Verificar en DB/Stripe test que `rsvp_payments.amount_cents=2000`
+- [x] 1B.6 Verificar en DB/Stripe test que `rsvp_payments.amount_cents=2000`
       y que el cargo exitoso tiene `amount_total=2000`.
 - [ ] 1B.7 Mientras el RSVP/sesión de prueba esté `pending_payment`/`created`, intentar
       cambiar el flag +1 desde el editor invitado y desde admin: ambos deben
@@ -126,9 +127,25 @@ y congelar la cantidad mientras el pago esté abierto o completado.
 - [ ] 1B.8 Reenviar el webhook completado y comprobar de nuevo que no hay
       segundo email ni segundo cargo.
 
-**Fecha ejecutado:** pendiente **Resultado:** ☐ PASS ☐ FAIL — notas:
-Pendiente ejecutar contra Stripe test mode después de desplegar esta
-corrección.
+**Fecha ejecutado:** 2026-08-19 **Resultado:** ☐ PASS ☐ FAIL ☒ PARCIAL — notas:
+Corrida contra producción (`https://party.timekast.mx/demo`) y Stripe
+Sandbox. Antes de enviar, el modal mostró `2 cuotas × $250 MXN` y
+`Total $500 MXN`; Checkout mostró `Qty 2, MX$250.00 each` y `MX$500.00`.
+El pago con `4242…` regresó a “¡Pago recibido!”, el endpoint público de
+estado devolvió `paid` y la lectura proyectada de producción confirmó RSVP
+`confirmed`, `plus_one=true`, pago `paid`, `amount_cents=50000`, `currency=MXN`
+y `paid_at` presente. El webhook respondió HTTP 200.
+
+El correo de confirmación falló de forma no bloqueante porque el destinatario
+sintético usó `example.com`, dominio que Resend rechaza en sandbox; esto no
+alteró el pago ni el RSVP. En `/admin`, la fila confirmó visualmente el +1
+`Acompañante E2E B` y `Pagado $500.00 MXN`; su editor mostró el control +1
+deshabilitado y el mensaje que explica que el pago ya fijó las cuotas. Los
+pasos 1B.7 (carrera `pending_payment`/`created` en ambas superficies) y 1B.8
+siguen pendientes de evidencia manual exacta: el perfil local de Stripe CLI
+había expirado. Los contratos de bloqueo y replay siguen cubiertos por tests automatizados y por
+el Escenario 3 previo, pero no se presentan como evidencia manual nueva de
+esta corrida.
 
 ---
 

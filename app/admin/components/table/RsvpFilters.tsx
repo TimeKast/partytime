@@ -188,7 +188,7 @@ export function RsvpFilters({
               disabled={exportDisabled}
               className={styles.exportBtn}
               title="Exportar todos los resultados filtrados en Excel"
-              style={{ background: 'linear-gradient(135deg, #217346 0%, #185c36 100%)' }}
+              style={{ background: '#047857' }}
             >
               <Sheet size={14} /> Excel
             </button>

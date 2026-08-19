@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, type KeyboardEvent } from 'react'
+import { useRef, type KeyboardEvent } from 'react'
 import styles from './ConfigNav.module.css'
 
 export const CONFIG_SECTIONS = [
@@ -27,28 +27,6 @@ interface ConfigNavProps {
 
 export function ConfigNav({ activeSection, onSectionChange }: ConfigNavProps) {
   const trackRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const track = trackRef.current
-    const activeTab = track?.querySelector<HTMLButtonElement>('[aria-selected="true"]')
-    if (!track || !activeTab) return
-
-    const trackRect = track.getBoundingClientRect()
-    const tabRect = activeTab.getBoundingClientRect()
-    const padding = 12
-    let nextScrollLeft = track.scrollLeft
-
-    if (tabRect.left < trackRect.left + padding) {
-      nextScrollLeft += tabRect.left - trackRect.left - padding
-    } else if (tabRect.right > trackRect.right - padding) {
-      nextScrollLeft += tabRect.right - trackRect.right + padding
-    } else {
-      return
-    }
-
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    track.scrollTo({ left: Math.max(0, nextScrollLeft), behavior: reducedMotion ? 'auto' : 'smooth' })
-  }, [activeSection])
 
   const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return

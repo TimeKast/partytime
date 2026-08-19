@@ -169,7 +169,7 @@ export function RsvpTable({
                 {rsvp.plusOne && (
                   <>
                     <span className={styles.plusOneBadge}>+1</span>
-                    {rsvp.plusOneName && <span style={{ color: '#a78bfa', fontSize: '0.85em', marginLeft: '4px' }}>({rsvp.plusOneName})</span>}
+                    {rsvp.plusOneName && <span className={styles.plusOneName}>({rsvp.plusOneName})</span>}
                   </>
                 )}
               </td>

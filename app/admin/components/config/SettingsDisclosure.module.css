@@ -1,16 +1,17 @@
 .disclosure {
-  border-top: 3px solid var(--ad-runbook-line, var(--ad-border-strong));
-  border-inline: 1px solid var(--ad-runbook-line, var(--ad-border));
-  border-bottom: 1px solid var(--ad-runbook-line, var(--ad-border));
-  background: var(--ad-runbook-paper, var(--ad-surface));
+  overflow: hidden;
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-r-md);
+  background: var(--ad-surface);
+  box-shadow: var(--ad-shadow-sm);
 }
 
 .disclosure[data-tone='warning'] {
-  border-top-color: var(--ad-runbook-amber, var(--ad-warning));
+  border-left: 3px solid var(--ad-warning);
 }
 
 .disclosure[data-tone='success'] {
-  border-top-color: var(--ad-runbook-green, var(--ad-success));
+  border-left: 3px solid var(--ad-success);
 }
 
 .heading {
@@ -20,14 +21,14 @@
 .trigger {
   display: flex;
   width: 100%;
-  min-height: 72px;
+  min-height: 48px;
   align-items: center;
   justify-content: space-between;
   gap: var(--ad-4);
-  padding: var(--ad-4) var(--ad-5);
+  padding: var(--ad-2) var(--ad-4);
   border: 0;
   background: transparent;
-  color: var(--ad-runbook-ink, var(--ad-text));
+  color: var(--ad-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -35,7 +36,7 @@
 }
 
 .trigger:hover {
-  background: var(--ad-runbook-paper-2, var(--ad-surface-2));
+  background: var(--ad-surface-2);
 }
 
 .trigger:focus-visible {
@@ -46,11 +47,11 @@
 .titleBlock {
   display: grid;
   min-width: 0;
-  gap: 4px;
+  gap: 1px;
 }
 
 .titleBlock strong {
-  font-size: var(--ad-fs-lg);
+  font-size: var(--ad-fs-md);
   font-weight: var(--ad-weight-bold);
   text-wrap: balance;
 }
@@ -58,7 +59,7 @@
 .titleBlock small {
   display: -webkit-box;
   overflow: hidden;
-  color: var(--ad-runbook-muted, var(--ad-text-muted));
+  color: var(--ad-text-muted);
   font-size: var(--ad-fs-xs);
   line-height: 1.45;
   -webkit-box-orient: vertical;
@@ -67,8 +68,8 @@
 
 .chevron {
   flex: 0 0 auto;
-  color: var(--ad-runbook-amber, var(--ad-warning));
-  font-size: 24px;
+  color: var(--ad-text-subtle);
+  font-size: 20px;
   line-height: 1;
   transition: transform var(--ad-dur) var(--ad-ease);
 }
@@ -78,8 +79,8 @@
 }
 
 .content {
-  padding: 0 var(--ad-5) var(--ad-5);
-  border-top: 1px dashed var(--ad-runbook-line, var(--ad-border));
+  padding: 0 var(--ad-4) var(--ad-4);
+  border-top: 1px solid var(--ad-border);
 }
 
 .content[hidden] {
@@ -88,12 +89,12 @@
 
 @media (max-width: 480px) {
   .trigger {
-    min-height: 68px;
-    padding-inline: var(--ad-4);
+    min-height: 48px;
+    padding-inline: var(--ad-3);
   }
 
   .content {
-    padding-inline: var(--ad-4);
+    padding: 0 var(--ad-3) var(--ad-3);
   }
 }
 

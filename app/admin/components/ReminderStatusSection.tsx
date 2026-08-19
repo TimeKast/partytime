@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import styles from '../admin.module.css'
 
 interface ReminderRsvp {
   id: string
@@ -62,16 +63,11 @@ export default function ReminderStatusSection({ eventSlug }: { eventSlug: string
     <div style={{
       marginTop: '25px',
       padding: '20px',
-      background: 'linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%)',
+      background: '#ffffff',
       borderRadius: '12px',
       border: '1px solid #bfdbfe'
     }}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: data ? '15px' : '0'
-      }}>
+      <div className={styles.reminderHeader} style={{ marginBottom: data ? '15px' : '0' }}>
         <h4 style={{ margin: 0, fontSize: '16px', color: '#1e40af' }}>
           📋 Estado de Recordatorios Enviados
         </h4>
@@ -226,8 +222,8 @@ export default function ReminderStatusSection({ eventSlug }: { eventSlug: string
                 </div>
               )}
               
-              <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
+              <div className={styles.reminderTableWrap}>
+                <table className={styles.reminderTable}>
                   <thead>
                     <tr style={{ background: 'rgba(255,255,255,0.5)' }}>
                       <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #fcd34d' }}>Nombre</th>
@@ -264,8 +260,8 @@ export default function ReminderStatusSection({ eventSlug }: { eventSlug: string
               <h5 style={{ margin: '0 0 10px 0', color: '#166534', fontSize: '14px' }}>
                 ✅ Ya Recibieron Recordatorio ({data.alreadySentReminder.length})
               </h5>
-              <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
+              <div className={styles.reminderTableWrap}>
+                <table className={styles.reminderTable}>
                   <thead>
                     <tr style={{ background: 'rgba(255,255,255,0.5)' }}>
                       <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #86efac' }}>Nombre</th>
