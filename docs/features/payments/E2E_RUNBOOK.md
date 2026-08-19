@@ -124,7 +124,7 @@ y congelar la cantidad mientras el pago esté abierto o completado.
 - [x] 1B.7 Mientras el RSVP/sesión de prueba esté `pending_payment`/`created`, intentar
       cambiar el flag +1 desde el editor invitado y desde admin: ambos deben
       responder 409 con mensaje claro; tras expirar la sesión debe permitirse.
-- [ ] 1B.8 Reenviar el webhook completado y comprobar de nuevo que no hay
+- [x] 1B.8 Reenviar el webhook completado y comprobar de nuevo que no hay
       segundo email ni segundo cargo.
 
 **1B.7 — Fecha ejecutado:** 2026-08-19 **Resultado:** ☒ PASS ☐ FAIL — notas:
@@ -145,22 +145,33 @@ una Checkout Session real de Stripe **test mode** (`cs_test_...` — confirma
 que producción usa claves de prueba de Stripe, no live). Datos de prueba
 limpiados de la DB al terminar (evento, RSVP, pago).
 
-**1B.8 — pendiente, requiere acción de José:** este paso necesita reenviar un
-evento de webhook ya completado vía `stripe events resend evt_...` (Stripe
-CLI) o el botón "Resend" del dashboard. El perfil local de Stripe CLI de esta
-máquina no tiene sesión autenticada (`stripe login` es un flujo OAuth
-interactivo que un agente no puede completar), y no hay una vía de API pura
-para "reenviar" un webhook — es una acción exclusiva de CLI/dashboard. La
-garantía que este paso busca demostrar (que un replay del webhook no duplica
-el efecto) ya está cubierta por tests automatizados
-(`tests/stripe-webhook.test.ts`) y por evidencia manual equivalente en el
-Escenario 3 (replay de un evento distinto, mismo `fulfillPaidRsvp` con
-`WHERE status = 'created'`, cero filas en el UPDATE si ya estaba `paid`) —
-pero la evidencia manual específica de 1B.8 sigue sin capturarse. Requiere
-que José corra `stripe login` (o use el dashboard) y luego reenvíe el evento
-de un pago 1B ya completado.
+**1B.8 — Fecha ejecutado:** 2026-08-19 **Resultado:** ☒ PASS ☐ FAIL — notas:
+Bloqueado inicialmente porque el perfil local de Stripe CLI tenía una key
+expirada (`test_mode_key_expires_at` vencida) y "reenviar un webhook" no
+existe como endpoint público de la API de Stripe (confirmado: no aparece en
+`stripe_api_search` del connector MCP) — es una acción exclusiva de
+CLI/dashboard. José re-autenticó el CLI (`stripe login` con confirmación en
+el navegador) y quedó con key nueva (expira 2026-11-17).
 
-**Fecha ejecutado:** 2026-08-19 **Resultado:** ☐ PASS ☐ FAIL ☒ PARCIAL — notas:
+Con el CLI ya autenticado: `stripe webhook_endpoints list --live=false`
+confirmó el endpoint registrado (`we_1U5x6W0bG2hqdIIycl8gwyyX` →
+`https://party.timekast.mx/api/webhooks/stripe`, los 4 event types
+esperados, `status=enabled`). Se localizó un `checkout.session.completed`
+real y reciente (`evt_1U6AR30bG2hqdIIyWSJs5QRH`, evento `demo`,
+`amount_total=50000`) y se capturó el estado previo: RSVP `confirmed`, pago
+`paid`, `paid_at=2026-08-19T20:25:45.782Z`, `email_history` con 0 entradas.
+
+`stripe events resend evt_1U6AR30bG2hqdIIyWSJs5QRH --live=false` → el objeto
+evento devuelto pasó de `pending_webhooks: 2` a `pending_webhooks: 0` tras
+~5s (entrega confirmada a ambos endpoints registrados); los logs de Vercel
+de producción muestran `POST /api/webhooks/stripe` recibido en el mismo
+instante. Estado en DB releído después del reenvío: **idéntico** —
+`paid_at` sin cambiar, `status` sin cambiar, `email_history` sigue en 0
+entradas (cero segundo email). Confirma que `fulfillPaidRsvp`
+(`WHERE status = 'created'`) no vuelve a mutar una fila ya `paid`, igual que
+demuestra el Escenario 3 con un evento distinto.
+
+**Fecha ejecutado:** 2026-08-19 **Resultado:** ☒ PASS ☐ FAIL ☐ PARCIAL — notas:
 Corrida contra producción (`https://party.timekast.mx/demo`) y Stripe
 Sandbox. Antes de enviar, el modal mostró `2 cuotas × $250 MXN` y
 `Total $500 MXN`; Checkout mostró `Qty 2, MX$250.00 each` y `MX$500.00`.
@@ -173,12 +184,12 @@ El correo de confirmación falló de forma no bloqueante porque el destinatario
 sintético usó `example.com`, dominio que Resend rechaza en sandbox; esto no
 alteró el pago ni el RSVP. En `/admin`, la fila confirmó visualmente el +1
 `Acompañante E2E B` y `Pagado $500.00 MXN`; su editor mostró el control +1
-deshabilitado y el mensaje que explica que el pago ya fijó las cuotas. Los
-pasos 1B.7 (carrera `pending_payment`/`created` en ambas superficies) y 1B.8
-siguen pendientes de evidencia manual exacta: el perfil local de Stripe CLI
-había expirado. Los contratos de bloqueo y replay siguen cubiertos por tests automatizados y por
-el Escenario 3 previo, pero no se presentan como evidencia manual nueva de
-esta corrida.
+deshabilitado y el mensaje que explica que el pago ya fijó las cuotas.
+
+**Actualización 2026-08-19 (misma fecha, corrida separada):** 1B.7 y 1B.8,
+que quedaron pendientes en la corrida anterior por falta de sesión de Stripe
+CLI, se ejecutaron y capturaron — ver evidencia en cada checkbox arriba.
+Escenario 1B queda PASS completo.
 
 ---
 
