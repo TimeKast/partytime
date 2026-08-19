@@ -1,9 +1,9 @@
 'use client'
 
 import { NavItem } from './NavItem'
-import { LayoutDashboard, Lock, Settings, Users } from '../ui/icons'
+import { LayoutDashboard, Lock, Settings, Users, Wallet } from '../ui/icons'
 
-export type AdminTab = 'dashboard' | 'config' | 'eventos' | 'usuarios' | 'cuenta'
+export type AdminTab = 'dashboard' | 'config' | 'finanzas' | 'eventos' | 'usuarios' | 'cuenta'
 
 interface NavListProps {
   activeTab: AdminTab
@@ -13,8 +13,14 @@ interface NavListProps {
   collapsed?: boolean
 }
 
+// ISSUE-025 (EPIC-006): "Finanzas" has no requiresEventManagement /
+// requiresSuperAdmin gate — PLAN-EPIC-006.md §2.7 confirms viewer reads,
+// manager/super_admin mutates (same split as Dashboard), so the tab itself
+// stays visible to both; LedgerTab/ParticipantsManager/TransactionList are
+// the ones that hide mutation controls behind `readOnly`.
 export const ADMIN_NAV_ITEMS = [
   { tab: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { tab: 'finanzas', label: 'Finanzas', icon: Wallet },
   { tab: 'config', label: 'Config', icon: Settings, requiresEventManagement: true },
   { tab: 'usuarios', label: 'Usuarios', icon: Users, requiresSuperAdmin: true },
   { tab: 'cuenta', label: 'Cuenta', icon: Lock },

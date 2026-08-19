@@ -34,6 +34,10 @@ import {
     PAYMENTS_SEMANTIC_CHECK_NAMES,
     type PaymentsSemanticState,
 } from '@/lib/rsvp-payments-migration-contract'
+import {
+    LEDGER_SEMANTIC_CHECK_NAMES,
+    type LedgerSemanticState,
+} from '@/lib/event-ledger-migration-contract'
 
 function capacityFunctionBodyFromMigration(): string {
     const migration = readFileSync('drizzle/0002_enforce_event_capacity.sql', 'utf8')
@@ -81,6 +85,12 @@ const absentPaymentsSemantics = Object.fromEntries(
 const absentCheckinSemantics = Object.fromEntries(
     CHECKIN_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
 ) as CheckinSemanticState
+// ISSUE-021: 0012 has not been applied to any real database yet either, so
+// every fixture in this file also represents the ledger as absent — see
+// tests/event-ledger-schema.test.ts for the 0012-applied classification coverage.
+const absentLedgerSemantics = Object.fromEntries(
+    LEDGER_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+) as LedgerSemanticState
 
 const observedHistoricalObjects: MigrationObjectState = {
     tables: [...REQUIRED_HISTORICAL_OBJECTS.tables],
@@ -115,6 +125,11 @@ const observedHistoricalObjects: MigrationObjectState = {
     paymentsSemantics: absentPaymentsSemantics,
     checkinColumns: [],
     checkinSemantics: absentCheckinSemantics,
+    ledgerTables: [],
+    ledgerColumns: [],
+    ledgerConstraints: [],
+    ledgerIndexes: [],
+    ledgerSemantics: absentLedgerSemantics,
 }
 
 const foundationRegistry = Array.from({ length: 5 }, (_, index) => ({

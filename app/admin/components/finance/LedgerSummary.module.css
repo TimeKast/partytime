@@ -1,0 +1,201 @@
+.summary {
+  display: grid;
+  gap: var(--ad-3);
+  padding: var(--ad-4);
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-r-md);
+  background: var(--ad-surface);
+  box-shadow: var(--ad-shadow-sm);
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--ad-text);
+  font-size: var(--ad-fs-lg);
+  font-weight: var(--ad-weight-bold);
+}
+
+.status {
+  padding: var(--ad-4);
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-sm);
+}
+
+.errorStatus {
+  padding: var(--ad-4);
+  border: 1px solid var(--ad-danger);
+  border-radius: var(--ad-r-sm);
+  background: var(--ad-danger-soft);
+  color: var(--ad-danger);
+  font-size: var(--ad-fs-sm);
+}
+
+.errorInvariant {
+  padding: var(--ad-4);
+  border: 1px solid var(--ad-danger);
+  border-radius: var(--ad-r-sm);
+  background: var(--ad-danger-soft);
+  color: var(--ad-danger);
+  font-size: var(--ad-fs-sm);
+  font-weight: var(--ad-weight-bold);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--ad-3);
+}
+
+.card {
+  padding: var(--ad-3) var(--ad-4);
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-r-sm);
+  background: var(--ad-surface-2);
+}
+
+.cardLink {
+  display: block;
+  width: 100%;
+  margin: 0;
+  border: 1px solid var(--ad-border);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.cardLink:hover,
+.cardLink:focus-visible {
+  border-color: var(--ad-primary);
+}
+
+.cardLink:focus-visible {
+  outline: none;
+  box-shadow: var(--ad-focus-ring);
+}
+
+.cardSubtitle {
+  margin: 2px 0 0;
+  color: var(--ad-text-subtle);
+  font-size: var(--ad-fs-xs);
+}
+
+.cardValue {
+  margin: 0 0 var(--ad-1);
+  color: var(--ad-text);
+  font-size: var(--ad-fs-lg);
+  font-weight: var(--ad-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.cardLabel {
+  margin: 0;
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-xs);
+  font-weight: var(--ad-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.settledBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--ad-2);
+  margin: 0;
+  padding: var(--ad-3) var(--ad-4);
+  border-radius: var(--ad-r-sm);
+  background: var(--ad-success-soft);
+  color: var(--ad-success);
+  font-size: var(--ad-fs-sm);
+  font-weight: var(--ad-weight-bold);
+}
+
+.emptyState {
+  padding: var(--ad-4);
+  border: 1px dashed var(--ad-border-strong);
+  border-radius: var(--ad-r-sm);
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-sm);
+  text-align: center;
+}
+
+.balancesList {
+  display: grid;
+  gap: var(--ad-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.balanceRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ad-3);
+  padding: var(--ad-3);
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-r-sm);
+  background: var(--ad-surface-2);
+}
+
+.balanceRow[data-inactive='true'] {
+  opacity: .6;
+}
+
+.balanceName {
+  display: flex;
+  align-items: center;
+  gap: var(--ad-2);
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ad-text);
+  font-size: var(--ad-fs-md);
+  font-weight: var(--ad-weight-bold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.balanceAmount {
+  flex: 0 0 auto;
+  font-size: var(--ad-fs-sm);
+  font-weight: var(--ad-weight-bold);
+  white-space: nowrap;
+}
+
+.balanceAmount[data-tone='positive'] {
+  color: var(--ad-success);
+}
+
+.balanceAmount[data-tone='negative'] {
+  color: var(--ad-danger);
+}
+
+.balanceAmount[data-tone='zero'] {
+  color: var(--ad-text-muted);
+}
+
+.badge {
+  flex: 0 0 auto;
+  padding: 2px var(--ad-2);
+  border-radius: var(--ad-r-pill);
+  background: var(--ad-primary-soft);
+  color: var(--ad-primary);
+  font-size: var(--ad-fs-xs);
+  font-weight: var(--ad-weight-bold);
+  white-space: nowrap;
+}
+
+.badge[data-tone='neutral'] {
+  background: var(--ad-surface);
+  color: var(--ad-text-subtle);
+  border: 1px solid var(--ad-border);
+}
+
+@media (max-width: 480px) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .balanceRow {
+    flex-wrap: wrap;
+  }
+}

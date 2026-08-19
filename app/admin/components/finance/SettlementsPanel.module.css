@@ -1,0 +1,336 @@
+.panel {
+  display: grid;
+  gap: var(--ad-4);
+}
+
+.section {
+  display: grid;
+  gap: var(--ad-3);
+  padding: var(--ad-4);
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-r-md);
+  background: var(--ad-surface);
+  box-shadow: var(--ad-shadow-sm);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ad-3);
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--ad-text);
+  font-size: var(--ad-fs-lg);
+  font-weight: var(--ad-weight-bold);
+}
+
+.status {
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-sm);
+}
+
+.emptyState {
+  padding: var(--ad-4);
+  border: 1px dashed var(--ad-border-strong);
+  border-radius: var(--ad-r-sm);
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-sm);
+  text-align: center;
+}
+
+.suggestionList {
+  display: grid;
+  gap: var(--ad-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.suggestionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ad-3);
+  padding: var(--ad-3);
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-r-sm);
+  background: var(--ad-surface-2);
+}
+
+.suggestionText {
+  display: flex;
+  align-items: center;
+  gap: var(--ad-2);
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--ad-text);
+  font-size: var(--ad-fs-sm);
+}
+
+.badge {
+  flex: 0 0 auto;
+  padding: 2px var(--ad-2);
+  border-radius: var(--ad-r-pill);
+  background: var(--ad-primary-soft);
+  color: var(--ad-primary);
+  font-size: var(--ad-fs-xs);
+  font-weight: var(--ad-weight-bold);
+  white-space: nowrap;
+}
+
+.primaryButtonSmall {
+  flex: 0 0 auto;
+  min-height: var(--ad-control-h-sm);
+  padding: 0 var(--ad-3);
+  border: 0;
+  border-radius: var(--ad-r-sm);
+  background: var(--ad-primary);
+  color: var(--ad-primary-contrast);
+  font-size: var(--ad-fs-xs);
+  font-weight: var(--ad-weight-bold);
+  cursor: pointer;
+}
+
+.historyList {
+  display: grid;
+  gap: var(--ad-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.historyRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ad-3);
+  padding: var(--ad-3);
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-r-sm);
+  background: var(--ad-surface-2);
+}
+
+.historyInfo {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.historyAmount {
+  color: var(--ad-text);
+  font-size: var(--ad-fs-md);
+  font-weight: var(--ad-weight-bold);
+}
+
+.historyParties {
+  overflow: hidden;
+  color: var(--ad-text);
+  font-size: var(--ad-fs-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.historyMeta {
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-xs);
+}
+
+.actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--ad-2);
+}
+
+.toggleForm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ad-2);
+  min-height: var(--ad-control-h-sm);
+  padding: 0 var(--ad-3);
+  border: 1px dashed var(--ad-border-strong);
+  border-radius: var(--ad-r-sm);
+  background: transparent;
+  color: var(--ad-primary);
+  font-size: var(--ad-fs-xs);
+  font-weight: var(--ad-weight-bold);
+  cursor: pointer;
+}
+
+.ghostButton {
+  min-height: var(--ad-control-h-sm);
+  padding: 0 var(--ad-3);
+  border: 1px solid var(--ad-border-strong);
+  border-radius: var(--ad-r-sm);
+  background: transparent;
+  color: var(--ad-text);
+  font-size: var(--ad-fs-xs);
+  cursor: pointer;
+}
+
+.dangerButton {
+  min-height: var(--ad-control-h-sm);
+  padding: 0 var(--ad-3);
+  border: 1px solid var(--ad-danger);
+  border-radius: var(--ad-r-sm);
+  background: var(--ad-danger-soft);
+  color: var(--ad-danger);
+  font-size: var(--ad-fs-xs);
+  cursor: pointer;
+}
+
+.ghostButton:disabled,
+.dangerButton:disabled {
+  cursor: not-allowed;
+  opacity: .6;
+}
+
+.errorText {
+  color: var(--ad-danger);
+  font-size: var(--ad-fs-sm);
+}
+
+/* --- settlement form (modal, same pattern as TransactionForm.module.css) --- */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--ad-z-modal);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  background: rgba(20, 33, 61, .45);
+}
+
+@media (min-width: 640px) {
+  .backdrop {
+    align-items: center;
+    padding: var(--ad-4);
+  }
+}
+
+.formPanel {
+  display: grid;
+  gap: var(--ad-4);
+  width: 100%;
+  max-width: 560px;
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: var(--ad-5);
+  border-radius: var(--ad-r-lg) var(--ad-r-lg) 0 0;
+  background: var(--ad-surface);
+  box-shadow: var(--ad-shadow-pop);
+}
+
+@media (min-width: 640px) {
+  .formPanel {
+    border-radius: var(--ad-r-lg);
+  }
+}
+
+.formTitle {
+  margin: 0;
+  color: var(--ad-text);
+  font-size: var(--ad-fs-lg);
+  font-weight: var(--ad-weight-bold);
+}
+
+.fields {
+  display: grid;
+  gap: var(--ad-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 480px) {
+  .fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.field {
+  display: grid;
+  gap: var(--ad-1);
+}
+
+.fieldWide {
+  grid-column: 1 / -1;
+}
+
+.label {
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-xs);
+  font-weight: var(--ad-weight-bold);
+}
+
+.input,
+.select,
+.textarea {
+  min-height: var(--ad-control-h);
+  padding: var(--ad-3);
+  border: 1px solid var(--ad-border-strong);
+  border-radius: var(--ad-r-sm);
+  color: var(--ad-text);
+  font: inherit;
+  font-size: var(--ad-fs-md);
+}
+
+.textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.input:focus-visible,
+.select:focus-visible,
+.textarea:focus-visible {
+  outline: none;
+  border-color: var(--ad-focus);
+  box-shadow: var(--ad-focus-ring);
+}
+
+.staticCurrency {
+  display: flex;
+  align-items: center;
+  min-height: var(--ad-control-h);
+  padding: var(--ad-3);
+  border: 1px dashed var(--ad-border-strong);
+  border-radius: var(--ad-r-sm);
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-md);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ad-3);
+  margin-top: var(--ad-4);
+}
+
+.primaryButton {
+  min-height: var(--ad-control-h);
+  padding: 0 var(--ad-5);
+  border: 0;
+  border-radius: var(--ad-r-sm);
+  background: var(--ad-primary);
+  color: var(--ad-primary-contrast);
+  font-size: var(--ad-fs-sm);
+  font-weight: var(--ad-weight-bold);
+  cursor: pointer;
+}
+
+.primaryButton:disabled {
+  cursor: not-allowed;
+  opacity: .6;
+}
+
+@media (max-width: 375px) {
+  .suggestionRow,
+  .historyRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

@@ -53,6 +53,7 @@ const existingEvent: DatabaseEvent = {
     checkinEnabled: false,
     checkinPasswordHash: null,
     checkinPasswordUpdatedAt: null,
+    ledgerStripeIsParticipant: false,
     createdAt: new Date('2026-07-13T00:00:00Z'),
     updatedAt: new Date('2026-07-13T00:00:00Z'),
 }

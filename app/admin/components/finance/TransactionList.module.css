@@ -1,0 +1,141 @@
+.list {
+  display: grid;
+  gap: var(--ad-3);
+  margin: var(--ad-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: grid;
+  gap: var(--ad-2);
+  padding: var(--ad-3);
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-r-md);
+  background: var(--ad-surface);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ad-2);
+}
+
+.typeBadge {
+  padding: 2px var(--ad-2);
+  border-radius: var(--ad-r-pill);
+  font-size: var(--ad-fs-xs);
+  font-weight: var(--ad-weight-bold);
+  white-space: nowrap;
+}
+
+.typeBadge[data-type='expense'] {
+  background: var(--ad-danger-soft);
+  color: var(--ad-danger);
+}
+
+.typeBadge[data-type='income'] {
+  background: var(--ad-success-soft);
+  color: var(--ad-success);
+}
+
+.amount {
+  color: var(--ad-text);
+  font-size: var(--ad-fs-lg);
+  font-weight: var(--ad-weight-bold);
+  white-space: nowrap;
+}
+
+.description {
+  color: var(--ad-text);
+  font-size: var(--ad-fs-md);
+  font-weight: var(--ad-weight-med);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ad-1) var(--ad-4);
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-xs);
+}
+
+.sharesToggle {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ad-primary);
+  font-size: var(--ad-fs-xs);
+  font-weight: var(--ad-weight-bold);
+  cursor: pointer;
+}
+
+.sharesList {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: var(--ad-2) 0 0 var(--ad-3);
+  border-top: 1px dashed var(--ad-border);
+  list-style: disc;
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-xs);
+}
+
+.actions {
+  display: flex;
+  gap: var(--ad-2);
+}
+
+.ghostButton {
+  min-height: var(--ad-control-h-sm);
+  padding: 0 var(--ad-3);
+  border: 1px solid var(--ad-border-strong);
+  border-radius: var(--ad-r-sm);
+  background: transparent;
+  color: var(--ad-text);
+  font-size: var(--ad-fs-xs);
+  cursor: pointer;
+}
+
+.dangerButton {
+  min-height: var(--ad-control-h-sm);
+  padding: 0 var(--ad-3);
+  border: 1px solid var(--ad-danger);
+  border-radius: var(--ad-r-sm);
+  background: var(--ad-danger-soft);
+  color: var(--ad-danger);
+  font-size: var(--ad-fs-xs);
+  cursor: pointer;
+}
+
+.ghostButton:disabled,
+.dangerButton:disabled {
+  cursor: not-allowed;
+  opacity: .6;
+}
+
+.errorText {
+  color: var(--ad-danger);
+  font-size: var(--ad-fs-xs);
+}
+
+.emptyState {
+  padding: var(--ad-4);
+  border: 1px dashed var(--ad-border-strong);
+  border-radius: var(--ad-r-sm);
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-sm);
+  text-align: center;
+}
+
+@media (max-width: 375px) {
+  .cardHeader {
+    flex-wrap: wrap;
+  }
+
+  .amount {
+    font-size: var(--ad-fs-md);
+  }
+}

@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, integer, jsonb, varchar, uuid, uniqueIndex, index, check } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, timestamp, integer, jsonb, varchar, uuid, uniqueIndex, index, check, date, foreignKey } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
 // Helper to generate IDs safely across environments
@@ -100,6 +100,18 @@ export const events = pgTable('events', {
     checkinEnabled: boolean('checkin_enabled').notNull().default(false),
     checkinPasswordHash: text('checkin_password_hash'),
     checkinPasswordUpdatedAt: timestamp('checkin_password_updated_at'),
+
+    // ISSUE-021/EPIC-006 (migration 0012): toggle for how the virtual Stripe
+    // participant node (event_participants.kind='stripe', PLAN-EPIC-006.md
+    // §2.6a) is presented in the ledger summary. `true` = "the account
+    // belongs to someone" — the Stripe node enters the debt graph like any
+    // other participant. `false` (default) = Stripe is the event's fund:
+    // its figures live in a separate summary section and can leave a
+    // remainder of profit. The mode never changes what is persisted or how
+    // the calculation engine works (PLAN §2.6b/§3.2) — only presentation.
+    // Deliberately NOT exposed by /api/events' DTO allowlist (PLAN gotcha
+    // #6): it only travels through the ledger config/summary APIs.
+    ledgerStripeIsParticipant: boolean('ledger_stripe_is_participant').notNull().default(false),
 
     // Timestamps
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -313,6 +325,191 @@ export const rsvpPayments = pgTable('rsvp_payments', {
     amountCentsCheck: check('rsvp_payments_amount_cents_check', sql`${table.amountCents} > 0`),
 }))
 
+// ============================================
+// EPIC-006: Event financial ledger (migration 0012)
+// ============================================
+// Internal (admin-only) Splitwise-style ledger of manual income/expenses per
+// event — see docs/backlog/PLAN-EPIC-006.md for the full design. No public
+// surface; queries and APIs land in later issues (ISSUE-023+). Cross-event
+// integrity is enforced entirely at the DB layer: event_participants and
+// event_transactions each carry a unique(id, event_id) anchor, and every
+// table that references them carries its own event_id with a composite FK
+// (participant_id, event_id) / (transaction_id, event_id) — a participant or
+// transaction from event A can never be attached to a row of event B, even by
+// application bug (PLAN §3.1/gotcha #1).
+
+// Ledger participants: free registration per event (PLAN §2.1), not a users
+// account. Identity must stay stable to aggregate balances correctly, so this
+// is a table with a case-insensitive unique name per event, not a text field
+// re-typed on every transaction (alta once, movements select from a list).
+export const eventParticipants = pgTable('event_participants', {
+    id: text('id').primaryKey().notNull().$defaultFn(generateId),
+    // Same slug convention as rsvps.eventId (PLAN gotcha #1: stores
+    // events.slug, not events.id).
+    eventId: text('event_id').notNull()
+        .references(() => events.slug, { onUpdate: 'cascade', onDelete: 'restrict' }),
+    // 'person' | 'stripe'. 'stripe' is the virtual participant representing
+    // money collected by the app (PLAN §2.6a) — auto-provisioned lazily by
+    // ensureStripeParticipant (ISSUE-023) via an idempotent
+    // INSERT ... ON CONFLICT targeting the partial unique index below.
+    kind: varchar('kind', { length: 10 }).notNull().default('person'),
+    name: varchar('name', { length: 120 }).notNull(),
+    // Contact-only in the MVP: no email flow is triggered from the ledger.
+    email: varchar('email', { length: 255 }),
+    // Optional link to a user with an account; always NULL for kind='stripe'.
+    userId: text('user_id')
+        .references(() => users.id, { onDelete: 'set null' }),
+    // Deactivate instead of delete — participants referenced by movements
+    // cannot be removed (ON DELETE RESTRICT below/on children). The Stripe
+    // node is never deactivated; that is enforced by the API (ISSUE-023),
+    // not the DB.
+    isActive: boolean('is_active').notNull().default(true),
+    // Same no-FK-to-users reasoning as rsvpInvitationLinks.createdBy above:
+    // the environment-backed super admin is a valid actor without a row.
+    createdBy: text('created_by').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+}, table => ({
+    kindCheck: check('event_participants_kind_check', sql`${table.kind} in ('person', 'stripe')`),
+    nameCheck: check(
+        'event_participants_name_check',
+        sql`char_length(btrim(${table.name})) between 2 and 120`,
+    ),
+    // PLAN §2.6a: at most one Stripe node per event; other events may each
+    // have their own. This is the ON CONFLICT anchor for the idempotent
+    // Stripe-node insert.
+    stripeNodeUnique: uniqueIndex('event_participants_stripe_kind_unique')
+        .on(table.eventId)
+        .where(sql`${table.kind} = 'stripe'`),
+    // PLAN §2.1: case-insensitive identity per event — no typo/accent
+    // duplicates silently splitting one person's balance in two.
+    eventNameUnique: uniqueIndex('event_participants_event_name_unique')
+        .on(table.eventId, sql`lower(${table.name})`),
+    // Anchor for the composite FKs carried by event_transactions,
+    // event_transaction_shares and event_settlements below (gotcha #1).
+    idEventUnique: uniqueIndex('event_participants_id_event_unique').on(table.id, table.eventId),
+    eventIdIndex: index('event_participants_event_id_idx').on(table.eventId),
+}))
+
+// A single expense or income movement. `participantId` is who paid (expense)
+// or who received (income) — never a free-typed name (PLAN §2.1/§2.3).
+export const eventTransactions = pgTable('event_transactions', {
+    id: text('id').primaryKey().notNull().$defaultFn(generateId),
+    eventId: text('event_id').notNull()
+        .references(() => events.slug, { onUpdate: 'cascade', onDelete: 'restrict' }),
+    // 'expense' | 'income'
+    type: varchar('type', { length: 10 }).notNull(),
+    participantId: text('participant_id').notNull(),
+    description: varchar('description', { length: 200 }).notNull(),
+    // Always centavos, never a float (PLAN gotcha #3). The API-level sanity
+    // cap (<= 99,999,999, PLAN gotcha #7) is not expressed here — the DB
+    // CHECK only guards the mathematical invariant amount_cents > 0.
+    amountCents: integer('amount_cents').notNull(),
+    // Single currency per ledger; cross-transaction consistency is validated
+    // at the API layer (PLAN §2.8), not by a DB constraint.
+    currency: varchar('currency', { length: 10 }).notNull(),
+    occurredOn: date('occurred_on').notNull(),
+    note: varchar('note', { length: 500 }),
+    createdBy: text('created_by').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+    // Soft-delete (PLAN §2.9): balances recalculate on demand, so editing or
+    // deleting a movement never leaves stale derived state. Never a physical
+    // DELETE of a money record.
+    deletedAt: timestamp('deleted_at'),
+    deletedBy: text('deleted_by'),
+}, table => ({
+    typeCheck: check('event_transactions_type_check', sql`${table.type} in ('expense', 'income')`),
+    descriptionCheck: check(
+        'event_transactions_description_check',
+        sql`char_length(btrim(${table.description})) between 1 and 200`,
+    ),
+    amountCentsCheck: check('event_transactions_amount_cents_check', sql`${table.amountCents} > 0`),
+    // Composite FK (gotcha #1): a participant from another event can never
+    // be attached to this movement, enforced at the DB even against an
+    // application bug.
+    participantEventFk: foreignKey({
+        columns: [table.participantId, table.eventId],
+        foreignColumns: [eventParticipants.id, eventParticipants.eventId],
+        name: 'event_transactions_participant_id_event_id_fk',
+    }).onDelete('restrict'),
+    // Anchor for event_transaction_shares' composite FK below.
+    idEventUnique: uniqueIndex('event_transactions_id_event_unique').on(table.id, table.eventId),
+    eventIdIndex: index('event_transactions_event_id_idx').on(table.eventId),
+    eventIdTypeIndex: index('event_transactions_event_id_type_idx').on(table.eventId, table.type),
+}))
+
+// Exact per-participant split of a movement's amount. Sum(share_cents) must
+// equal the parent transaction's amount_cents — not expressible as a
+// single-row CHECK (same reasoning as rsvp_payments.status's application-level
+// enum), so it is enforced inside the write CTE (PLAN gotcha #2) plus tests,
+// not here.
+export const eventTransactionShares = pgTable('event_transaction_shares', {
+    id: text('id').primaryKey().notNull().$defaultFn(generateId),
+    transactionId: text('transaction_id').notNull(),
+    eventId: text('event_id').notNull(),
+    participantId: text('participant_id').notNull(),
+    shareCents: integer('share_cents').notNull(),
+}, table => ({
+    shareCentsCheck: check('event_transaction_shares_share_cents_check', sql`${table.shareCents} > 0`),
+    // Shares die with their movement: a hard delete of the parent (test-only
+    // — production code only soft-deletes) cascades here so no orphan share
+    // ever outlives its transaction.
+    transactionEventFk: foreignKey({
+        columns: [table.transactionId, table.eventId],
+        foreignColumns: [eventTransactions.id, eventTransactions.eventId],
+        name: 'event_transaction_shares_transaction_id_event_id_fk',
+    }).onDelete('cascade'),
+    // Composite FK (gotcha #1), symmetric with event_transactions above.
+    participantEventFk: foreignKey({
+        columns: [table.participantId, table.eventId],
+        foreignColumns: [eventParticipants.id, eventParticipants.eventId],
+        name: 'event_transaction_shares_participant_id_event_id_fk',
+    }).onDelete('restrict'),
+    transactionParticipantUnique: uniqueIndex('event_transaction_shares_transaction_participant_unique')
+        .on(table.transactionId, table.participantId),
+    transactionIdIndex: index('event_transaction_shares_transaction_id_idx').on(table.transactionId),
+    participantIdIndex: index('event_transaction_shares_participant_id_idx').on(table.participantId),
+}))
+
+// A payment between participants that reduces balances toward zero
+// (Splitwise-style settle-up, PLAN §1/§2.9). A Stripe payout/withdrawal is
+// modeled the same way, with `fromParticipantId` set to the Stripe node
+// (PLAN §2.6a) — no schema difference.
+export const eventSettlements = pgTable('event_settlements', {
+    id: text('id').primaryKey().notNull().$defaultFn(generateId),
+    eventId: text('event_id').notNull()
+        .references(() => events.slug, { onUpdate: 'cascade', onDelete: 'restrict' }),
+    fromParticipantId: text('from_participant_id').notNull(),
+    toParticipantId: text('to_participant_id').notNull(),
+    amountCents: integer('amount_cents').notNull(),
+    currency: varchar('currency', { length: 10 }).notNull(),
+    settledOn: date('settled_on').notNull(),
+    note: varchar('note', { length: 500 }),
+    createdBy: text('created_by').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+    // Soft-delete, same reasoning as event_transactions above.
+    deletedAt: timestamp('deleted_at'),
+    deletedBy: text('deleted_by'),
+}, table => ({
+    fromNotToCheck: check(
+        'event_settlements_from_to_check',
+        sql`${table.fromParticipantId} <> ${table.toParticipantId}`,
+    ),
+    amountCentsCheck: check('event_settlements_amount_cents_check', sql`${table.amountCents} > 0`),
+    fromParticipantEventFk: foreignKey({
+        columns: [table.fromParticipantId, table.eventId],
+        foreignColumns: [eventParticipants.id, eventParticipants.eventId],
+        name: 'event_settlements_from_participant_id_event_id_fk',
+    }).onDelete('restrict'),
+    toParticipantEventFk: foreignKey({
+        columns: [table.toParticipantId, table.eventId],
+        foreignColumns: [eventParticipants.id, eventParticipants.eventId],
+        name: 'event_settlements_to_participant_id_event_id_fk',
+    }).onDelete('restrict'),
+    eventIdIndex: index('event_settlements_event_id_idx').on(table.eventId),
+}))
+
 // User sessions for persistent login (up to 30 days)
 export const userSessions = pgTable('user_sessions', {
     id: text('id').primaryKey().$defaultFn(generateId),
@@ -352,3 +549,11 @@ export type RsvpInvitationLink = typeof rsvpInvitationLinks.$inferSelect
 export type NewRsvpInvitationLink = typeof rsvpInvitationLinks.$inferInsert
 export type RsvpPayment = typeof rsvpPayments.$inferSelect
 export type NewRsvpPayment = typeof rsvpPayments.$inferInsert
+export type EventParticipant = typeof eventParticipants.$inferSelect
+export type NewEventParticipant = typeof eventParticipants.$inferInsert
+export type EventTransaction = typeof eventTransactions.$inferSelect
+export type NewEventTransaction = typeof eventTransactions.$inferInsert
+export type EventTransactionShare = typeof eventTransactionShares.$inferSelect
+export type NewEventTransactionShare = typeof eventTransactionShares.$inferInsert
+export type EventSettlement = typeof eventSettlements.$inferSelect
+export type NewEventSettlement = typeof eventSettlements.$inferInsert

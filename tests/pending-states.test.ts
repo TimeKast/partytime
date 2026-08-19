@@ -22,6 +22,10 @@ import {
     type PaymentsSemanticState,
 } from '@/lib/rsvp-payments-migration-contract'
 import {
+    LEDGER_SEMANTIC_CHECK_NAMES,
+    type LedgerSemanticState,
+} from '@/lib/event-ledger-migration-contract'
+import {
     REQUIRED_HISTORICAL_OBJECTS,
     REQUIRED_IMAGE_POSITION_OBJECTS,
     REQUIRED_PASSWORD_LIFECYCLE_OBJECTS,
@@ -205,6 +209,11 @@ describe('migration-preflight — 0009 pending states classification', () => {
     const absentCheckinSemantics = Object.fromEntries(
         CHECKIN_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
     ) as CheckinSemanticState
+    // ISSUE-021: 0012 has not run yet in this suite's fixtures either — every
+    // state here also represents the ledger as absent.
+    const absentLedgerSemantics = Object.fromEntries(
+        LEDGER_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+    ) as LedgerSemanticState
 
     // A DB that has run through exactly 0008 (rsvp invitation complete,
     // migration 0009's columns absent).
@@ -243,6 +252,11 @@ describe('migration-preflight — 0009 pending states classification', () => {
         paymentsSemantics: absentPaymentsSemantics,
         checkinColumns: [],
         checkinSemantics: absentCheckinSemantics,
+        ledgerTables: [],
+        ledgerColumns: [],
+        ledgerConstraints: [],
+        ledgerIndexes: [],
+        ledgerSemantics: absentLedgerSemantics,
     }
 
     const registryUpTo0008 = Array.from({ length: 9 }, (_, index) => ({

@@ -12,6 +12,10 @@ export { default as EventPresentationSettings } from './EventPresentationSetting
 export { default as InvitationLinkManager } from './InvitationLinkManager'
 export { default as ChangePasswordForm, ForcedPasswordChangeDialog } from './ChangePasswordForm'
 export { default as CheckinSettings } from './CheckinSettings'
+// ISSUE-025 (EPIC-006): shell mounts only this container — every other
+// finance component lives under ./finance/ and is never imported directly
+// from app/admin/page.tsx (PLAN-EPIC-006.md §3.4/gotcha #5).
+export { default as LedgerTab } from './finance/LedgerTab'
 
 // Types for admin components
 // ISSUE-006: status widened to the five canonical rsvps.status values (see

@@ -35,6 +35,11 @@ import {
     PAYMENTS_SEMANTICS_QUERY,
     paymentsSemanticStateFromRows,
 } from '@/lib/rsvp-payments-migration-contract'
+import {
+    LEDGER_SEMANTIC_CHECK_NAMES,
+    LEDGER_SEMANTICS_QUERY,
+    ledgerSemanticStateFromRows,
+} from '@/lib/event-ledger-migration-contract'
 
 type QueryRow = Record<string, unknown>
 
@@ -128,6 +133,13 @@ async function main() {
     )
     for (const checkName of CHECKIN_SEMANTIC_CHECK_NAMES) {
         checks.push([`check-in semantic contract: ${checkName}`, checkinSemantics[checkName]])
+    }
+
+    const ledgerSemantics = ledgerSemanticStateFromRows(
+        await query(LEDGER_SEMANTICS_QUERY),
+    )
+    for (const checkName of LEDGER_SEMANTIC_CHECK_NAMES) {
+        checks.push([`ledger semantic contract: ${checkName}`, ledgerSemantics[checkName]])
     }
 
     const foundationColumns = await query(`

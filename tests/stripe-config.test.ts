@@ -34,6 +34,10 @@ import {
     PAYMENTS_SEMANTIC_CHECK_NAMES,
     type PaymentsSemanticState,
 } from '@/lib/rsvp-payments-migration-contract'
+import {
+    LEDGER_SEMANTIC_CHECK_NAMES,
+    type LedgerSemanticState,
+} from '@/lib/event-ledger-migration-contract'
 
 describe('derivePaymentAmountCents (ISSUE-010 acceptance criterion)', () => {
     it('derives exactly 25000 cents from a $250 MXN price', () => {
@@ -195,6 +199,11 @@ describe('migration preflight — payments tier compatibility (ISSUE-010)', () =
     const absentCheckinSemantics = Object.fromEntries(
         CHECKIN_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
     ) as CheckinSemanticState
+    // ISSUE-021: 0012 has not run yet in this suite's fixtures — the ledger
+    // is absent throughout.
+    const absentLedgerSemantics = Object.fromEntries(
+        LEDGER_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+    ) as LedgerSemanticState
 
     const objectsThrough0010: MigrationObjectState = {
         tables: [...REQUIRED_HISTORICAL_OBJECTS.tables],
@@ -229,6 +238,11 @@ describe('migration preflight — payments tier compatibility (ISSUE-010)', () =
         paymentsSemantics: validPaymentsSemantics,
         checkinColumns: [],
         checkinSemantics: absentCheckinSemantics,
+        ledgerTables: [],
+        ledgerColumns: [],
+        ledgerConstraints: [],
+        ledgerIndexes: [],
+        ledgerSemantics: absentLedgerSemantics,
     }
 
     const registryThrough0010 = Array.from({ length: 11 }, (_, index) => ({

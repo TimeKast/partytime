@@ -85,6 +85,13 @@
       "when": 1787319172759,
       "tag": "0011_checkin",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1787405572759,
+      "tag": "0012_event_ledger",
+      "breakpoints": true
     }
   ]
 }

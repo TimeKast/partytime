@@ -43,6 +43,7 @@ import {
   EventPresentationSettings,
   ForcedPasswordChangeDialog,
   InvitationLinkManager,
+  LedgerTab,
   StatsCards,
   UserManagement,
   ReminderStatusSection,
@@ -86,7 +87,7 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('')
 
   // Estado para tabs
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'config' | 'eventos' | 'usuarios' | 'cuenta'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'config' | 'finanzas' | 'eventos' | 'usuarios' | 'cuenta'>('dashboard')
   const [activeConfigSection, setActiveConfigSection] = useState<ConfigSectionId>('general')
   const [configValidationReveal, setConfigValidationReveal] = useState<{
     id: ConfigDisclosureId | null
@@ -2870,6 +2871,15 @@ export default function AdminDashboard() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* ISSUE-025 (EPIC-006): the shell only mounts the finance container —
+          all finance UI lives in ./components/finance/, never here. Viewer
+          reads, manager mutates (PLAN-EPIC-006.md §2.7), so this tab has no
+          canManageSelectedEvent gate; LedgerTab itself hides mutation
+          controls behind `readOnly`. */}
+      {activeTab === 'finanzas' && selectedEventId && (
+        <LedgerTab eventId={selectedEventId} readOnly={isReadOnly} />
       )}
 
       {/* Contenido de Usuarios (solo super_admin) */}

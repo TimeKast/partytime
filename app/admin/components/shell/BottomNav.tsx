@@ -2,7 +2,7 @@
 
 import styles from './BottomNav.module.css'
 import type { AdminTab } from './NavList'
-import { FolderCog, LayoutDashboard, Lock, Settings } from '../ui/icons'
+import { FolderCog, LayoutDashboard, Lock, Settings, Wallet } from '../ui/icons'
 
 interface BottomNavProps {
   activeTab: AdminTab
@@ -11,8 +11,10 @@ interface BottomNavProps {
   isSuperAdmin: boolean
 }
 
+// ISSUE-025: "Finanzas" ungated, same reasoning as NavList.ADMIN_NAV_ITEMS.
 const BOTTOM_NAV_ITEMS = [
   { tab: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { tab: 'finanzas', label: 'Finanzas', icon: Wallet },
   { tab: 'config', label: 'Config', icon: Settings, requiresEventManagement: true },
   { tab: 'eventos', label: 'Eventos', icon: FolderCog, requiresSuperAdmin: true },
   { tab: 'cuenta', label: 'Cuenta', icon: Lock },

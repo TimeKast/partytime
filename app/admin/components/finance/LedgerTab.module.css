@@ -1,0 +1,81 @@
+.ledgerTab {
+  display: grid;
+  gap: var(--ad-4);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ad-3);
+}
+
+.eyebrow {
+  margin: 0 0 var(--ad-1);
+  color: var(--ad-primary);
+  font-size: var(--ad-fs-xs);
+  font-weight: var(--ad-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.title {
+  margin: 0 0 var(--ad-1);
+  color: var(--ad-text);
+  font-size: var(--ad-fs-xl);
+  font-weight: var(--ad-weight-bold);
+}
+
+.description {
+  margin: 0;
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-md);
+}
+
+.status {
+  padding: var(--ad-4);
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-sm);
+}
+
+.errorStatus {
+  padding: var(--ad-4);
+  border: 1px solid var(--ad-danger);
+  border-radius: var(--ad-r-sm);
+  background: var(--ad-danger-soft);
+  color: var(--ad-danger);
+  font-size: var(--ad-fs-sm);
+}
+
+.addTransactionButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ad-2);
+  min-height: var(--ad-control-h);
+  margin-bottom: var(--ad-2);
+  padding: 0 var(--ad-4);
+  border: 0;
+  border-radius: var(--ad-r-sm);
+  background: var(--ad-primary);
+  color: var(--ad-primary-contrast);
+  font-size: var(--ad-fs-sm);
+  font-weight: var(--ad-weight-bold);
+  cursor: pointer;
+}
+
+.addTransactionButton:disabled {
+  cursor: not-allowed;
+  opacity: .6;
+}
+
+.helper {
+  margin: 0 0 var(--ad-3);
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-xs);
+}
+
+@media (max-width: 480px) {
+  .header {
+    flex-direction: column;
+  }
+}

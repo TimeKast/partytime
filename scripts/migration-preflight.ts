@@ -32,6 +32,10 @@ import {
     PAYMENTS_SEMANTICS_QUERY,
     paymentsSemanticStateFromRows,
 } from '@/lib/rsvp-payments-migration-contract'
+import {
+    LEDGER_SEMANTICS_QUERY,
+    ledgerSemanticStateFromRows,
+} from '@/lib/event-ledger-migration-contract'
 
 interface JournalEntry {
     idx: number
@@ -159,6 +163,24 @@ async function main() {
               'app_settings', 'events', 'password_reset_tokens', 'rsvp_invitation_links', 'rsvp_payments', 'rsvps', 'user_event_assignments', 'user_sessions', 'users'
           )`
     ).map(row => String(row.name))
+    const ledgerTables = (await sql`
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name IN ('event_participants', 'event_transactions', 'event_transaction_shares', 'event_settlements')`
+    ).map(row => String(row.table_name))
+    const ledgerTableColumns = (await sql`
+        SELECT table_name || '.' || column_name AS name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name IN ('event_participants', 'event_transactions', 'event_transaction_shares', 'event_settlements')`
+    ).map(row => String(row.name))
+    const ledgerEventsColumn = (await sql`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'ledger_stripe_is_participant'`
+    ).map(() => 'events.ledger_stripe_is_participant')
+    const ledgerColumns = [...ledgerTableColumns, ...ledgerEventsColumn]
     const constraints = (await sql`
         SELECT conname
         FROM pg_constraint
@@ -339,6 +361,55 @@ async function main() {
     const checkinSemantics = checkinSemanticStateFromRows(
         await sql.query(CHECKIN_SEMANTICS_QUERY),
     )
+    const ledgerConstraints = (await sql`
+        SELECT conname
+        FROM pg_constraint
+        WHERE connamespace = to_regnamespace('public')
+          AND conname IN (
+              'event_participants_pkey',
+              'event_participants_event_id_events_slug_fk',
+              'event_participants_user_id_users_id_fk',
+              'event_participants_kind_check',
+              'event_participants_name_check',
+              'event_transactions_pkey',
+              'event_transactions_event_id_events_slug_fk',
+              'event_transactions_participant_id_event_id_fk',
+              'event_transactions_type_check',
+              'event_transactions_description_check',
+              'event_transactions_amount_cents_check',
+              'event_transaction_shares_pkey',
+              'event_transaction_shares_transaction_id_event_id_fk',
+              'event_transaction_shares_participant_id_event_id_fk',
+              'event_transaction_shares_share_cents_check',
+              'event_settlements_pkey',
+              'event_settlements_event_id_events_slug_fk',
+              'event_settlements_from_participant_id_event_id_fk',
+              'event_settlements_to_participant_id_event_id_fk',
+              'event_settlements_from_to_check',
+              'event_settlements_amount_cents_check'
+          )`
+    ).map(row => String(row.conname))
+    const ledgerIndexes = (await sql`
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND indexname IN (
+              'event_participants_stripe_kind_unique',
+              'event_participants_event_name_unique',
+              'event_participants_id_event_unique',
+              'event_participants_event_id_idx',
+              'event_transactions_id_event_unique',
+              'event_transactions_event_id_idx',
+              'event_transactions_event_id_type_idx',
+              'event_transaction_shares_transaction_participant_unique',
+              'event_transaction_shares_transaction_id_idx',
+              'event_transaction_shares_participant_id_idx',
+              'event_settlements_event_id_idx'
+          )`
+    ).map(row => String(row.indexname))
+    const ledgerSemantics = ledgerSemanticStateFromRows(
+        await sql.query(LEDGER_SEMANTICS_QUERY),
+    )
 
     const objects: MigrationObjectState = {
         tables,
@@ -373,6 +444,11 @@ async function main() {
         paymentsSemantics,
         checkinColumns,
         checkinSemantics,
+        ledgerTables,
+        ledgerColumns,
+        ledgerConstraints,
+        ledgerIndexes,
+        ledgerSemantics,
     }
     const expected = expectedRegistry()
     const result = classifyMigrationPreflight({
@@ -385,7 +461,8 @@ async function main() {
         expectedRsvpInvitationRegistry: expected.slice(0, 9),
         expectedPendingStatesRegistry: expected.slice(0, 10),
         expectedPaymentsRegistry: expected.slice(0, 11),
-        expectedCurrentRegistry: expected.slice(0, 12),
+        expectedCheckinRegistry: expected.slice(0, 12),
+        expectedCurrentRegistry: expected.slice(0, 13),
         objects,
     })
 
@@ -407,6 +484,7 @@ async function main() {
         && !result.canApply0009
         && !result.canApply0010
         && !result.canApply0011
+        && !result.canApply0012
         && result.classification !== 'registered-current-schema'
     ) {
         process.exitCode = 1

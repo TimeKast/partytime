@@ -8,6 +8,7 @@ import type { AdminTab } from './NavList'
 
 const TITLES: Record<AdminTab, string> = {
   dashboard: 'Dashboard',
+  finanzas: 'Finanzas',
   config: 'Config',
   eventos: 'Eventos',
   usuarios: 'Usuarios',

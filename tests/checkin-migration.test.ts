@@ -21,6 +21,10 @@ import {
     type PaymentsSemanticState,
 } from '@/lib/rsvp-payments-migration-contract'
 import {
+    LEDGER_SEMANTIC_CHECK_NAMES,
+    type LedgerSemanticState,
+} from '@/lib/event-ledger-migration-contract'
+import {
     REQUIRED_CHECKIN_OBJECTS,
     REQUIRED_HISTORICAL_OBJECTS,
     REQUIRED_IMAGE_POSITION_OBJECTS,
@@ -109,6 +113,11 @@ describe('migration-preflight — 0011 check-in classification', () => {
     const validCheckinSemantics = Object.fromEntries(
         CHECKIN_SEMANTIC_CHECK_NAMES.map(name => [name, true]),
     ) as CheckinSemanticState
+    // ISSUE-021: 0012 has not been applied in this file's fixtures, so the
+    // ledger is absent throughout.
+    const absentLedgerSemantics = Object.fromEntries(
+        LEDGER_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+    ) as LedgerSemanticState
 
     // A DB that has run through exactly 0010 (payments complete, migration
     // 0011's columns absent).
@@ -147,6 +156,11 @@ describe('migration-preflight — 0011 check-in classification', () => {
         checkinSemantics: Object.fromEntries(
             CHECKIN_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
         ) as CheckinSemanticState,
+        ledgerTables: [],
+        ledgerColumns: [],
+        ledgerConstraints: [],
+        ledgerIndexes: [],
+        ledgerSemantics: absentLedgerSemantics,
     }
 
     const registryUpTo0010 = Array.from({ length: 11 }, (_, index) => ({
@@ -176,7 +190,11 @@ describe('migration-preflight — 0011 check-in classification', () => {
         })
     })
 
-    it('classifies the 0011 objects (applied on a disposable Neon branch) as the current schema — acceptance criterion for pnpm db:preflight', () => {
+    // ISSUE-021: this state (0011-complete, 0012's ledger objects absent)
+    // used to classify as the terminal 'registered-current-schema' before
+    // migration 0012 existed. See tests/event-ledger-schema.test.ts for the
+    // new terminal state.
+    it('classifies the 0011 objects (applied on a disposable Neon branch) as ready to apply 0012 (canApply0012)', () => {
         const result = classifyMigrationPreflight({
             drizzleRegistry: registryUpTo0011,
             publicRegistry: null,
@@ -185,6 +203,7 @@ describe('migration-preflight — 0011 check-in classification', () => {
             expectedImagePositionRegistry: [],
             expectedPendingStatesRegistry: registryUpTo0010.slice(0, 10),
             expectedPaymentsRegistry: registryUpTo0010,
+            expectedCheckinRegistry: registryUpTo0011,
             expectedCurrentRegistry: registryUpTo0011,
             objects: {
                 ...objectsAt0010,
@@ -194,8 +213,9 @@ describe('migration-preflight — 0011 check-in classification', () => {
         })
 
         expect(result).toMatchObject({
-            classification: 'registered-current-schema',
+            classification: 'registered-checkin-ready',
             canApply0011: false,
+            canApply0012: true,
             missingCheckinObjects: [],
             invalidCheckinSemantics: [],
         })

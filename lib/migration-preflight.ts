@@ -16,6 +16,10 @@ import {
     invalidPaymentsSemantics,
     type PaymentsSemanticState,
 } from '@/lib/rsvp-payments-migration-contract'
+import {
+    invalidLedgerSemantics,
+    type LedgerSemanticState,
+} from '@/lib/event-ledger-migration-contract'
 
 export interface MigrationRegistryRow {
     hash: string
@@ -55,6 +59,11 @@ export interface MigrationObjectState {
     paymentsSemantics: PaymentsSemanticState
     checkinColumns: string[]
     checkinSemantics: CheckinSemanticState
+    ledgerTables: string[]
+    ledgerColumns: string[]
+    ledgerConstraints: string[]
+    ledgerIndexes: string[]
+    ledgerSemantics: LedgerSemanticState
 }
 
 export interface MigrationPreflightInput {
@@ -73,6 +82,10 @@ export interface MigrationPreflightInput {
     // not yet applied) — gates canApply0011, same role expectedPendingStatesRegistry
     // plays for canApply0010.
     expectedPaymentsRegistry?: MigrationRegistryRow[]
+    // ISSUE-021: registry snapshot through 0011 (check-in applied, ledger not
+    // yet applied) — gates canApply0012, same role expectedPaymentsRegistry
+    // plays for canApply0011.
+    expectedCheckinRegistry?: MigrationRegistryRow[]
     expectedCurrentRegistry: MigrationRegistryRow[]
     objects: MigrationObjectState
 }
@@ -93,6 +106,10 @@ export type MigrationPreflightClassification =
     // existed (paymentsComplete, nothing beyond) — same rename pattern as
     // 'unregistered-pending-states-schema' above when 0010 shipped.
     | 'unregistered-payments-schema'
+    // ISSUE-021: was 'unregistered-current-schema' before migration 0012
+    // existed (checkinComplete, nothing beyond) — same rename pattern as
+    // 'unregistered-payments-schema' above when 0011 shipped.
+    | 'unregistered-checkin-schema'
     | 'unregistered-current-schema'
     | 'unregistered-inconsistent-schema'
     | 'registered-foundation-ready'
@@ -109,6 +126,11 @@ export type MigrationPreflightClassification =
     // same rename as 'registered-pending-states-ready' above when 0010
     // shipped. Now the "ready to apply 0011" gate.
     | 'registered-payments-ready'
+    // ISSUE-021: was 'registered-current-schema' before migration 0012
+    // existed (checkinComplete, registry through 0011, nothing beyond) —
+    // same rename as 'registered-payments-ready' above when 0011 shipped.
+    // Now the "ready to apply 0012" gate.
+    | 'registered-checkin-ready'
     | 'registered-current-schema'
     | 'registered-inconsistent-schema'
 
@@ -301,6 +323,101 @@ export const REQUIRED_CHECKIN_OBJECTS = {
     ],
 } as const
 
+// ISSUE-021 (EPIC-006/migration 0012): four new tables (the ledger) plus one
+// flat column addition on events (the Stripe-mode toggle) — same combined
+// shape REQUIRED_PAYMENTS_OBJECTS (0010) has, but across four tables instead
+// of one; the composite (id, event_id) FKs and the Stripe node's partial
+// unique index are verified by LEDGER_SEMANTICS_QUERY in
+// lib/event-ledger-migration-contract.ts, not by object-name presence alone.
+export const REQUIRED_LEDGER_OBJECTS = {
+    tables: [
+        'event_participants',
+        'event_transactions',
+        'event_transaction_shares',
+        'event_settlements',
+    ],
+    columns: [
+        'events.ledger_stripe_is_participant',
+        'event_participants.id',
+        'event_participants.event_id',
+        'event_participants.kind',
+        'event_participants.name',
+        'event_participants.email',
+        'event_participants.user_id',
+        'event_participants.is_active',
+        'event_participants.created_by',
+        'event_participants.created_at',
+        'event_transactions.id',
+        'event_transactions.event_id',
+        'event_transactions.type',
+        'event_transactions.participant_id',
+        'event_transactions.description',
+        'event_transactions.amount_cents',
+        'event_transactions.currency',
+        'event_transactions.occurred_on',
+        'event_transactions.note',
+        'event_transactions.created_by',
+        'event_transactions.created_at',
+        'event_transactions.updated_at',
+        'event_transactions.deleted_at',
+        'event_transactions.deleted_by',
+        'event_transaction_shares.id',
+        'event_transaction_shares.transaction_id',
+        'event_transaction_shares.event_id',
+        'event_transaction_shares.participant_id',
+        'event_transaction_shares.share_cents',
+        'event_settlements.id',
+        'event_settlements.event_id',
+        'event_settlements.from_participant_id',
+        'event_settlements.to_participant_id',
+        'event_settlements.amount_cents',
+        'event_settlements.currency',
+        'event_settlements.settled_on',
+        'event_settlements.note',
+        'event_settlements.created_by',
+        'event_settlements.created_at',
+        'event_settlements.updated_at',
+        'event_settlements.deleted_at',
+        'event_settlements.deleted_by',
+    ],
+    constraints: [
+        'event_participants_pkey',
+        'event_participants_event_id_events_slug_fk',
+        'event_participants_user_id_users_id_fk',
+        'event_participants_kind_check',
+        'event_participants_name_check',
+        'event_transactions_pkey',
+        'event_transactions_event_id_events_slug_fk',
+        'event_transactions_participant_id_event_id_fk',
+        'event_transactions_type_check',
+        'event_transactions_description_check',
+        'event_transactions_amount_cents_check',
+        'event_transaction_shares_pkey',
+        'event_transaction_shares_transaction_id_event_id_fk',
+        'event_transaction_shares_participant_id_event_id_fk',
+        'event_transaction_shares_share_cents_check',
+        'event_settlements_pkey',
+        'event_settlements_event_id_events_slug_fk',
+        'event_settlements_from_participant_id_event_id_fk',
+        'event_settlements_to_participant_id_event_id_fk',
+        'event_settlements_from_to_check',
+        'event_settlements_amount_cents_check',
+    ],
+    indexes: [
+        'event_participants_stripe_kind_unique',
+        'event_participants_event_name_unique',
+        'event_participants_id_event_unique',
+        'event_participants_event_id_idx',
+        'event_transactions_id_event_unique',
+        'event_transactions_event_id_idx',
+        'event_transactions_event_id_type_idx',
+        'event_transaction_shares_transaction_participant_unique',
+        'event_transaction_shares_transaction_id_idx',
+        'event_transaction_shares_participant_id_idx',
+        'event_settlements_event_id_idx',
+    ],
+} as const
+
 export interface MigrationPreflightResult {
     classification: MigrationPreflightClassification
     canBaseline0000Through0004: boolean
@@ -311,6 +428,7 @@ export interface MigrationPreflightResult {
     canApply0009: boolean
     canApply0010: boolean
     canApply0011: boolean
+    canApply0012: boolean
     missingHistoricalObjects: string[]
     missingPresentationObjects: string[]
     missingImagePositionObjects: string[]
@@ -319,12 +437,14 @@ export interface MigrationPreflightResult {
     missingPendingStatesObjects: string[]
     missingPaymentsObjects: string[]
     missingCheckinObjects: string[]
+    missingLedgerObjects: string[]
     invalidHistoricalSemantics: string[]
     invalidPasswordLifecycleSemantics: string[]
     invalidRsvpInvitationSemantics: string[]
     invalidPendingStatesSemantics: string[]
     invalidPaymentsSemantics: string[]
     invalidCheckinSemantics: string[]
+    invalidLedgerSemantics: string[]
     reasons: string[]
 }
 
@@ -437,6 +557,21 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         : invalidCheckinSemantics(input.objects.checkinSemantics)
     const checkinComplete = missingCheckinObjects.length === 0
         && invalidCheckinObjects.length === 0
+    const missingLedgerObjects = [
+        ...missing(REQUIRED_LEDGER_OBJECTS.tables, input.objects.ledgerTables),
+        ...missing(REQUIRED_LEDGER_OBJECTS.columns, input.objects.ledgerColumns),
+        ...missing(REQUIRED_LEDGER_OBJECTS.constraints, input.objects.ledgerConstraints),
+        ...missing(REQUIRED_LEDGER_OBJECTS.indexes, input.objects.ledgerIndexes),
+    ]
+    const ledgerAbsent = input.objects.ledgerTables.length === 0
+        && input.objects.ledgerColumns.length === 0
+        && input.objects.ledgerConstraints.length === 0
+        && input.objects.ledgerIndexes.length === 0
+    const invalidLedgerObjects = ledgerAbsent
+        ? []
+        : invalidLedgerSemantics(input.objects.ledgerSemantics)
+    const ledgerComplete = missingLedgerObjects.length === 0
+        && invalidLedgerObjects.length === 0
     const noRegistry = input.drizzleRegistry === null && input.publicRegistry === null
     const onlyDrizzleRegistry = input.drizzleRegistry !== null && input.publicRegistry === null
     const schemaIsEmpty = input.objects.tables.length === 0
@@ -458,7 +593,9 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         classification = 'unregistered-pending-states-schema'
     } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleComplete && rsvpInvitationComplete && pendingStatesComplete && paymentsComplete && checkinAbsent) {
         classification = 'unregistered-payments-schema'
-    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleComplete && rsvpInvitationComplete && pendingStatesComplete && paymentsComplete && checkinComplete) {
+    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleComplete && rsvpInvitationComplete && pendingStatesComplete && paymentsComplete && checkinComplete && ledgerAbsent) {
+        classification = 'unregistered-checkin-schema'
+    } else if (noRegistry && historicalComplete && presentationComplete && imagePositionComplete && passwordLifecycleComplete && rsvpInvitationComplete && pendingStatesComplete && paymentsComplete && checkinComplete && ledgerComplete) {
         classification = 'unregistered-current-schema'
     } else if (noRegistry) {
         classification = 'unregistered-inconsistent-schema'
@@ -569,6 +706,27 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         && pendingStatesComplete
         && paymentsComplete
         && checkinComplete
+        && ledgerAbsent
+        // Same fallback shape as registered-payments-ready above:
+        // scripts/migration-preflight.ts (the real caller) always passes
+        // expectedCheckinRegistry explicitly now that 0012 exists.
+        && registryMatches(
+            input.drizzleRegistry!,
+            input.expectedCheckinRegistry ?? input.expectedCurrentRegistry,
+        )
+    ) {
+        classification = 'registered-checkin-ready'
+    } else if (
+        onlyDrizzleRegistry
+        && historicalComplete
+        && presentationComplete
+        && imagePositionComplete
+        && passwordLifecycleComplete
+        && rsvpInvitationComplete
+        && pendingStatesComplete
+        && paymentsComplete
+        && checkinComplete
+        && ledgerComplete
         && registryMatches(input.drizzleRegistry!, input.expectedCurrentRegistry)
     ) {
         classification = 'registered-current-schema'
@@ -627,6 +785,14 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
             reasons.push(`invalid check-in semantics: ${invalidCheckinObjects.join(', ')}`)
         }
     }
+    if (!ledgerAbsent && !ledgerComplete) {
+        if (missingLedgerObjects.length > 0) {
+            reasons.push(`missing ledger objects: ${missingLedgerObjects.join(', ')}`)
+        }
+        if (invalidLedgerObjects.length > 0) {
+            reasons.push(`invalid ledger semantics: ${invalidLedgerObjects.join(', ')}`)
+        }
+    }
     if (input.publicRegistry !== null) reasons.push('unexpected public.__drizzle_migrations registry')
     if (classification.startsWith('unregistered-')) reasons.push('migration registry is absent')
 
@@ -640,6 +806,7 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         canApply0009: classification === 'registered-rsvp-invitation-ready',
         canApply0010: classification === 'registered-pending-states-ready',
         canApply0011: classification === 'registered-payments-ready',
+        canApply0012: classification === 'registered-checkin-ready',
         missingHistoricalObjects,
         missingPresentationObjects,
         missingImagePositionObjects,
@@ -648,12 +815,14 @@ export function classifyMigrationPreflight(input: MigrationPreflightInput): Migr
         missingPendingStatesObjects,
         missingPaymentsObjects,
         missingCheckinObjects,
+        missingLedgerObjects,
         invalidHistoricalSemantics: invalidSemanticObjects,
         invalidPasswordLifecycleSemantics: invalidPasswordLifecycleObjects,
         invalidRsvpInvitationSemantics: invalidRsvpInvitationObjects,
         invalidPendingStatesSemantics: invalidPendingStatesObjects,
         invalidPaymentsSemantics: invalidPaymentsObjects,
         invalidCheckinSemantics: invalidCheckinObjects,
+        invalidLedgerSemantics: invalidLedgerObjects,
         reasons,
     }
 }
