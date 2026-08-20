@@ -1704,6 +1704,9 @@ export default function AdminDashboard() {
             )}
           </div>
 
+          {/* H-008 FIX: Use extracted StatsCards component */}
+          <StatsCards stats={stats} />
+
           {selectedEventId && (
             <CheckinOverview
               eventSlug={selectedEventId}
@@ -1715,9 +1718,6 @@ export default function AdminDashboard() {
               onConfigure={canManageSelectedEvent ? () => openConfigSection('checkin') : undefined}
             />
           )}
-
-          {/* H-008 FIX: Use extracted StatsCards component */}
-          <StatsCards stats={stats} />
 
           {/* ISSUE-013: "N pagados · $X,XXX MXN recaudados" — only for a
               payment_required event, computed from the CURRENT filtered set
@@ -1950,7 +1950,6 @@ export default function AdminDashboard() {
                   <SettingsDisclosure
                     title="Identidad del evento"
                     summary={configForm.displayTitle || configForm.title || 'Sin título visible'}
-                    defaultOpen
                     revealKey={configValidationReveal.id === 'identity' ? configValidationReveal.nonce : 0}
                   >
                     <div className={styles.configFields}>
@@ -2257,7 +2256,6 @@ export default function AdminDashboard() {
                   <SettingsDisclosure
                     title="Presentación pública"
                     summary={`${configForm.presentationMode === 'artwork_only' ? 'Solo imagen + RSVP' : configForm.presentationMode === 'modern_details' ? 'Moderna con información' : 'Clásica'} · ${configForm.backgroundImageFit === 'contain' ? 'imagen completa' : 'cubrir pantalla'}`}
-                    defaultOpen
                     revealKey={configValidationReveal.id === 'presentation' ? configValidationReveal.nonce : 0}
                   >
                     <EventPresentationSettings
@@ -2475,7 +2473,6 @@ export default function AdminDashboard() {
                   <SettingsDisclosure
                     title="Confirmación y verificación"
                     summary={`${configForm.emailConfirmationEnabled ? 'Confirmación automática' : 'Confirmación manual'} · ${configForm.emailVerificationEnabled ? 'verificación activa' : 'sin verificación'}`}
-                    defaultOpen
                   >
                     <div className={styles.configFields}>
                       <div className={styles.configToggleGroup}>

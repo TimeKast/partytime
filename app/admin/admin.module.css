@@ -1239,6 +1239,7 @@
 }
 
 .filterToggle,
+.invitationManagerToggle,
 .invitationListToggle {
   width: 100%;
   min-height: 44px;
@@ -1257,11 +1258,13 @@
 }
 
 .filterToggle:hover,
+.invitationManagerToggle:hover,
 .invitationListToggle:hover {
   background: var(--ad-surface-2);
 }
 
 .filterToggle > span:first-child,
+.invitationManagerToggle > span:first-child,
 .invitationListToggle > span:first-child {
   display: grid;
   min-width: 0;
@@ -1269,11 +1272,13 @@
 }
 
 .filterToggle strong,
+.invitationManagerToggle strong,
 .invitationListToggle strong {
   font-size: var(--ad-fs-sm);
 }
 
 .filterToggle small,
+.invitationManagerToggle small,
 .invitationListToggle small {
   color: var(--ad-text-muted);
   font-size: var(--ad-fs-xs);
@@ -1288,11 +1293,13 @@
 }
 
 .filterToggle[aria-expanded='true'] .filterToggleIcon,
+.invitationManagerToggle[aria-expanded='true'] .filterToggleIcon,
 .invitationListToggle[aria-expanded='true'] .filterToggleIcon {
   transform: rotate(180deg);
 }
 
 .filterToggle:focus-visible,
+.invitationManagerToggle:focus-visible,
 .invitationListToggle:focus-visible {
   outline: none;
   box-shadow: var(--ad-focus-ring);
@@ -2181,7 +2188,7 @@
   --checkin-amber: var(--ad-warning);
 
   display: grid;
-  grid-template-columns: minmax(210px, .8fr) minmax(260px, 1.4fr) auto;
+  grid-template-columns: minmax(190px, .75fr) minmax(240px, 1.4fr) auto;
   align-items: stretch;
   margin: 0 0 var(--ad-5);
   overflow: hidden;
@@ -2198,13 +2205,13 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--ad-3);
-  padding: var(--ad-5);
+  padding: var(--ad-4);
   border-right: 1px solid var(--checkin-line);
 }
 
 .checkinOverviewHeader h3 {
-  margin: 3px 0 0;
-  font-size: var(--ad-fs-lg);
+  margin: 2px 0 0;
+  font-size: var(--ad-fs-md);
   line-height: 1.2;
 }
 
@@ -2246,9 +2253,9 @@
 .checkinOverviewBody {
   display: grid;
   align-content: center;
-  gap: var(--ad-3);
+  gap: var(--ad-2);
   min-width: 0;
-  padding: var(--ad-5);
+  padding: var(--ad-4);
 }
 
 .checkinOverviewProgress {
@@ -2264,7 +2271,7 @@
 }
 
 .checkinOverviewCount strong {
-  font-size: clamp(26px, 4vw, 38px);
+  font-size: clamp(24px, 3vw, 32px);
   line-height: .9;
 }
 
@@ -2298,7 +2305,7 @@
   display: grid;
   align-content: center;
   gap: var(--ad-2);
-  padding: var(--ad-4);
+  padding: var(--ad-3);
   border-left: 1px solid var(--checkin-line);
   background: var(--checkin-paper-2);
 }
@@ -2306,12 +2313,12 @@
 .checkinOverviewActions a,
 .checkinOverviewActions button {
   display: inline-flex;
-  min-width: 132px;
+  min-width: 116px;
   min-height: 44px;
   align-items: center;
   justify-content: center;
   gap: var(--ad-2);
-  padding: 9px 12px;
+  padding: 7px 10px;
   border: 1px solid var(--checkin-ink);
   border-radius: var(--ad-r-sm);
   background: transparent;
@@ -2433,11 +2440,28 @@
 
   .checkinOverviewHeader,
   .checkinOverviewBody {
-    padding: var(--ad-4);
+    padding: var(--ad-3);
+  }
+
+  .checkinOverviewHeader {
+    align-items: center;
+  }
+
+  .checkinOverviewEyebrow {
+    display: none;
+  }
+
+  .checkinOverviewBody {
+    gap: var(--ad-2);
+  }
+
+  .checkinOverviewDetail {
+    line-height: 1.35;
   }
 
   .checkinOverviewActions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: var(--ad-2) var(--ad-3);
     border-top: 1px solid var(--checkin-line);
     border-left: 0;
   }
@@ -2574,16 +2598,17 @@
   /* Style each row as a card with grid layout */
   .table tbody tr {
     position: relative;
-    padding: 12px 12px 10px 12px;
-    margin-bottom: 10px;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    background: white;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    padding: var(--ad-3);
+    margin-bottom: var(--ad-3);
+    border: 1px solid var(--ad-border);
+    border-left: 3px solid var(--ad-primary);
+    border-radius: var(--ad-r-lg);
+    background: var(--ad-surface);
+    box-shadow: var(--ad-shadow-sm);
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-template-rows: auto;
-    gap: 6px 10px;
+    gap: var(--ad-2) var(--ad-3);
     grid-template-areas:
       "name name"
       "phone email"
@@ -2594,8 +2619,8 @@
   }
 
   .table tbody tr:hover {
-    background: white;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    background: var(--ad-surface);
+    box-shadow: var(--ad-shadow-md);
   }
 
   /* All cells as block elements */
@@ -2627,9 +2652,9 @@
   /* Name - takes full width in mobile */
   .nameCell {
     grid-area: name;
-    font-size: 17px;
-    font-weight: 600;
-    color: #1f2937;
+    font-size: var(--ad-fs-md);
+    font-weight: var(--ad-weight-bold);
+    color: var(--ad-text);
     padding-right: 0;
   }
 
@@ -2642,11 +2667,13 @@
   .emailCell {
     grid-area: email;
     font-size: 13px;
-    color: #4b5563;
+    min-width: 0;
+    color: var(--ad-text-muted);
+    overflow-wrap: anywhere;
   }
 
   .emailCell a {
-    color: #1e40af;
+    color: var(--ad-primary);
     text-decoration: none;
   }
 
@@ -2654,19 +2681,20 @@
   .phoneCell {
     grid-area: phone;
     font-size: 13px;
-    color: #4b5563;
-    text-align: right;
-    padding-right: 40px;
-    /* Space for action button */
+    min-width: 0;
+    color: var(--ad-text-muted);
+    text-align: left;
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: flex-start;
     gap: 4px;
   }
 
   .phoneNumber {
-    color: #4b5563;
-    margin-right: 8px;
+    min-width: 0;
+    margin-right: var(--ad-1);
+    color: var(--ad-text-muted);
+    overflow-wrap: anywhere;
   }
 
   .phoneBtn {
@@ -2675,6 +2703,11 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    border-radius: var(--ad-r-md);
+    color: var(--ad-text-muted);
     transition: transform 0.2s;
   }
 
@@ -2691,26 +2724,65 @@
   .dateCell {
     grid-area: date;
     font-size: 11px;
-    color: #9ca3af;
+    min-width: 0;
+    color: var(--ad-text-subtle);
   }
 
   /* Email Sent - right side with label */
   .emailSentCell {
     grid-area: emailsent;
     font-size: 11px;
-    color: #6b7280;
+    min-width: 0;
+    color: var(--ad-text-muted);
     text-align: right;
   }
 
   /* ISSUE-013: payment badge - full-width row above actions */
   .paymentCell {
     grid-area: payment;
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ad-1) var(--ad-2);
+    padding-top: var(--ad-2) !important;
+    border-top: 1px solid var(--ad-border) !important;
+    white-space: normal;
+  }
+
+  .paymentAmount {
+    display: inline;
+    margin-top: 0;
+  }
+
+  .paymentWithoutSeatWarning {
+    flex-basis: 100%;
   }
 
   /* ISSUE-018: check-in arrival - full-width row above actions, below payment */
   .checkinCell {
     grid-area: checkin;
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ad-1) var(--ad-2);
+    padding-top: var(--ad-2) !important;
+    border-top: 1px solid var(--ad-border) !important;
     white-space: normal;
+  }
+
+  .checkinBy,
+  .checkinPlusOne {
+    display: inline;
+    margin-top: 0;
+  }
+
+  .checkinNote {
+    flex-basis: 100%;
+    max-width: none;
+    margin-top: 0;
+    overflow-wrap: anywhere;
   }
 
   /* Adjust badge sizes for mobile */
@@ -2934,6 +3006,8 @@
       "email email"
       "phone phone"
       "date emailsent"
+      "payment payment"
+      "checkin checkin"
       "actions actions";
   }
 
@@ -2968,7 +3042,7 @@
   min-width: 0;
   box-sizing: border-box;
   margin-bottom: var(--ad-5);
-  padding: var(--ad-5) var(--ad-6);
+  padding: 0;
   border: 1px solid var(--ad-border);
   border-left: 4px solid var(--ad-primary);
   border-radius: var(--ad-r-lg);
@@ -2976,29 +3050,28 @@
   box-shadow: var(--ad-shadow-sm);
 }
 
-.invitationLinkHeader h3 {
+.invitationLinkHeading {
   margin: 0;
-  color: var(--ad-text);
 }
 
-.invitationLinkHeader h3 {
-  font-size: var(--ad-fs-xl);
+.invitationManagerToggle {
+  padding: var(--ad-3) var(--ad-4);
 }
 
-.invitationLinkHeader p:last-child {
-  margin: var(--ad-1) 0 0;
+.invitationManagerContent {
+  padding: var(--ad-5);
+  padding-top: var(--ad-4);
+}
+
+.invitationManagerContent[hidden] {
+  display: none;
+}
+
+.invitationManagerIntro {
+  margin: 0;
   color: var(--ad-text-muted);
   font-size: var(--ad-fs-sm);
   line-height: 1.5;
-}
-
-.invitationLinkEyebrow {
-  margin: 0 0 var(--ad-1);
-  color: var(--ad-primary);
-  font-size: var(--ad-fs-xs);
-  font-weight: var(--ad-weight-bold);
-  letter-spacing: .08em;
-  text-transform: uppercase;
 }
 
 .invitationLinkForm {
@@ -3325,7 +3398,11 @@
 
 @media (max-width: 640px) {
   .invitationLinkManager {
-    padding: var(--ad-4);
+    padding: 0;
+  }
+
+  .invitationManagerContent {
+    padding: var(--ad-3);
   }
 
   .invitationLinkForm {

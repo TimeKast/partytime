@@ -58,8 +58,22 @@ describe('admin refinement UI contracts', () => {
     expect(filters).toContain('hidden={!displayFiltersExpanded}')
     expect(filters).toContain('activeDisplayFilterCount')
     expect(filters).toContain('Sin filtros activos')
-    expect(css).toMatch(/\.filterToggle,\s*\.invitationListToggle\s*\{[\s\S]*?min-height:\s*44px;/)
+    expect(css).toMatch(/\.filterToggle,\s*\.invitationManagerToggle,\s*\.invitationListToggle\s*\{[\s\S]*?min-height:\s*44px;/)
     expect(css).toMatch(/\.filterCollapsible\[hidden\]\s*\{[\s\S]*?display:\s*none;/)
+  })
+
+  it('keeps invitation-link creation collapsed by default with a fetched status summary', () => {
+    const links = read('app/admin/components/InvitationLinkManager.tsx')
+    const css = read('app/admin/admin.module.css')
+
+    expect(links).toContain('const [managerExpanded, setManagerExpanded] = useState(false)')
+    expect(links).toContain('aria-expanded={managerExpanded}')
+    expect(links).toContain('aria-controls="invitation-link-manager-content"')
+    expect(links).toContain('hidden={!managerExpanded}')
+    expect(links).toContain("`${links.length} ${links.length === 1 ? 'link emitido' : 'links emitidos'}")
+    expect(links).toContain("error\n                  ? 'No fue posible cargar los links emitidos'")
+    expect((links.match(/void loadLinks\(\)/g) ?? []).length).toBe(1)
+    expect(css).toMatch(/\.invitationManagerContent\[hidden\]\s*\{[\s\S]*?display:\s*none;/)
   })
 
   it('renders pagination immediately above and below the guest list instead of inside filters', () => {
@@ -165,6 +179,42 @@ describe('admin refinement UI contracts', () => {
     expect(page).toContain('styles.configNumberField')
     expect(css).toMatch(/\.configNumberField\s*\{[\s\S]*?width:\s*min\(100%, 220px\);/)
     expect(css).toMatch(/\.configToggleGroup\s*\{[\s\S]*?min-height:\s*44px;/)
+  })
+
+  it('starts every configuration disclosure closed while retaining validation reveal hooks', () => {
+    const page = read('app/admin/page.tsx')
+    const disclosure = read('app/admin/components/config/SettingsDisclosure.tsx')
+
+    expect(page).not.toContain('defaultOpen')
+    expect(disclosure).toContain('defaultOpen = false')
+    expect(disclosure).toContain('if (revealKey > 0) setOpen(true)')
+    expect(page).toContain("revealKey={configValidationReveal.id === 'identity'")
+    expect(page).toContain("revealKey={configValidationReveal.id === 'presentation'")
+    expect(page).toContain("revealKey={configValidationReveal.id === 'reminder'")
+  })
+
+  it('places the always-visible compact check-in overview directly below stats', () => {
+    const page = read('app/admin/page.tsx')
+    const dashboardStart = page.indexOf("{activeTab === 'dashboard' && (")
+    const configStart = page.indexOf('{/* Contenido de Configuración */}', dashboardStart)
+    const dashboard = page.slice(dashboardStart, configStart)
+    const stats = dashboard.indexOf('<StatsCards')
+    const checkin = dashboard.indexOf('<CheckinOverview')
+
+    expect(stats).toBeGreaterThan(-1)
+    expect(checkin).toBeGreaterThan(stats)
+    expect(dashboard.slice(stats, checkin)).not.toContain('SettingsDisclosure')
+    expect(dashboard).not.toContain('checkinOverviewExpanded')
+  })
+
+  it('keeps payment and check-in in explicit full-width mobile card zones', () => {
+    const css = read('app/admin/admin.module.css')
+    const narrowMobile = css.match(/@media \(max-width: 640px\)\s*\{[\s\S]*?\/\* One-time RSVP invitation links \*\//)?.[0] ?? ''
+
+    expect(narrowMobile).toMatch(/grid-template-areas:[\s\S]*?"payment payment"[\s\S]*?"checkin checkin"[\s\S]*?"actions actions";/)
+    expect(css).toMatch(/@media \(max-width: 768px\)[\s\S]*?\.paymentCell\s*\{[\s\S]*?grid-area:\s*payment;[\s\S]*?white-space:\s*normal;/)
+    expect(css).toMatch(/@media \(max-width: 768px\)[\s\S]*?\.checkinCell\s*\{[\s\S]*?grid-area:\s*checkin;[\s\S]*?white-space:\s*normal;/)
+    expect(css).toMatch(/@media \(max-width: 768px\)[\s\S]*?\.emailCell\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/)
   })
 
   it('does not reintroduce horizontal scrolling or decorative purple/beige styling in admin', () => {

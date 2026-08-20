@@ -94,6 +94,7 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
   const [revokingId, setRevokingId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [feedback, setFeedback] = useState('')
+  const [managerExpanded, setManagerExpanded] = useState(false)
   const [linksExpanded, setLinksExpanded] = useState(false)
 
   activeEventSlug.current = eventSlug
@@ -108,6 +109,7 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
     setGeneratedUrl(null)
     setError('')
     setFeedback('')
+    setManagerExpanded(false)
     setLinksExpanded(false)
     setCreating(false)
     setCopyingId(null)
@@ -341,15 +343,32 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
 
   return (
     <section className={styles.invitationLinkManager} aria-labelledby="invitation-links-title">
-      <div className={styles.invitationLinkHeader}>
-        <div>
-          <p className={styles.invitationLinkEyebrow}>Acceso privado de un uso</p>
-          <h3 id="invitation-links-title">Links de invitación</h3>
-          <p>Crea una excepción al cierre público del RSVP para una sola persona.</p>
-        </div>
-      </div>
+      <h3 className={styles.invitationLinkHeading} id="invitation-links-title">
+        <button
+          type="button"
+          className={styles.invitationManagerToggle}
+          aria-expanded={managerExpanded}
+          aria-controls="invitation-link-manager-content"
+          onClick={() => setManagerExpanded(current => !current)}
+        >
+          <span>
+            <strong>Generar link de invitación</strong>
+            <small>
+              {loadingLinks
+                ? 'Cargando links emitidos…'
+                : error
+                  ? 'No fue posible cargar los links emitidos'
+                  : `${links.length} ${links.length === 1 ? 'link emitido' : 'links emitidos'} · acceso privado de un uso`}
+            </small>
+          </span>
+          <span className={styles.filterToggleIcon} aria-hidden="true">⌄</span>
+        </button>
+      </h3>
 
-      <form className={styles.invitationLinkForm} onSubmit={handleCreate}>
+      <div id="invitation-link-manager-content" className={styles.invitationManagerContent} hidden={!managerExpanded}>
+        <p className={styles.invitationManagerIntro}>Crea una excepción al cierre público del RSVP para una sola persona.</p>
+
+        <form className={styles.invitationLinkForm} onSubmit={handleCreate}>
         <div className={styles.invitationExpiryField}>
           <label htmlFor="invitation-link-expiration">Válido hasta</label>
           <div className={styles.invitationExpiryControl}>
@@ -408,9 +427,9 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
         <button className={styles.invitationPrimaryAction} type="submit" disabled={creating || !expiresAt}>
           {creating ? 'Generando…' : 'Generar link'}
         </button>
-      </form>
+        </form>
 
-      {generatedUrl && (
+        {generatedUrl && (
         <div className={styles.invitationSecret}>
           <p><strong>Link generado.</strong> También podrás copiarlo después desde Links emitidos.</p>
           <div className={styles.invitationSecretRow}>
@@ -423,14 +442,14 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
             <button type="button" onClick={handleCopy}>Copiar link</button>
           </div>
         </div>
-      )}
+        )}
 
-      <div className={styles.invitationFeedback} aria-live="polite" aria-atomic="true">
+        <div className={styles.invitationFeedback} aria-live="polite" aria-atomic="true">
         {error && <p className={styles.invitationError} role="alert">{error}</p>}
         {!error && feedback && <p className={styles.invitationSuccess} role="status">{feedback}</p>}
-      </div>
+        </div>
 
-      <div className={styles.invitationLinkList}>
+        <div className={styles.invitationLinkList}>
         <button
           type="button"
           className={styles.invitationListToggle}
@@ -519,6 +538,7 @@ export default function InvitationLinkManager({ eventSlug, onNavigateToRsvp }: I
               ))}
             </ul>
           )}
+        </div>
         </div>
       </div>
     </section>
