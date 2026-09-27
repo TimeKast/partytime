@@ -40,6 +40,11 @@ export interface RsvpListItem {
   paidAt?: string | null
   amountCents?: number | null
   currency?: string | null
+  // Migration 0013: Stripe account mode of that same latest payment
+  // (rsvp_payments.livemode). `false` = a test-mode Checkout (test card, no
+  // real money): labelled "(prueba)" and never counted as collected. `null`/
+  // absent = no payment row, or a pre-0013 payload (treated as live).
+  paymentLivemode?: boolean | null
   // ISSUE-018 (EPIC-005): unlike the payment fields above, these are present
   // on every row GET /api/rsvp returns (the rsvps table columns always
   // exist — see lib/queries.ts mapRsvpRow) regardless of the event's
@@ -90,6 +95,10 @@ export interface RsvpListView<T extends RsvpListItem> {
   // never assumed to share one currency.
   paidPaymentsCount: number
   amountCollectedByCurrency: Record<string, number>
+  // Migration 0013: `paid` rows whose payment ran in Stripe TEST mode — kept
+  // out of paidPaymentsCount/amountCollectedByCurrency above (no real money
+  // moved) and counted here instead so the UI can say how many were tests.
+  testPaidPaymentsCount: number
 }
 
 const nameCollator = new Intl.Collator('es-MX', {
@@ -177,9 +186,15 @@ export function buildRsvpListView<T extends RsvpListItem>(
   // major-unit sum here (that happens once, at display time, in
   // formatCentsAsCurrency below).
   let paidPaymentsCount = 0
+  let testPaidPaymentsCount = 0
   const amountCollectedByCurrency: Record<string, number> = {}
   for (const rsvp of filteredAndSorted) {
     if (rsvp.paymentStatus !== 'paid') continue
+    // Migration 0013: a test-mode payment is never money collected.
+    if (isTestPayment(rsvp)) {
+      testPaidPaymentsCount += 1
+      continue
+    }
     paidPaymentsCount += 1
     const currency = rsvp.currency || 'MXN'
     amountCollectedByCurrency[currency] = (amountCollectedByCurrency[currency] ?? 0) + (rsvp.amountCents ?? 0)
@@ -201,6 +216,7 @@ export function buildRsvpListView<T extends RsvpListItem>(
     expiredTotal: filteredAndSorted.filter((rsvp) => rsvp.status === 'expired').length,
     paidPaymentsCount,
     amountCollectedByCurrency,
+    testPaidPaymentsCount,
   }
 }
 
@@ -234,6 +250,29 @@ export function rsvpPaymentStatusLabel(status: RsvpPaymentStatus): string {
   return rsvpPaymentStatusLabels[status]
 }
 
+/**
+ * Migration 0013: whether a row's (latest) payment ran in Stripe TEST mode.
+ * Only an explicit `false` counts — `null`/absent (no payment, or a payload
+ * from before the livemode column existed) is treated as live, which is what
+ * every pre-0013 payment was.
+ */
+export function isTestPayment(rsvp: Pick<RsvpListItem, 'paymentStatus' | 'paymentLivemode'>): boolean {
+  return Boolean(rsvp.paymentStatus) && rsvp.paymentLivemode === false
+}
+
+export const TEST_PAYMENT_LABEL_SUFFIX = ' (prueba)'
+
+/**
+ * Per-row payment label that also carries the Stripe mode: "Pagado" for a
+ * live payment, "Pagado (prueba)" for a test one. Shared by the guest-table
+ * badge and the PDF/Excel "Estado de pago" column so both always agree.
+ */
+export function rsvpPaymentLabel(rsvp: Pick<RsvpListItem, 'paymentStatus' | 'paymentLivemode'>): string {
+  if (!rsvp.paymentStatus) return ''
+  const label = rsvpPaymentStatusLabels[rsvp.paymentStatus]
+  return isTestPayment(rsvp) ? `${label}${TEST_PAYMENT_LABEL_SUFFIX}` : label
+}
+
 // ISSUE-013: the single place amount_cents becomes a displayed amount —
 // never a raw `/ 100` at a call site, so every surface (table badge,
 // PDF/Excel export, aggregated total) rounds/groups identically.
@@ -259,8 +298,16 @@ export function formatAmountsCollected(amountsByCurrency: Record<string, number>
 // aggregate counter and the PDF/Excel export summary line both render this
 // exact sentence, computed once here from RsvpListView.paidPaymentsCount/
 // amountCollectedByCurrency.
-export function describePaymentsCollected(paidCount: number, amountsByCurrency: Record<string, number>): string {
-  return `${paidCount} pagados · ${formatAmountsCollected(amountsByCurrency)} recaudados`
+export function describePaymentsCollected(
+  paidCount: number,
+  amountsByCurrency: Record<string, number>,
+  // Migration 0013: appended only when > 0, so the sentence for an event
+  // without test payments stays byte-for-byte what it was.
+  testPaidCount = 0,
+): string {
+  const base = `${paidCount} pagados · ${formatAmountsCollected(amountsByCurrency)} recaudados`
+  if (testPaidCount <= 0) return base
+  return `${base} · ${testPaidCount} ${testPaidCount === 1 ? 'pago' : 'pagos'} de prueba (no suman)`
 }
 
 // ISSUE-018 (EPIC-005): "Llegados X / Confirmados Y" header counter in

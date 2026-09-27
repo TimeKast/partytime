@@ -2083,6 +2083,23 @@
   color: #dc2626;
 }
 
+/* Migration 0013: Stripe test-mode payments. A paid test is neutral slate
+   (never the green "money in" of .paymentBadgePaid); every test badge gets
+   a dashed outline so "(prueba)" also reads without the text. */
+.paymentBadgeTest {
+  background: var(--ad-surface-2, #f1f3f5);
+  color: var(--ad-text-muted, #526078);
+}
+
+.paymentBadge[data-payment-mode='test'] {
+  outline: 1px dashed currentColor;
+  outline-offset: -1px;
+}
+
+.paymentAmount[data-payment-mode='test'] {
+  color: var(--ad-text-subtle, #7d889b);
+}
+
 .paymentBadgeNone {
   color: #9ca3af;
   font-size: 13px;

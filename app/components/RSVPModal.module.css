@@ -302,6 +302,30 @@
   line-height: 1.5;
 }
 
+/* Migration 0013: Stripe test-mode notice — a quiet dashed card above the
+   payment summary (dashed = "not the real thing"), never an alarm. */
+.paymentTestNotice {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.34);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.paymentTestNotice strong {
+  color: #fde68a;
+  font-weight: 700;
+}
+
+.paymentTestCard {
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .submitButton {
   padding: 18px 30px;
   font-size: 1.1rem;

@@ -6,6 +6,7 @@ import {
     parseEventPresentationPatch,
 } from '@/lib/event-presentation'
 import { checkPaymentRequiredEligibility } from '@/lib/payment-config'
+import { isStripeMode, type StripeMode } from '@/lib/stripe'
 
 export const DEFAULT_EVENT_THEME = {
     primaryColor: '#FF1493',
@@ -33,6 +34,12 @@ interface EventUpdateState {
     paymentRequired: boolean | null
     capacityEnabled: boolean | null
     capacityLimit: number | null
+    // Migration 0013: the stored mode, so re-sending the SAME value (every
+    // full settings save does) is never treated as a change — only a real
+    // change is gated to super_admin. Optional so callers built against the
+    // pre-0013 shape keep compiling; absent is read as 'live' (the column's
+    // DB default).
+    stripeMode?: string | null
 }
 
 export interface ParsedEventUpdate {
@@ -77,6 +84,56 @@ function parseTheme(value: unknown): ParseResult<EventTheme> {
         theme[key] = value[key]
     }
     return { success: true, value: theme }
+}
+
+export const STRIPE_MODE_INVALID_ERROR = 'stripeMode debe ser "live" o "test"'
+export const STRIPE_MODE_FORBIDDEN_ERROR = 'Solo un Super Admin puede cambiar el modo de cobro (real o prueba) de un evento'
+
+/** The stored events.stripe_mode, fail-safe to 'live' for any unexpected value. */
+export function storedStripeMode(value: unknown): StripeMode {
+    return isStripeMode(value) ? value : 'live'
+}
+
+type StripeModeParseResult =
+    | { success: true; value: StripeMode | undefined }
+    | { success: false; error: string }
+
+/**
+ * Parses an optional `stripeMode` from a settings body. `value` is only set
+ * when the request actually CHANGES the stored mode: omitting the key or
+ * re-sending the current value (a manager's full settings save) yields
+ * `undefined`, so neither ever trips the super_admin gate. Any value other
+ * than 'live'/'test' (including null) is a 400.
+ */
+function parseStripeModeChange(source: Record<string, unknown>, currentMode: unknown): StripeModeParseResult {
+    if (!hasOwn(source, 'stripeMode')) return { success: true, value: undefined }
+    const requested = source.stripeMode
+    if (!isStripeMode(requested)) return { success: false, error: STRIPE_MODE_INVALID_ERROR }
+    return { success: true, value: requested === storedStripeMode(currentMode) ? undefined : requested }
+}
+
+export type StripeModeChangeResult =
+    | { success: true; value: StripeMode | undefined }
+    | { success: false; status: 400 | 403; error: string }
+
+/**
+ * Validation + permission in one step, for routes that build their own
+ * update object (app/api/admin/event-settings/update). 400 on an invalid
+ * value (checked first, whatever the role), 403 when a non-super_admin tries
+ * to CHANGE the mode, `value: undefined` when there is nothing to change.
+ */
+export function resolveStripeModeChange(
+    input: unknown,
+    currentMode: unknown,
+    canChangeStripeMode: boolean,
+): StripeModeChangeResult {
+    if (!isRecord(input)) return { success: true, value: undefined }
+    const parsed = parseStripeModeChange(input, currentMode)
+    if (!parsed.success) return { success: false, status: 400, error: parsed.error }
+    if (parsed.value !== undefined && !canChangeStripeMode) {
+        return { success: false, status: 403, error: STRIPE_MODE_FORBIDDEN_ERROR }
+    }
+    return parsed
 }
 
 export function parseFullUpdatePrice(value: unknown): ParseResult<{
@@ -195,6 +252,11 @@ export function parseCreateEventRequest(input: unknown): ParseResult<CreateEvent
     const active = parseBoolean(input, 'isActive')
     if (!active.success) return active
 
+    // Migration 0013: creation is super_admin-only (POST /api/events), so no
+    // extra gate here. Omitted -> the column's DB default ('live').
+    const stripeMode = parseStripeModeChange(input, 'live')
+    if (!stripeMode.success) return stripeMode
+
     return {
         success: true,
         value: {
@@ -216,6 +278,7 @@ export function parseCreateEventRequest(input: unknown): ParseResult<CreateEvent
             hostEmail,
             hostPhone,
             isActive: active.value ?? true,
+            ...(stripeMode.value !== undefined && { stripeMode: stripeMode.value }),
         },
     }
 }
@@ -368,6 +431,13 @@ export function parseEventUpdateRequest(
     if (closedMessage.value !== undefined) updates.rsvpClosedMessage = closedMessage.value
     if (emailVerificationEnabled.value !== undefined) updates.emailVerificationEnabled = emailVerificationEnabled.value
 
+    // Migration 0013: only a real change lands in `updates` (see
+    // parseStripeModeChange); validateAndApplyEventUpdate gates it to
+    // super_admin.
+    const stripeMode = parseStripeModeChange(input, existing.stripeMode)
+    if (!stripeMode.success) return stripeMode
+    if (stripeMode.value !== undefined) updates.stripeMode = stripeMode.value
+
     return { success: true, value: { newSlug, updates } }
 }
 
@@ -385,17 +455,26 @@ export type ApplyEventUpdateResult =
         updatedRsvps: number
     }
 
+export interface EventUpdatePermissions {
+    /** Migration 0013: only a super_admin may switch live <-> test. Fails closed. */
+    canChangeStripeMode?: boolean
+}
+
 export async function validateAndApplyEventUpdate(
     input: unknown,
     currentSlug: string,
     existingEvent: DatabaseEvent,
     canChangeSlug: boolean,
     mutations: EventUpdateMutations,
+    { canChangeStripeMode = false }: EventUpdatePermissions = {},
 ): Promise<ApplyEventUpdateResult> {
     const parsed = parseEventUpdateRequest(input, currentSlug, existingEvent)
     if (!parsed.success) return { success: false, status: 400, error: parsed.error }
     if (parsed.value.newSlug && !canChangeSlug) {
         return { success: false, status: 403, error: 'Solo un Super Admin puede cambiar el slug de un evento' }
+    }
+    if (parsed.value.updates.stripeMode !== undefined && !canChangeStripeMode) {
+        return { success: false, status: 403, error: STRIPE_MODE_FORBIDDEN_ERROR }
     }
 
     let event = existingEvent

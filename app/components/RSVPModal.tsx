@@ -22,6 +22,11 @@ interface RSVPModalProps {
   invitationToken?: string
   requirePlusOneName?: boolean
   paymentPricing?: PublicPaymentPricing
+  /**
+   * Migration 0013: the event charges in Stripe TEST mode (public DTO's
+   * `paymentTestMode`). Only rendered alongside `paymentPricing`.
+   */
+  paymentTestMode?: boolean
   theme?: {
     primaryColor: string
     secondaryColor: string
@@ -51,6 +56,7 @@ export default function RSVPModal({
   invitationToken,
   requirePlusOneName,
   paymentPricing,
+  paymentTestMode = false,
   theme,
 }: RSVPModalProps) {
   // Configuración por defecto si no se provee el tema
@@ -491,6 +497,15 @@ export default function RSVPModal({
                   onBlur={isModern ? undefined : (e) => (e.target.style.borderColor = `${activeTheme.primaryColor}4d`)}
                 />
               </motion.div>
+            )}
+
+            {/* Migration 0013: outside the summary's live region on purpose —
+                it is static, so it isn't re-announced on every +1 toggle. */}
+            {paymentBreakdown && paymentTestMode && (
+              <p className={styles.paymentTestNotice}>
+                <strong>Modo prueba:</strong> no se cobra dinero real. Usa la tarjeta{' '}
+                <span className={styles.paymentTestCard}>4242 4242 4242 4242</span>, cualquier fecha futura y cualquier CVC.
+              </p>
             )}
 
             {paymentBreakdown && (

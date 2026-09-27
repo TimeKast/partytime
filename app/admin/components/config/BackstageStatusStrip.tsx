@@ -4,6 +4,8 @@ import { checkinReadiness, type CheckinStatus } from '../CheckinStatus'
 interface BackstageStatusStripProps {
   rsvpClosed: boolean
   paymentRequired: boolean
+  /** Migration 0013: the event's SAVED Stripe mode is 'test'. */
+  paymentTestMode?: boolean
   priceAmount: number
   checkinStatus: CheckinStatus | null
   checkinLoading?: boolean
@@ -12,6 +14,7 @@ interface BackstageStatusStripProps {
 export function BackstageStatusStrip({
   rsvpClosed,
   paymentRequired,
+  paymentTestMode = false,
   priceAmount,
   checkinStatus,
   checkinLoading = false,
@@ -27,7 +30,9 @@ export function BackstageStatusStrip({
       <div className={styles.item}>
         <dt>Cobro</dt>
         <dd data-tone={paymentRequired ? 'warning' : 'neutral'}>
-          {paymentRequired ? `$${priceAmount} por persona` : 'No requerido'}
+          {paymentRequired
+            ? `$${priceAmount} por persona${paymentTestMode ? ' · prueba' : ''}`
+            : 'No requerido'}
         </dd>
       </div>
       <div className={styles.item}>
