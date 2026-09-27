@@ -32,6 +32,15 @@ export const events = pgTable('events', {
     // since it cross-references three columns. Private courtesy links bypass
     // it (PLAN-EPICS-002-005.md §2.1).
     paymentRequired: boolean('payment_required').notNull().default(false),
+    // Migration 0013: which Stripe account this event's Checkout charges
+    // against. 'live' (default, every pre-0013 event) charges real money with
+    // STRIPE_SECRET_KEY; 'test' uses STRIPE_TEST_SECRET_KEY (Stripe test
+    // cards, no real money moves). Only a super_admin may change it. A test
+    // payment never confirms an RSVP for an event that is currently 'live' —
+    // fulfillPaidRsvp compares the Checkout session's livemode against this
+    // column before confirming. Allowed values are pinned by
+    // events_stripe_mode_check below.
+    stripeMode: varchar('stripe_mode', { length: 8 }).notNull().default('live'),
 
     // Capacity configuration
     capacityEnabled: boolean('capacity_enabled').default(false),
@@ -136,6 +145,10 @@ export const events = pgTable('events', {
     rsvpButtonLabelCheck: check(
         'events_rsvp_button_label_check',
         sql`char_length(btrim(${table.rsvpButtonLabel})) between 1 and 80`,
+    ),
+    stripeModeCheck: check(
+        'events_stripe_mode_check',
+        sql`${table.stripeMode} in ('live', 'test')`,
     ),
 }))
 
@@ -319,6 +332,15 @@ export const rsvpPayments = pgTable('rsvp_payments', {
     createdAt: timestamp('created_at').defaultNow().notNull(),
     paidAt: timestamp('paid_at'),
     refundedAt: timestamp('refunded_at'),
+    // Migration 0013: whether this Checkout session was created against
+    // Stripe's live account (true) or its test account (false). New code
+    // always sets it explicitly from Stripe's own `session.livemode`. The
+    // DB DEFAULT true exists only so 0013 can be applied BEFORE the deploy
+    // that knows about this column: the code already running in production
+    // inserts payments without it and only ever creates live sessions, so
+    // defaulting to true keeps that checkout path correct. Rows that predate
+    // 0013 are backfilled from the session id prefix (cs_test_ => false).
+    livemode: boolean('livemode').notNull().default(true),
 }, table => ({
     rsvpIdIndex: index('rsvp_payments_rsvp_id_idx').on(table.rsvpId),
     eventIdStatusIndex: index('rsvp_payments_event_id_status_idx').on(table.eventId, table.status),

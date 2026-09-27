@@ -25,6 +25,10 @@ import {
     type LedgerSemanticState,
 } from '@/lib/event-ledger-migration-contract'
 import {
+    STRIPE_MODE_SEMANTIC_CHECK_NAMES,
+    type StripeModeSemanticState,
+} from '@/lib/stripe-mode-migration-contract'
+import {
     REQUIRED_CHECKIN_OBJECTS,
     REQUIRED_HISTORICAL_OBJECTS,
     REQUIRED_IMAGE_POSITION_OBJECTS,
@@ -118,6 +122,12 @@ describe('migration-preflight — 0011 check-in classification', () => {
     const absentLedgerSemantics = Object.fromEntries(
         LEDGER_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
     ) as LedgerSemanticState
+    // Migration 0013: the Stripe mode columns/check are absent in these
+    // fixtures too — see tests/stripe-mode-migration.test.ts for the
+    // 0013-applied classification coverage.
+    const absentStripeModeSemantics = Object.fromEntries(
+        STRIPE_MODE_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+    ) as StripeModeSemanticState
 
     // A DB that has run through exactly 0010 (payments complete, migration
     // 0011's columns absent).
@@ -161,6 +171,9 @@ describe('migration-preflight — 0011 check-in classification', () => {
         ledgerConstraints: [],
         ledgerIndexes: [],
         ledgerSemantics: absentLedgerSemantics,
+        stripeModeColumns: [],
+        stripeModeConstraints: [],
+        stripeModeSemantics: absentStripeModeSemantics,
     }
 
     const registryUpTo0010 = Array.from({ length: 11 }, (_, index) => ({

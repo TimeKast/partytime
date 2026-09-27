@@ -36,6 +36,10 @@ import {
     LEDGER_SEMANTICS_QUERY,
     ledgerSemanticStateFromRows,
 } from '@/lib/event-ledger-migration-contract'
+import {
+    STRIPE_MODE_SEMANTICS_QUERY,
+    stripeModeSemanticStateFromRows,
+} from '@/lib/stripe-mode-migration-contract'
 
 interface JournalEntry {
     idx: number
@@ -410,6 +414,24 @@ async function main() {
     const ledgerSemantics = ledgerSemanticStateFromRows(
         await sql.query(LEDGER_SEMANTICS_QUERY),
     )
+    const stripeModeColumns = (await sql`
+        SELECT table_name || '.' || column_name AS name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND (
+              (table_name = 'events' AND column_name = 'stripe_mode')
+              OR (table_name = 'rsvp_payments' AND column_name = 'livemode')
+          )`
+    ).map(row => String(row.name))
+    const stripeModeConstraints = (await sql`
+        SELECT conname
+        FROM pg_constraint
+        WHERE connamespace = to_regnamespace('public')
+          AND conname IN ('events_stripe_mode_check')`
+    ).map(row => String(row.conname))
+    const stripeModeSemantics = stripeModeSemanticStateFromRows(
+        await sql.query(STRIPE_MODE_SEMANTICS_QUERY),
+    )
 
     const objects: MigrationObjectState = {
         tables,
@@ -449,6 +471,9 @@ async function main() {
         ledgerConstraints,
         ledgerIndexes,
         ledgerSemantics,
+        stripeModeColumns,
+        stripeModeConstraints,
+        stripeModeSemantics,
     }
     const expected = expectedRegistry()
     const result = classifyMigrationPreflight({
@@ -462,7 +487,8 @@ async function main() {
         expectedPendingStatesRegistry: expected.slice(0, 10),
         expectedPaymentsRegistry: expected.slice(0, 11),
         expectedCheckinRegistry: expected.slice(0, 12),
-        expectedCurrentRegistry: expected.slice(0, 13),
+        expectedLedgerRegistry: expected.slice(0, 13),
+        expectedCurrentRegistry: expected.slice(0, 14),
         objects,
     })
 
@@ -485,6 +511,7 @@ async function main() {
         && !result.canApply0010
         && !result.canApply0011
         && !result.canApply0012
+        && !result.canApply0013
         && result.classification !== 'registered-current-schema'
     ) {
         process.exitCode = 1

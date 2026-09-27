@@ -38,6 +38,10 @@ import {
     invalidLedgerSemantics,
     type LedgerSemanticState,
 } from '@/lib/event-ledger-migration-contract'
+import {
+    STRIPE_MODE_SEMANTIC_CHECK_NAMES,
+    type StripeModeSemanticState,
+} from '@/lib/stripe-mode-migration-contract'
 import type {
     Event,
     EventParticipant,
@@ -183,6 +187,12 @@ describe('migration-preflight — 0012 ledger classification', () => {
     const absentLedgerSemantics = Object.fromEntries(
         LEDGER_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
     ) as LedgerSemanticState
+    // Migration 0013: the Stripe mode columns/check are absent in these
+    // fixtures too — see tests/stripe-mode-migration.test.ts for the
+    // 0013-applied classification coverage.
+    const absentStripeModeSemantics = Object.fromEntries(
+        STRIPE_MODE_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+    ) as StripeModeSemanticState
 
     // A DB that has run through exactly 0011 (check-in complete, migration
     // 0012's ledger objects absent).
@@ -224,6 +234,9 @@ describe('migration-preflight — 0012 ledger classification', () => {
         ledgerConstraints: [],
         ledgerIndexes: [],
         ledgerSemantics: absentLedgerSemantics,
+        stripeModeColumns: [],
+        stripeModeConstraints: [],
+        stripeModeSemantics: absentStripeModeSemantics,
     }
 
     const registryUpTo0011 = Array.from({ length: 12 }, (_, index) => ({
@@ -259,7 +272,11 @@ describe('migration-preflight — 0012 ledger classification', () => {
         })
     })
 
-    it('classifies the 0012 objects (applied on a disposable Neon branch) as the current schema — acceptance criterion for pnpm db:preflight', () => {
+    // Migration 0013: this state (0012-complete, 0013's Stripe mode objects
+    // absent) used to classify as the terminal 'registered-current-schema'
+    // before migration 0013 existed. See tests/stripe-mode-migration.test.ts
+    // for the new terminal state.
+    it('classifies the 0012 objects (applied on a disposable Neon branch) as ready to apply 0013 (canApply0013)', () => {
         const result = classifyMigrationPreflight({
             drizzleRegistry: registryUpTo0012,
             publicRegistry: null,
@@ -269,6 +286,7 @@ describe('migration-preflight — 0012 ledger classification', () => {
             expectedPendingStatesRegistry: registryUpTo0011.slice(0, 10),
             expectedPaymentsRegistry: registryUpTo0011.slice(0, 11),
             expectedCheckinRegistry: registryUpTo0011,
+            expectedLedgerRegistry: registryUpTo0012,
             expectedCurrentRegistry: registryUpTo0012,
             objects: {
                 ...objectsAt0011,
@@ -281,8 +299,9 @@ describe('migration-preflight — 0012 ledger classification', () => {
         })
 
         expect(result).toMatchObject({
-            classification: 'registered-current-schema',
+            classification: 'registered-ledger-ready',
             canApply0012: false,
+            canApply0013: true,
             missingLedgerObjects: [],
             invalidLedgerSemantics: [],
         })

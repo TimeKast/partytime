@@ -16,6 +16,7 @@ const databaseEvent: DatabaseEvent = {
     priceAmount: 500,
     priceCurrency: 'MXN',
     paymentRequired: false,
+    stripeMode: 'live',
     capacityEnabled: true,
     capacityLimit: 100,
     backgroundImageUrl: '/fiesta.jpg',

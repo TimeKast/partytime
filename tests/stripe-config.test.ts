@@ -38,6 +38,10 @@ import {
     LEDGER_SEMANTIC_CHECK_NAMES,
     type LedgerSemanticState,
 } from '@/lib/event-ledger-migration-contract'
+import {
+    STRIPE_MODE_SEMANTIC_CHECK_NAMES,
+    type StripeModeSemanticState,
+} from '@/lib/stripe-mode-migration-contract'
 
 describe('derivePaymentAmountCents (ISSUE-010 acceptance criterion)', () => {
     it('derives exactly 25000 cents from a $250 MXN price', () => {
@@ -204,6 +208,12 @@ describe('migration preflight — payments tier compatibility (ISSUE-010)', () =
     const absentLedgerSemantics = Object.fromEntries(
         LEDGER_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
     ) as LedgerSemanticState
+    // Migration 0013: the Stripe mode columns/check are absent in these
+    // fixtures too — see tests/stripe-mode-migration.test.ts for the
+    // 0013-applied classification coverage.
+    const absentStripeModeSemantics = Object.fromEntries(
+        STRIPE_MODE_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+    ) as StripeModeSemanticState
 
     const objectsThrough0010: MigrationObjectState = {
         tables: [...REQUIRED_HISTORICAL_OBJECTS.tables],
@@ -243,6 +253,9 @@ describe('migration preflight — payments tier compatibility (ISSUE-010)', () =
         ledgerConstraints: [],
         ledgerIndexes: [],
         ledgerSemantics: absentLedgerSemantics,
+        stripeModeColumns: [],
+        stripeModeConstraints: [],
+        stripeModeSemantics: absentStripeModeSemantics,
     }
 
     const registryThrough0010 = Array.from({ length: 11 }, (_, index) => ({
