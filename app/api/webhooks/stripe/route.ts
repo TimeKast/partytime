@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type Stripe from 'stripe'
-import { stripe } from '@/lib/stripe'
+import { configuredWebhookSecrets, stripeFor, type StripeMode } from '@/lib/stripe'
 import { isDatabaseConfigured } from '@/lib/db'
 import { resend, FROM_EMAIL } from '@/lib/resend'
 import { generateConfirmationEmail } from '@/lib/email-template'
@@ -28,13 +28,13 @@ function paymentIntentIdOf(value: string | Stripe.PaymentIntent | null | undefin
  * confirmed a seat.
  */
 export async function POST(request: NextRequest) {
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
-    if (!webhookSecret) {
+    const webhookSecrets = configuredWebhookSecrets()
+    if (webhookSecrets.length === 0) {
         // Fail-closed (same posture as CRON_SECRET in
         // app/api/cron/send-reminders/route.ts): without a configured secret
         // there is no way to verify a delivery came from Stripe, so refuse to
         // process it rather than trust an unverified body.
-        console.error('STRIPE_WEBHOOK_SECRET no configurado — rechazando webhook de Stripe (fail-closed)')
+        console.error('Ningún secreto de webhook de Stripe configurado — rechazando webhook (fail-closed)')
         return NextResponse.json({ error: 'Webhook not configured' }, { status: 503, headers: NO_STORE_HEADERS })
     }
 
@@ -48,14 +48,32 @@ export async function POST(request: NextRequest) {
     // would re-serialize the body and break verification.
     const rawBody = await request.text()
 
-    let event: Stripe.Event
-    try {
-        event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret)
-    } catch (err) {
-        console.error(
-            'Firma de webhook de Stripe inválida:',
-            err instanceof Error ? err.name : 'UnknownError',
-        )
+    // Live and test deliveries arrive at this same URL, each signed with its
+    // own endpoint secret. The mode whose secret verifies the signature is the
+    // ONLY mode this delivery may act on: every mutation below matches the
+    // stored payment by (session/intent id, livemode), so a test-mode event
+    // can never touch a live payment row or vice versa.
+    let event: Stripe.Event | null = null
+    let verifiedMode: StripeMode | null = null
+    for (const { mode, secret } of webhookSecrets) {
+        try {
+            event = stripeFor(mode).webhooks.constructEvent(rawBody, signature, secret)
+            verifiedMode = mode
+            break
+        } catch {
+            // Try the next configured secret; only "none verified" is an error.
+        }
+    }
+    if (!event || !verifiedMode) {
+        console.error('Firma de webhook de Stripe inválida para todos los secretos configurados')
+        return NextResponse.json({ error: 'Firma inválida' }, { status: 400, headers: NO_STORE_HEADERS })
+    }
+
+    const livemode = verifiedMode === 'live'
+    if (event.livemode !== livemode) {
+        // A body signed with one mode's secret that claims the other mode is
+        // not something Stripe produces — refuse it rather than guess.
+        console.error(JSON.stringify({ event: 'stripe.webhook.mode_mismatch', verifiedMode, eventLivemode: event.livemode }))
         return NextResponse.json({ error: 'Firma inválida' }, { status: 400, headers: NO_STORE_HEADERS })
     }
 
@@ -73,15 +91,15 @@ export async function POST(request: NextRequest) {
             case 'checkout.session.async_payment_succeeded':
                 // Paridad: OXXO/SPEI y otros métodos de pago asíncronos
                 // confirman vía este evento en vez de `completed` directo.
-                await handleCheckoutPaid(event.data.object as Stripe.Checkout.Session)
+                await handleCheckoutPaid(event.data.object as Stripe.Checkout.Session, livemode)
                 break
 
             case 'checkout.session.expired':
-                await handleCheckoutExpired(event.data.object as Stripe.Checkout.Session)
+                await handleCheckoutExpired(event.data.object as Stripe.Checkout.Session, livemode)
                 break
 
             case 'charge.refunded':
-                await handleChargeRefunded(event.data.object as Stripe.Charge)
+                await handleChargeRefunded(event.data.object as Stripe.Charge, livemode)
                 break
 
             default:
@@ -106,13 +124,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true }, { headers: NO_STORE_HEADERS })
 }
 
-async function handleCheckoutPaid(session: Stripe.Checkout.Session): Promise<void> {
+async function handleCheckoutPaid(session: Stripe.Checkout.Session, livemode: boolean): Promise<void> {
     const { fulfillPaidRsvp } = await import('@/lib/queries')
 
-    const result = await fulfillPaidRsvp(session.id, paymentIntentIdOf(session.payment_intent))
+    const result = await fulfillPaidRsvp(session.id, paymentIntentIdOf(session.payment_intent), livemode)
 
-    // 'replay' (already paid) and 'payment_without_seat' (logged inside
-    // fulfillPaidRsvp) both intentionally send no email and stop here.
+    // 'replay' (already paid), 'payment_without_seat' and
+    // 'test_payment_rejected' (both logged inside fulfillPaidRsvp) all
+    // intentionally send no email and stop here.
     if (result.outcome !== 'confirmed' || !result.rsvp) return
 
     const rsvp = result.rsvp
@@ -162,15 +181,15 @@ async function handleCheckoutPaid(session: Stripe.Checkout.Session): Promise<voi
     }
 }
 
-async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<void> {
+async function handleCheckoutExpired(session: Stripe.Checkout.Session, livemode: boolean): Promise<void> {
     const { expireRsvpPaymentBySessionId } = await import('@/lib/queries')
-    await expireRsvpPaymentBySessionId(session.id)
+    await expireRsvpPaymentBySessionId(session.id, livemode)
 }
 
-async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
+async function handleChargeRefunded(charge: Stripe.Charge, livemode: boolean): Promise<void> {
     const paymentIntentId = paymentIntentIdOf(charge.payment_intent)
     if (!paymentIntentId) return
 
     const { markRsvpPaymentRefunded } = await import('@/lib/queries')
-    await markRsvpPaymentRefunded(paymentIntentId)
+    await markRsvpPaymentRefunded(paymentIntentId, livemode)
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
     PAYMENT_CURRENCY_WHITELIST,
     checkPaymentRequiredEligibility,
@@ -148,20 +148,71 @@ describe('lib/stripe.ts — lazy client (ISSUE-010 acceptance criterion: no STRI
         }
     })
 
-    it('a property access on the lazy proxy without a real key constructs a placeholder client instead of throwing', async () => {
-        const original = process.env.STRIPE_SECRET_KEY
+    it('requesting a client for either mode without its key constructs a placeholder client instead of throwing', async () => {
+        const originalLive = process.env.STRIPE_SECRET_KEY
+        const originalTest = process.env.STRIPE_TEST_SECRET_KEY
         delete process.env.STRIPE_SECRET_KEY
+        delete process.env.STRIPE_TEST_SECRET_KEY
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
         try {
-            const { stripe } = await import('@/lib/stripe')
+            const { stripeFor } = await import('@/lib/stripe')
             // Stripe's constructor throws synchronously on a falsy key
             // ("Neither apiKey nor config.authenticator provided") — this
-            // would surface here, on first property access, if lib/stripe.ts
-            // ever passed the raw env value straight through instead of the
-            // resend.ts-style placeholder fallback.
-            expect(() => stripe.checkout).not.toThrow()
-            expect(stripe.checkout).toBeTruthy()
+            // would surface here if lib/stripe.ts ever passed the raw env
+            // value straight through instead of the resend.ts-style
+            // placeholder fallback.
+            for (const mode of ['live', 'test'] as const) {
+                expect(() => stripeFor(mode)).not.toThrow()
+                expect(stripeFor(mode).checkout).toBeTruthy()
+            }
         } finally {
-            if (original !== undefined) process.env.STRIPE_SECRET_KEY = original
+            warnSpy.mockRestore()
+            if (originalLive !== undefined) process.env.STRIPE_SECRET_KEY = originalLive
+            if (originalTest !== undefined) process.env.STRIPE_TEST_SECRET_KEY = originalTest
+        }
+    })
+
+    it('isStripeConfigured(mode) reads each mode from its own key: live = STRIPE_SECRET_KEY, test = STRIPE_TEST_SECRET_KEY', async () => {
+        const { isStripeConfigured } = await import('@/lib/stripe')
+        const originalLive = process.env.STRIPE_SECRET_KEY
+        const originalTest = process.env.STRIPE_TEST_SECRET_KEY
+        try {
+            process.env.STRIPE_SECRET_KEY = 'sk_live_x'
+            delete process.env.STRIPE_TEST_SECRET_KEY
+            expect(isStripeConfigured('live')).toBe(true)
+            expect(isStripeConfigured('test')).toBe(false)
+
+            delete process.env.STRIPE_SECRET_KEY
+            process.env.STRIPE_TEST_SECRET_KEY = 'rk_test_x'
+            expect(isStripeConfigured('live')).toBe(false)
+            expect(isStripeConfigured('test')).toBe(true)
+        } finally {
+            if (originalLive === undefined) delete process.env.STRIPE_SECRET_KEY
+            else process.env.STRIPE_SECRET_KEY = originalLive
+            if (originalTest === undefined) delete process.env.STRIPE_TEST_SECRET_KEY
+            else process.env.STRIPE_TEST_SECRET_KEY = originalTest
+        }
+    })
+
+    it('configuredWebhookSecrets() lists only the configured modes, live first, without exposing anything else', async () => {
+        const { configuredWebhookSecrets } = await import('@/lib/stripe')
+        const originalLive = process.env.STRIPE_WEBHOOK_SECRET
+        const originalTest = process.env.STRIPE_TEST_WEBHOOK_SECRET
+        try {
+            process.env.STRIPE_WEBHOOK_SECRET = 'whsec_live'
+            process.env.STRIPE_TEST_WEBHOOK_SECRET = 'whsec_test'
+            expect(configuredWebhookSecrets().map(s => s.mode)).toEqual(['live', 'test'])
+
+            delete process.env.STRIPE_WEBHOOK_SECRET
+            expect(configuredWebhookSecrets().map(s => s.mode)).toEqual(['test'])
+
+            delete process.env.STRIPE_TEST_WEBHOOK_SECRET
+            expect(configuredWebhookSecrets()).toEqual([])
+        } finally {
+            if (originalLive === undefined) delete process.env.STRIPE_WEBHOOK_SECRET
+            else process.env.STRIPE_WEBHOOK_SECRET = originalLive
+            if (originalTest === undefined) delete process.env.STRIPE_TEST_WEBHOOK_SECRET
+            else process.env.STRIPE_TEST_WEBHOOK_SECRET = originalTest
         }
     })
 })

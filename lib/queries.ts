@@ -1043,6 +1043,14 @@ export async function createRsvpPaymentRecord(input: {
     stripeSessionId: string
     amountCents: number
     currency: string
+    /**
+     * The Stripe account mode the session was created in — taken from the
+     * session Stripe returned (`session.livemode`), never from the event's
+     * setting, so a misconfigured key can never mislabel a payment. Every
+     * later call about this session (expire/retrieve, webhook matching) is
+     * scoped by it.
+     */
+    livemode: boolean
 }): Promise<RsvpPayment> {
     if (!db) throw new Error('Database not configured')
 
@@ -1054,6 +1062,7 @@ export async function createRsvpPaymentRecord(input: {
             amountCents: input.amountCents,
             currency: input.currency,
             status: RSVP_PAYMENT_STATUS.CREATED,
+            livemode: input.livemode,
         })
         .returning()
 
@@ -1135,7 +1144,18 @@ function logPaymentWithoutSeat(input: { rsvpId: string; stripeSessionId: string 
     }))
 }
 
-export type FulfillPaidRsvpOutcome = 'confirmed' | 'replay' | 'payment_without_seat'
+export type FulfillPaidRsvpOutcome = 'confirmed' | 'replay' | 'payment_without_seat' | 'test_payment_rejected'
+
+// A TEST-mode Checkout completed for an event that has since been switched to
+// `live`: the guest "paid" with a test card, so no money exists. Logged with
+// ids only (no PII), same shape as logPaymentWithoutSeat.
+function logTestPaymentRejected(input: { rsvpId: string; stripeSessionId: string }): void {
+    console.error(JSON.stringify({
+        event: 'TEST_PAYMENT_REJECTED_EVENT_LIVE',
+        rsvpId: input.rsvpId,
+        stripeSessionId: input.stripeSessionId,
+    }))
+}
 
 export interface FulfillPaidRsvpResult {
     outcome: FulfillPaidRsvpOutcome
@@ -1179,24 +1199,51 @@ export interface FulfillPaidRsvpResult {
  *       caught below, and because the abort rolled back the payment UPDATE
  *       too, `fulfillPaymentWithoutSeat` repeats ONLY that UPDATE in a fresh,
  *       single-table statement (nothing else in it left to abort).
+ *
+ * Stripe mode (events.stripe_mode / rsvp_payments.livemode): the payment is
+ * matched by (session id, livemode) — `livemode` comes from the webhook secret
+ * that verified the delivery — so a test delivery can never touch a live row.
+ * A TEST payment only confirms while its event is STILL in test mode: if an
+ * admin switched the event to `live` while that test Checkout was open, the
+ * guest paid with a test card and no money exists, so the row goes `expired`
+ * (outcome 'test_payment_rejected') and the RSVP is left `pending_payment` for
+ * the lazy sweep to release. A LIVE payment always confirms regardless of the
+ * event's current mode — that money was really collected.
  */
 export async function fulfillPaidRsvp(
     stripeSessionId: string,
     stripePaymentIntentId: string | null,
+    livemode: boolean,
 ): Promise<FulfillPaidRsvpResult> {
     if (!db) throw new Error('Database not configured')
 
     let result
     try {
         result = await withDeadlockRetry(() => db!.execute(sql`
-        WITH paid_payment AS (
+        WITH target_payment AS (
+            SELECT rsvp_payments.id,
+                   (rsvp_payments.livemode OR events.stripe_mode = 'test') AS allowed
+            FROM rsvp_payments
+            JOIN events ON events.slug = rsvp_payments.event_id
+            WHERE rsvp_payments.stripe_session_id = ${stripeSessionId}
+              AND rsvp_payments.livemode = ${livemode}
+              AND rsvp_payments.status = ${RSVP_PAYMENT_STATUS.CREATED}
+        ),
+        paid_payment AS (
             UPDATE rsvp_payments
             SET status = ${RSVP_PAYMENT_STATUS.PAID},
                 paid_at = now(),
                 stripe_payment_intent_id = ${stripePaymentIntentId}
-            WHERE stripe_session_id = ${stripeSessionId}
+            WHERE id IN (SELECT id FROM target_payment WHERE allowed)
               AND status = ${RSVP_PAYMENT_STATUS.CREATED}
             RETURNING id AS payment_id, rsvp_id AS payment_rsvp_id
+        ),
+        rejected_payment AS (
+            UPDATE rsvp_payments
+            SET status = ${RSVP_PAYMENT_STATUS.EXPIRED}
+            WHERE id IN (SELECT id FROM target_payment WHERE NOT allowed)
+              AND status = ${RSVP_PAYMENT_STATUS.CREATED}
+            RETURNING rsvp_id AS rejected_rsvp_id
         ),
         confirmed_rsvp AS (
             UPDATE rsvps
@@ -1209,19 +1256,30 @@ export async function fulfillPaidRsvp(
               AND status IN (${RSVP_STATUS.PENDING_PAYMENT}, ${RSVP_STATUS.EXPIRED})
             RETURNING *
         )
-        SELECT paid_payment.payment_id, paid_payment.payment_rsvp_id, confirmed_rsvp.*
-        FROM paid_payment
+        SELECT paid_payment.payment_id,
+               paid_payment.payment_rsvp_id,
+               rejected_payment.rejected_rsvp_id,
+               confirmed_rsvp.*
+        FROM (SELECT 1) AS anchor
+        LEFT JOIN paid_payment ON true
+        LEFT JOIN rejected_payment ON true
         LEFT JOIN confirmed_rsvp ON confirmed_rsvp.id = paid_payment.payment_rsvp_id
         `))
     } catch (err: any) {
         if (isCapacityFullError(err)) {
-            return fulfillPaymentWithoutSeat(stripeSessionId, stripePaymentIntentId)
+            return fulfillPaymentWithoutSeat(stripeSessionId, stripePaymentIntentId, livemode)
         }
         throw err
     }
 
     const row = result.rows[0] as Record<string, unknown> | undefined
-    if (!row) {
+
+    if (row?.rejected_rsvp_id != null) {
+        logTestPaymentRejected({ rsvpId: String(row.rejected_rsvp_id), stripeSessionId })
+        return { outcome: 'test_payment_rejected', rsvp: null }
+    }
+
+    if (!row || row.payment_id == null) {
         // Replay, or lost a race against a concurrent delivery of the same
         // event — the payment step already matched zero rows.
         return { outcome: 'replay', rsvp: null }
@@ -1250,17 +1308,25 @@ export async function fulfillPaidRsvp(
 async function fulfillPaymentWithoutSeat(
     stripeSessionId: string,
     stripePaymentIntentId: string | null,
+    livemode: boolean,
 ): Promise<FulfillPaidRsvpResult> {
     if (!db) throw new Error('Database not configured')
 
+    // Same (session, livemode) scoping and test-payment gate as
+    // fulfillPaidRsvp: only a payment that statement would have marked `paid`
+    // can reach this fallback, and it must not be widened here.
     const result = await db.execute(sql`
         UPDATE rsvp_payments
         SET status = ${RSVP_PAYMENT_STATUS.PAID},
             paid_at = now(),
             stripe_payment_intent_id = ${stripePaymentIntentId}
-        WHERE stripe_session_id = ${stripeSessionId}
-          AND status = ${RSVP_PAYMENT_STATUS.CREATED}
-        RETURNING id, rsvp_id
+        FROM events
+        WHERE events.slug = rsvp_payments.event_id
+          AND rsvp_payments.stripe_session_id = ${stripeSessionId}
+          AND rsvp_payments.livemode = ${livemode}
+          AND rsvp_payments.status = ${RSVP_PAYMENT_STATUS.CREATED}
+          AND (rsvp_payments.livemode OR events.stripe_mode = 'test')
+        RETURNING rsvp_payments.id, rsvp_payments.rsvp_id
     `)
 
     const row = result.rows[0] as Record<string, unknown> | undefined
@@ -1290,7 +1356,7 @@ async function fulfillPaymentWithoutSeat(
  * or already paid (fulfillPaidRsvp) never re-mutates here either, because in
  * both cases the payment row is no longer 'created'.
  */
-export async function expireRsvpPaymentBySessionId(stripeSessionId: string): Promise<RSVP | null> {
+export async function expireRsvpPaymentBySessionId(stripeSessionId: string, livemode: boolean): Promise<RSVP | null> {
     if (!db) throw new Error('Database not configured')
 
     const result = await withDeadlockRetry(() => db!.execute(sql`
@@ -1298,6 +1364,7 @@ export async function expireRsvpPaymentBySessionId(stripeSessionId: string): Pro
             UPDATE rsvp_payments
             SET status = ${RSVP_PAYMENT_STATUS.EXPIRED}
             WHERE stripe_session_id = ${stripeSessionId}
+              AND livemode = ${livemode}
               AND status = ${RSVP_PAYMENT_STATUS.CREATED}
             RETURNING id, rsvp_id
         ),
@@ -1335,13 +1402,14 @@ export async function expireRsvpPaymentBySessionId(stripeSessionId: string): Pro
  * `rsvps` — a refund is the organizer's call on whether to also cancel the
  * guest's seat (PLAN-EPICS-002-005.md §3.3), never automatic here.
  */
-export async function markRsvpPaymentRefunded(stripePaymentIntentId: string): Promise<boolean> {
+export async function markRsvpPaymentRefunded(stripePaymentIntentId: string, livemode: boolean): Promise<boolean> {
     if (!db) throw new Error('Database not configured')
 
     const [updated] = await db.update(rsvpPayments)
         .set({ status: RSVP_PAYMENT_STATUS.REFUNDED, refundedAt: new Date() })
         .where(and(
             eq(rsvpPayments.stripePaymentIntentId, stripePaymentIntentId),
+            eq(rsvpPayments.livemode, livemode),
             eq(rsvpPayments.status, RSVP_PAYMENT_STATUS.PAID),
         ))
         .returning({ id: rsvpPayments.id })
@@ -1363,6 +1431,12 @@ export interface RsvpWithPayment extends RSVP {
     paidAt: Date | null
     amountCents: number | null
     currency: string | null
+    /**
+     * Stripe account mode of that latest payment (`rsvp_payments.livemode`):
+     * `false` = a test-mode Checkout (test card, no money). The admin labels
+     * it as a test and never counts it as collected money.
+     */
+    paymentLivemode: boolean | null
 }
 
 function mapRsvpRowWithPayment(row: Record<string, unknown>): RsvpWithPayment {
@@ -1372,6 +1446,7 @@ function mapRsvpRowWithPayment(row: Record<string, unknown>): RsvpWithPayment {
         paidAt: row.paid_at == null ? null : new Date(String(row.paid_at)),
         amountCents: row.amount_cents == null ? null : Number(row.amount_cents),
         currency: row.currency == null ? null : String(row.currency),
+        paymentLivemode: row.payment_livemode == null ? null : row.payment_livemode === true,
     }
 }
 
@@ -1409,10 +1484,11 @@ export async function getRSVPsByEvent(
                latest_payment.status AS payment_status,
                latest_payment.paid_at AS paid_at,
                latest_payment.amount_cents AS amount_cents,
-               latest_payment.currency AS currency
+               latest_payment.currency AS currency,
+               latest_payment.livemode AS payment_livemode
         FROM rsvps
         LEFT JOIN LATERAL (
-            SELECT status, paid_at, amount_cents, currency
+            SELECT status, paid_at, amount_cents, currency, livemode
             FROM rsvp_payments
             WHERE rsvp_payments.rsvp_id = rsvps.id
             ORDER BY created_at DESC

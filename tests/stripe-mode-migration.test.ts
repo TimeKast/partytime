@@ -17,6 +17,7 @@ import {
 } from '@/lib/rsvp-invitation-migration-contract'
 import {
     PAYMENTS_SEMANTIC_CHECK_NAMES,
+    PAYMENTS_SEMANTICS_QUERY,
     type PaymentsSemanticState,
 } from '@/lib/rsvp-payments-migration-contract'
 import {
@@ -403,6 +404,15 @@ describe('lib/stripe-mode-migration-contract.ts', () => {
         expect(STRIPE_MODE_SEMANTICS_QUERY).toContain("table_name = 'rsvp_payments' AND column_name = 'livemode'")
         expect(STRIPE_MODE_SEMANTICS_QUERY).toContain("column_default IN ('true', 'true::boolean')")
         expect(STRIPE_MODE_SEMANTICS_QUERY).toContain("is_nullable = 'NO'")
+    })
+
+    it('keeps the 0010 payments column count valid after 0013 adds rsvp_payments.livemode', () => {
+        // Regression: the payments contract pinned rsvp_payments to exactly 11
+        // columns, so a correctly migrated 0013 database classified as
+        // registered-inconsistent-schema. livemode belongs to this contract.
+        expect(PAYMENTS_SEMANTICS_QUERY).toMatch(
+            /table_name = 'rsvp_payments'\s+AND column_name <> 'livemode'\) = 11/,
+        )
     })
 
     it('stripeModeSemanticStateFromRows ignores unknown/duplicate check names and downgrades unseen checks to false', () => {
