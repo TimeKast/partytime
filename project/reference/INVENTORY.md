@@ -38,16 +38,16 @@
 | Command                           | Script                                               |
 | --------------------------------- | ---------------------------------------------------- |
 | `pnpm dev`                        | `next dev`                                           |
-| `pnpm build`                      | `next build`                                         |
-| `pnpm start`                      | `next start`                                         |
+| `pnpm build`                      | `node scripts/tools/with-vault.mjs next build`       |
+| `pnpm start`                      | `node scripts/tools/with-vault.mjs next start`       |
 | `pnpm lint`                       | `next lint`                                          |
 | `pnpm test`                       | `vitest run`                                         |
 | `pnpm verify:db`                  | `node --import tsx scripts/verify-db-contract.ts`    |
 | `pnpm rehearse:rsvp-invitation`   | `node --import tsx scripts/rehearse-rsvp-invitat...` |
 | `pnpm test:db:capacity-semantics` | `bash scripts/test-capacity-function-semantics.sh`   |
 | `pnpm db:preflight`               | `node --import tsx scripts/migration-preflight.ts`   |
-| `pnpm db:generate`                | `drizzle-kit generate`                               |
-| `pnpm db:studio`                  | `drizzle-kit studio`                                 |
+| `pnpm db:generate`                | `node scripts/tools/with-vault.mjs drizzle-kit g...` |
+| `pnpm db:studio`                  | `node scripts/tools/with-vault.mjs drizzle-kit s...` |
 | `pnpm factory:update`             | `npx @timekast/factory update`                       |
 | `pnpm factory:doctor`             | `npx @timekast/factory doctor`                       |
 | `pnpm factory:status`             | `npx @timekast/factory status`                       |
