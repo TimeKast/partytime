@@ -68,9 +68,14 @@ export function stripeFor(mode: StripeMode): Stripe {
     return client
 }
 
-/** Whether real Stripe calls will work in this mode, without ever exposing the key itself. */
+/**
+ * Whether this mode can take a payment end to end, without ever exposing
+ * either value: the secret key to create the Checkout session AND the webhook
+ * signing secret to confirm it. With only the key, guests would pay and the
+ * confirmation would never verify, so that counts as not configured.
+ */
 export function isStripeConfigured(mode: StripeMode = 'live'): boolean {
-    return !!secretKeyOf(mode)
+    return !!secretKeyOf(mode) && !!process.env[WEBHOOK_SECRET_ENV[mode]]
 }
 
 /**

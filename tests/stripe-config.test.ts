@@ -132,19 +132,22 @@ describe('lib/stripe.ts — lazy client (ISSUE-010 acceptance criterion: no STRI
         }
     })
 
-    it('isStripeConfigured() reflects whether STRIPE_SECRET_KEY is set, without ever exposing it', async () => {
+    it('isStripeConfigured() needs the live key AND the live webhook secret, without ever exposing either', async () => {
         const { isStripeConfigured } = await import('@/lib/stripe')
-        const original = process.env.STRIPE_SECRET_KEY
-
         try {
-            delete process.env.STRIPE_SECRET_KEY
+            vi.stubEnv('STRIPE_SECRET_KEY', '')
+            vi.stubEnv('STRIPE_WEBHOOK_SECRET', 'whsec_live')
             expect(isStripeConfigured()).toBe(false)
 
-            process.env.STRIPE_SECRET_KEY = 'sk_test_123'
+            vi.stubEnv('STRIPE_SECRET_KEY', 'sk_test_123')
             expect(isStripeConfigured()).toBe(true)
+
+            // Key without webhook secret: guests could pay but the payment
+            // would never confirm — not configured.
+            vi.stubEnv('STRIPE_WEBHOOK_SECRET', '')
+            expect(isStripeConfigured()).toBe(false)
         } finally {
-            if (original === undefined) delete process.env.STRIPE_SECRET_KEY
-            else process.env.STRIPE_SECRET_KEY = original
+            vi.unstubAllEnvs()
         }
     })
 
@@ -172,25 +175,25 @@ describe('lib/stripe.ts — lazy client (ISSUE-010 acceptance criterion: no STRI
         }
     })
 
-    it('isStripeConfigured(mode) reads each mode from its own key: live = STRIPE_SECRET_KEY, test = STRIPE_TEST_SECRET_KEY', async () => {
+    it('isStripeConfigured(mode) reads each mode from its own key + webhook secret pair', async () => {
         const { isStripeConfigured } = await import('@/lib/stripe')
-        const originalLive = process.env.STRIPE_SECRET_KEY
-        const originalTest = process.env.STRIPE_TEST_SECRET_KEY
         try {
-            process.env.STRIPE_SECRET_KEY = 'sk_live_x'
-            delete process.env.STRIPE_TEST_SECRET_KEY
+            vi.stubEnv('STRIPE_WEBHOOK_SECRET', 'whsec_live')
+            vi.stubEnv('STRIPE_TEST_WEBHOOK_SECRET', 'whsec_test')
+            vi.stubEnv('STRIPE_SECRET_KEY', 'sk_live_x')
+            vi.stubEnv('STRIPE_TEST_SECRET_KEY', '')
             expect(isStripeConfigured('live')).toBe(true)
             expect(isStripeConfigured('test')).toBe(false)
 
-            delete process.env.STRIPE_SECRET_KEY
-            process.env.STRIPE_TEST_SECRET_KEY = 'rk_test_x'
+            vi.stubEnv('STRIPE_SECRET_KEY', '')
+            vi.stubEnv('STRIPE_TEST_SECRET_KEY', 'rk_test_x')
             expect(isStripeConfigured('live')).toBe(false)
             expect(isStripeConfigured('test')).toBe(true)
+
+            vi.stubEnv('STRIPE_TEST_WEBHOOK_SECRET', '')
+            expect(isStripeConfigured('test')).toBe(false)
         } finally {
-            if (originalLive === undefined) delete process.env.STRIPE_SECRET_KEY
-            else process.env.STRIPE_SECRET_KEY = originalLive
-            if (originalTest === undefined) delete process.env.STRIPE_TEST_SECRET_KEY
-            else process.env.STRIPE_TEST_SECRET_KEY = originalTest
+            vi.unstubAllEnvs()
         }
     })
 

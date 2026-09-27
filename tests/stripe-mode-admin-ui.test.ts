@@ -113,6 +113,20 @@ describe('StripeModeSelector', () => {
     expect(describeStripeModeTransition('test', 'test')).toBeNull()
   })
 
+  it('switching test -> live names the guests already confirmed with a test payment', () => {
+    expect(describeStripeModeTransition('test', 'live')).not.toContain('invitado')
+    expect(describeStripeModeTransition('test', 'live', 1)).toContain('Hay 1 invitado confirmado con pago de prueba')
+    expect(describeStripeModeTransition('test', 'live', 3)).toContain('Hay 3 invitados confirmados con pago de prueba')
+    expect(describeStripeModeTransition('live', 'test', 3)).not.toContain('invitados confirmados')
+    const toLive = render(React.createElement(StripeModeSelector, { ...selectorProps, value: 'live', savedValue: 'test', confirmedTestPaidCount: 2 }))
+    expect(toLive).toContain('Hay 2 invitados confirmados')
+  })
+
+  it('a missing mode names both the key and the webhook secret', () => {
+    expect(describeMissingStripeKey('test', false)).toContain('STRIPE_TEST_WEBHOOK_SECRET')
+    expect(describeMissingStripeKey('live', false)).toContain('STRIPE_WEBHOOK_SECRET')
+  })
+
   it('flags a missing key for the CHOSEN mode only', () => {
     const testMissing = render(React.createElement(StripeModeSelector, { ...selectorProps, value: 'test', savedValue: 'test', testConfigured: false }))
     const liveChosenTestMissing = render(React.createElement(StripeModeSelector, { ...selectorProps, testConfigured: false }))
@@ -143,7 +157,7 @@ describe('admin page wiring (source contracts)', () => {
 
   it('only a super_admin save carries stripeMode, and a mode change asks for confirmation', () => {
     expect(page).toContain('...(isSuperAdmin && { stripeMode: configForm.stripeMode })')
-    expect(page).toContain('describeStripeModeTransition(savedStripeMode, configForm.stripeMode)')
+    expect(page).toContain('describeStripeModeTransition(savedStripeMode, configForm.stripeMode, confirmedTestPaidCount)')
     expect(page).toContain('window.confirm(`¿Cambiar el cobro de este evento a ${target}?')
   })
 

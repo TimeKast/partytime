@@ -35,24 +35,40 @@ const SECRET_KEY_ENV: Record<StripeMode, string> = {
   test: 'STRIPE_TEST_SECRET_KEY',
 }
 
+const WEBHOOK_SECRET_ENV: Record<StripeMode, string> = {
+  live: 'STRIPE_WEBHOOK_SECRET',
+  test: 'STRIPE_TEST_WEBHOOK_SECRET',
+}
+
 /**
  * Consequence copy for switching the SAVED mode `from` → `to`, or null when
  * nothing changes. Shared by the inline callout and the confirm() dialog on
  * save, so both always say the same thing.
  */
-export function describeStripeModeTransition(from: StripeMode, to: StripeMode): string | null {
+export function describeStripeModeTransition(
+  from: StripeMode,
+  to: StripeMode,
+  confirmedTestPaidCount = 0,
+): string | null {
   if (from === to) return null
   if (to === 'live') {
-    return 'A partir de ahora se cobra dinero real. Los pagos de prueba abiertos ya no confirmarán lugares.'
+    const base = 'A partir de ahora se cobra dinero real. Los pagos de prueba abiertos ya no confirmarán lugares.'
+    if (confirmedTestPaidCount <= 0) return base
+    // Guests already confirmed with a test card keep their seat after the
+    // switch — they never paid real money, so the admin must decide.
+    const guests = confirmedTestPaidCount === 1
+      ? 'Hay 1 invitado confirmado'
+      : `Hay ${confirmedTestPaidCount} invitados confirmados`
+    return `${base} ${guests} con pago de prueba (no pagaron dinero real) que conservan su lugar: revísalos en la lista, marcados "Pagado (prueba)", y cancélalos si no deben entrar.`
   }
   return 'Los nuevos pagos usarán tarjetas de prueba: no se cobra dinero real y los lugares se confirman sin ingreso. Los pagos reales que ya estén abiertos siguen siendo válidos.'
 }
 
-/** "Stripe no está configurado…" for the chosen mode, or null when its key exists. */
+/** "Stripe no está configurado…" for the chosen mode, or null when its key + webhook secret exist. */
 export function describeMissingStripeKey(mode: StripeMode, configured: boolean): string | null {
   if (configured) return null
   const modeLabel = mode === 'test' ? 'modo prueba' : 'cobro real'
-  return `Stripe (${modeLabel}) no está configurado en este entorno. Los cobros fallarán hasta agregar ${SECRET_KEY_ENV[mode]}.`
+  return `Stripe (${modeLabel}) no está configurado en este entorno. Los cobros fallarán hasta agregar ${SECRET_KEY_ENV[mode]} y ${WEBHOOK_SECRET_ENV[mode]}.`
 }
 
 interface StripeModeSelectorProps {
@@ -63,6 +79,8 @@ interface StripeModeSelectorProps {
   canEdit: boolean
   liveConfigured: boolean
   testConfigured: boolean
+  /** Confirmed RSVPs whose payment was a test payment (named on test → live). */
+  confirmedTestPaidCount?: number
   onChange: (mode: StripeMode) => void
 }
 
@@ -72,11 +90,12 @@ export function StripeModeSelector({
   canEdit,
   liveConfigured,
   testConfigured,
+  confirmedTestPaidCount = 0,
   onChange,
 }: StripeModeSelectorProps) {
   const groupName = useId()
   const helperId = `${groupName}-helper`
-  const transition = describeStripeModeTransition(savedValue, value)
+  const transition = describeStripeModeTransition(savedValue, value, confirmedTestPaidCount)
   const missingKey = describeMissingStripeKey(value, value === 'test' ? testConfigured : liveConfigured)
 
   return (

@@ -271,6 +271,7 @@ describe('POST /api/admin/event-settings/update — stripeMode', () => {
 describe('GET /api/event-settings — stripeMode + per-mode key flags', () => {
     it('returns the stored mode and one boolean per mode (never the keys)', async () => {
         vi.stubEnv('STRIPE_SECRET_KEY', 'sk_live_SECRET_SENTINEL')
+        vi.stubEnv('STRIPE_WEBHOOK_SECRET', 'whsec_live')
         vi.stubEnv('STRIPE_TEST_SECRET_KEY', '')
         mocks.getEventBySlug.mockResolvedValue({ ...storedEvent, stripeMode: 'test' })
 
@@ -290,6 +291,7 @@ describe('GET /api/event-settings — stripeMode + per-mode key flags', () => {
     it('stripeConfigured keeps meaning LIVE; test flag follows STRIPE_TEST_SECRET_KEY', async () => {
         vi.stubEnv('STRIPE_SECRET_KEY', '')
         vi.stubEnv('STRIPE_TEST_SECRET_KEY', 'sk_test_x')
+        vi.stubEnv('STRIPE_TEST_WEBHOOK_SECRET', 'whsec_test')
 
         const payload = await (await getSettings()).json()
         expect(payload.settings).toMatchObject({ stripeMode: 'live', stripeConfigured: false, stripeTestConfigured: true })

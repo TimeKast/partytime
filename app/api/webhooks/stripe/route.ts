@@ -53,29 +53,39 @@ export async function POST(request: NextRequest) {
     // ONLY mode this delivery may act on: every mutation below matches the
     // stored payment by (session/intent id, livemode), so a test-mode event
     // can never touch a live payment row or vice versa.
+    //
+    // A secret that verifies but whose mode disagrees with event.livemode
+    // (e.g. the same `stripe listen` whsec stored in both variables) is not a
+    // match: keep trying, and accept only a (secret, mode) pair that both
+    // verifies AND agrees with the body. Each verification is a real Stripe
+    // signature, so trying the next one weakens nothing.
     let event: Stripe.Event | null = null
     let verifiedMode: StripeMode | null = null
+    let modeMismatch = false
     for (const { mode, secret } of webhookSecrets) {
+        let candidate: Stripe.Event
         try {
-            event = stripeFor(mode).webhooks.constructEvent(rawBody, signature, secret)
-            verifiedMode = mode
-            break
+            candidate = stripeFor(mode).webhooks.constructEvent(rawBody, signature, secret)
         } catch {
             // Try the next configured secret; only "none verified" is an error.
+            continue
         }
+        if (candidate.livemode !== (mode === 'live')) {
+            modeMismatch = true
+            continue
+        }
+        event = candidate
+        verifiedMode = mode
+        break
     }
     if (!event || !verifiedMode) {
-        console.error('Firma de webhook de Stripe inválida para todos los secretos configurados')
+        console.error(modeMismatch
+            ? JSON.stringify({ event: 'stripe.webhook.mode_mismatch' })
+            : 'Firma de webhook de Stripe inválida para todos los secretos configurados')
         return NextResponse.json({ error: 'Firma inválida' }, { status: 400, headers: NO_STORE_HEADERS })
     }
 
     const livemode = verifiedMode === 'live'
-    if (event.livemode !== livemode) {
-        // A body signed with one mode's secret that claims the other mode is
-        // not something Stripe produces — refuse it rather than guess.
-        console.error(JSON.stringify({ event: 'stripe.webhook.mode_mismatch', verifiedMode, eventLivemode: event.livemode }))
-        return NextResponse.json({ error: 'Firma inválida' }, { status: 400, headers: NO_STORE_HEADERS })
-    }
 
     if (!isDatabaseConfigured()) {
         // Transient from Stripe's point of view — ask it to retry once the DB
@@ -87,7 +97,17 @@ export async function POST(request: NextRequest) {
 
     try {
         switch (event.type) {
-            case 'checkout.session.completed':
+            case 'checkout.session.completed': {
+                // With an async method (OXXO/SPEI) Stripe sends `completed`
+                // as soon as the voucher is issued, with payment_status
+                // 'unpaid' — no money yet. Only a paid session confirms here;
+                // the async ones confirm on async_payment_succeeded below.
+                const session = event.data.object as Stripe.Checkout.Session
+                if (session.payment_status !== 'paid') break
+                await handleCheckoutPaid(session, livemode)
+                break
+            }
+
             case 'checkout.session.async_payment_succeeded':
                 // Paridad: OXXO/SPEI y otros métodos de pago asíncronos
                 // confirman vía este evento en vez de `completed` directo.

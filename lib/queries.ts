@@ -1331,6 +1331,28 @@ async function fulfillPaymentWithoutSeat(
 
     const row = result.rows[0] as Record<string, unknown> | undefined
     if (!row) {
+        if (!livemode) {
+            // A test payment can also match zero rows because its event was
+            // switched to live between the aborted CTE and this statement.
+            // Expire it like fulfillPaidRsvp's rejected branch would have, so
+            // it is not left 'created' behind a completed Checkout.
+            const rejected = await db.execute(sql`
+                UPDATE rsvp_payments
+                SET status = ${RSVP_PAYMENT_STATUS.EXPIRED}
+                FROM events
+                WHERE events.slug = rsvp_payments.event_id
+                  AND rsvp_payments.stripe_session_id = ${stripeSessionId}
+                  AND rsvp_payments.livemode = false
+                  AND rsvp_payments.status = ${RSVP_PAYMENT_STATUS.CREATED}
+                  AND events.stripe_mode <> 'test'
+                RETURNING rsvp_payments.rsvp_id
+            `)
+            const rejectedRow = rejected.rows[0] as Record<string, unknown> | undefined
+            if (rejectedRow) {
+                logTestPaymentRejected({ rsvpId: String(rejectedRow.rsvp_id), stripeSessionId })
+                return { outcome: 'test_payment_rejected', rsvp: null }
+            }
+        }
         // Lost a race against another delivery that already marked this
         // 'paid' (via this same fallback, or — impossible in practice, since
         // a capacity abort never leaves a committed 'paid' row, but kept as a

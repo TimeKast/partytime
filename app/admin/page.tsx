@@ -228,6 +228,13 @@ export default function AdminDashboard() {
     [rsvps, rsvpListOptions],
   )
 
+  // Guests holding a seat paid with a test card: named in the test -> live
+  // switch warning, since they keep their seat without having paid.
+  const confirmedTestPaidCount = useMemo(
+    () => rsvps.filter(rsvp => rsvp.status === 'confirmed' && rsvp.paymentStatus === 'paid' && rsvp.paymentLivemode === false).length,
+    [rsvps],
+  )
+
   const [message, setMessage] = useState('')
 
   // Estado para modal de edición
@@ -1114,7 +1121,7 @@ export default function AdminDashboard() {
     // with the same consequence copy the inline warning shows.
     const stripeModeChanged = isSuperAdmin && configForm.stripeMode !== savedStripeMode
     if (!validationFailure && stripeModeChanged) {
-      const consequence = describeStripeModeTransition(savedStripeMode, configForm.stripeMode)
+      const consequence = describeStripeModeTransition(savedStripeMode, configForm.stripeMode, confirmedTestPaidCount)
       const target = configForm.stripeMode === 'live' ? 'COBRO REAL' : 'MODO PRUEBA'
       if (!window.confirm(`¿Cambiar el cobro de este evento a ${target}?\n\n${consequence ?? ''}`)) {
         return
@@ -2213,6 +2220,7 @@ export default function AdminDashboard() {
                           canEdit={isSuperAdmin}
                           liveConfigured={stripeConfigured}
                           testConfigured={stripeTestConfigured}
+                          confirmedTestPaidCount={confirmedTestPaidCount}
                           onChange={(stripeMode) => setConfigForm({ ...configForm, stripeMode })}
                         />
                       )}

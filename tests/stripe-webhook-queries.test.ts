@@ -280,6 +280,31 @@ describe('fulfillPaidRsvp — Stripe mode (events.stripe_mode / rsvp_payments.li
         errorSpy.mockRestore()
     })
 
+    it('a test payment whose event turned live between the capacity abort and the fallback is expired, not left created', async () => {
+        executeMock.mockRejectedValueOnce(capacityFullError())
+        executeMock.mockResolvedValueOnce({ rows: [] })
+        executeMock.mockResolvedValueOnce({ rows: [{ rsvp_id: 'rsvp-1' }] })
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+        const result = await fulfillPaidRsvp('cs_test_1', 'pi_test_1', false)
+
+        expect(result).toEqual({ outcome: 'test_payment_rejected', rsvp: null })
+        const rejectStatement = sqlTextOf(executeMock.mock.calls[2][0])
+        expect(rejectStatement).toContain('rsvp_payments.livemode = false')
+        expect(rejectStatement).toContain("events.stripe_mode <> 'test'")
+        errorSpy.mockRestore()
+    })
+
+    it('a live payment matching zero rows in the fallback stays a plain replay (no extra statement)', async () => {
+        executeMock.mockRejectedValueOnce(capacityFullError())
+        executeMock.mockResolvedValueOnce({ rows: [] })
+
+        const result = await fulfillPaidRsvp('cs_live_1', 'pi_live_1', true)
+
+        expect(result).toEqual({ outcome: 'replay', rsvp: null })
+        expect(executeMock).toHaveBeenCalledTimes(2)
+    })
+
     it('expireRsvpPaymentBySessionId matches the payment by livemode too', async () => {
         executeMock.mockResolvedValueOnce({ rows: [] })
 
