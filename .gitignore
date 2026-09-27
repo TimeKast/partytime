@@ -27,6 +27,9 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+# Retired pre-vault env backups (`factory vault adopt` leaves `.env.local.pre-vault.bak`).
+# This repo is PUBLIC: never let a backup of real credentials become committable.
+.env*.bak
 
 # vercel
 .vercel

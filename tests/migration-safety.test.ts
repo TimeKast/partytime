@@ -38,6 +38,10 @@ import {
     LEDGER_SEMANTIC_CHECK_NAMES,
     type LedgerSemanticState,
 } from '@/lib/event-ledger-migration-contract'
+import {
+    STRIPE_MODE_SEMANTIC_CHECK_NAMES,
+    type StripeModeSemanticState,
+} from '@/lib/stripe-mode-migration-contract'
 
 function capacityFunctionBodyFromMigration(): string {
     const migration = readFileSync('drizzle/0002_enforce_event_capacity.sql', 'utf8')
@@ -91,6 +95,12 @@ const absentCheckinSemantics = Object.fromEntries(
 const absentLedgerSemantics = Object.fromEntries(
     LEDGER_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
 ) as LedgerSemanticState
+// Migration 0013: the Stripe mode columns/check are absent in these
+// fixtures too — see tests/stripe-mode-migration.test.ts for the
+// 0013-applied classification coverage.
+const absentStripeModeSemantics = Object.fromEntries(
+    STRIPE_MODE_SEMANTIC_CHECK_NAMES.map(name => [name, false]),
+) as StripeModeSemanticState
 
 const observedHistoricalObjects: MigrationObjectState = {
     tables: [...REQUIRED_HISTORICAL_OBJECTS.tables],
@@ -130,6 +140,9 @@ const observedHistoricalObjects: MigrationObjectState = {
     ledgerConstraints: [],
     ledgerIndexes: [],
     ledgerSemantics: absentLedgerSemantics,
+    stripeModeColumns: [],
+    stripeModeConstraints: [],
+    stripeModeSemantics: absentStripeModeSemantics,
 }
 
 const foundationRegistry = Array.from({ length: 5 }, (_, index) => ({

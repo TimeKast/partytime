@@ -12,6 +12,7 @@ export { default as EventPresentationSettings } from './EventPresentationSetting
 export { default as InvitationLinkManager } from './InvitationLinkManager'
 export { default as ChangePasswordForm, ForcedPasswordChangeDialog } from './ChangePasswordForm'
 export { default as CheckinSettings } from './CheckinSettings'
+export { StripeModeSelector, StripeTestModeBanner } from './StripeModeSettings'
 // ISSUE-025 (EPIC-006): shell mounts only this container — every other
 // finance component lives under ./finance/ and is never imported directly
 // from app/admin/page.tsx (PLAN-EPIC-006.md §3.4/gotcha #5).
@@ -41,6 +42,9 @@ export interface RSVP {
     paidAt?: string | null
     amountCents?: number | null
     currency?: string | null
+    // Migration 0013: false = that payment ran in Stripe test mode (see
+    // lib/rsvp-list.ts RsvpListItem.paymentLivemode).
+    paymentLivemode?: boolean | null
     // ISSUE-018: present on every row regardless of the event's
     // checkin_enabled flag (see lib/rsvp-list.ts RsvpListItem's doc
     // comment) — checkin_enabled only gates whether the UI/exports show

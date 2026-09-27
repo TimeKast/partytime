@@ -87,7 +87,7 @@ describe('fulfillPaidRsvp (ISSUE-012)', () => {
             }],
         })
 
-        const result = await fulfillPaidRsvp('cs_test_1', 'pi_test_1')
+        const result = await fulfillPaidRsvp('cs_test_1', 'pi_test_1', true)
 
         expect(result.outcome).toBe('confirmed')
         expect(result.rsvp).toMatchObject({ id: 'rsvp-1', status: RSVP_STATUS.CONFIRMED })
@@ -119,7 +119,7 @@ describe('fulfillPaidRsvp (ISSUE-012)', () => {
             }],
         })
 
-        const result = await fulfillPaidRsvp('cs_test_1', 'pi_test_1')
+        const result = await fulfillPaidRsvp('cs_test_1', 'pi_test_1', true)
 
         expect(result.outcome).toBe('confirmed')
         expect(result.rsvp?.status).toBe(RSVP_STATUS.CONFIRMED)
@@ -131,7 +131,7 @@ describe('fulfillPaidRsvp (ISSUE-012)', () => {
     it('a replay (payment already paid) matches zero rows in the payment CTE and no-ops', async () => {
         executeMock.mockResolvedValueOnce({ rows: [] })
 
-        const result = await fulfillPaidRsvp('cs_test_1', 'pi_test_1')
+        const result = await fulfillPaidRsvp('cs_test_1', 'pi_test_1', true)
 
         expect(result).toEqual({ outcome: 'replay', rsvp: null })
     })
@@ -150,8 +150,8 @@ describe('fulfillPaidRsvp (ISSUE-012)', () => {
             .mockResolvedValueOnce({ rows: [] })
 
         const [first, second] = await Promise.all([
-            fulfillPaidRsvp('cs_test_1', 'pi_test_1'),
-            fulfillPaidRsvp('cs_test_1', 'pi_test_1'),
+            fulfillPaidRsvp('cs_test_1', 'pi_test_1', true),
+            fulfillPaidRsvp('cs_test_1', 'pi_test_1', true),
         ])
 
         expect(executeMock).toHaveBeenCalledTimes(2)
@@ -168,7 +168,7 @@ describe('fulfillPaidRsvp (ISSUE-012)', () => {
         })
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
-        const result = await fulfillPaidRsvp('cs_test_1', 'pi_test_1')
+        const result = await fulfillPaidRsvp('cs_test_1', 'pi_test_1', true)
 
         expect(result).toEqual({ outcome: 'payment_without_seat', rsvp: null })
         expect(errorSpy).toHaveBeenCalledTimes(1)
@@ -185,7 +185,7 @@ describe('fulfillPaidRsvp (ISSUE-012)', () => {
         executeMock.mockResolvedValueOnce({ rows: [{ id: 'pay-1', rsvp_id: 'rsvp-1' }] })
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
-        const result = await fulfillPaidRsvp('cs_test_1', 'pi_test_1')
+        const result = await fulfillPaidRsvp('cs_test_1', 'pi_test_1', true)
 
         expect(result).toEqual({ outcome: 'payment_without_seat', rsvp: null })
         expect(executeMock).toHaveBeenCalledTimes(2)
@@ -209,7 +209,7 @@ describe('fulfillPaidRsvp (ISSUE-012)', () => {
         executeMock.mockResolvedValueOnce({ rows: [] })
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
-        const result = await fulfillPaidRsvp('cs_test_1', 'pi_test_1')
+        const result = await fulfillPaidRsvp('cs_test_1', 'pi_test_1', true)
 
         expect(result).toEqual({ outcome: 'replay', rsvp: null })
         expect(errorSpy).not.toHaveBeenCalled()
@@ -219,8 +219,98 @@ describe('fulfillPaidRsvp (ISSUE-012)', () => {
     it('propagates a genuine (non-capacity) DB error, so the webhook route can 5xx and let Stripe retry', async () => {
         executeMock.mockRejectedValueOnce(new Error('connection refused'))
 
-        await expect(fulfillPaidRsvp('cs_test_1', 'pi_test_1')).rejects.toThrow('connection refused')
+        await expect(fulfillPaidRsvp('cs_test_1', 'pi_test_1', true)).rejects.toThrow('connection refused')
         expect(executeMock).toHaveBeenCalledTimes(1) // not the deadlock-retry path, not the capacity fallback
+    })
+})
+
+describe('fulfillPaidRsvp — Stripe mode (events.stripe_mode / rsvp_payments.livemode)', () => {
+    beforeEach(() => executeMock.mockReset())
+
+    it('scopes the payment by (session id, livemode) and only lets a TEST payment confirm while its event is still in test mode', async () => {
+        executeMock.mockResolvedValueOnce({
+            rows: [{ payment_id: 'pay-1', payment_rsvp_id: 'rsvp-1', rejected_rsvp_id: null, ...rawRsvpRow({ status: RSVP_STATUS.CONFIRMED }) }],
+        })
+
+        const result = await fulfillPaidRsvp('cs_test_1', 'pi_test_1', false)
+
+        expect(result.outcome).toBe('confirmed')
+        const statement = sqlTextOf(executeMock.mock.calls[0][0])
+        expect(statement).toContain('rsvp_payments.livemode =')
+        expect(statement).toContain("(rsvp_payments.livemode OR events.stripe_mode = 'test') AS allowed")
+        expect(statement).toContain('WHERE allowed')
+        expect(statement).toContain('WHERE NOT allowed')
+        expect(statement).toContain('rejected_payment AS')
+    })
+
+    it('a test payment whose event is now LIVE is rejected: payment expired, no RSVP confirmed, logged by id only', async () => {
+        executeMock.mockResolvedValueOnce({
+            rows: [{ payment_id: null, payment_rsvp_id: null, rejected_rsvp_id: 'rsvp-9', id: null }],
+        })
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+        const result = await fulfillPaidRsvp('cs_test_9', 'pi_test_9', false)
+
+        expect(result).toEqual({ outcome: 'test_payment_rejected', rsvp: null })
+        const logged = JSON.parse(errorSpy.mock.calls[0][0] as string)
+        expect(logged).toEqual({ event: 'TEST_PAYMENT_REJECTED_EVENT_LIVE', rsvpId: 'rsvp-9', stripeSessionId: 'cs_test_9' })
+        errorSpy.mockRestore()
+    })
+
+    it('the anchored result row with every CTE empty is a replay (nothing matched, nothing rejected)', async () => {
+        executeMock.mockResolvedValueOnce({
+            rows: [{ payment_id: null, payment_rsvp_id: null, rejected_rsvp_id: null, id: null }],
+        })
+
+        const result = await fulfillPaidRsvp('cs_test_1', 'pi_test_1', true)
+
+        expect(result).toEqual({ outcome: 'replay', rsvp: null })
+    })
+
+    it('the capacity-full fallback keeps the same (session, livemode) scoping and test-payment gate', async () => {
+        executeMock.mockRejectedValueOnce(capacityFullError())
+        executeMock.mockResolvedValueOnce({ rows: [{ id: 'pay-1', rsvp_id: 'rsvp-1' }] })
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+        await fulfillPaidRsvp('cs_test_1', 'pi_test_1', false)
+
+        const fallbackStatement = sqlTextOf(executeMock.mock.calls[1][0])
+        expect(fallbackStatement).toContain('rsvp_payments.livemode =')
+        expect(fallbackStatement).toContain("(rsvp_payments.livemode OR events.stripe_mode = 'test')")
+        errorSpy.mockRestore()
+    })
+
+    it('a test payment whose event turned live between the capacity abort and the fallback is expired, not left created', async () => {
+        executeMock.mockRejectedValueOnce(capacityFullError())
+        executeMock.mockResolvedValueOnce({ rows: [] })
+        executeMock.mockResolvedValueOnce({ rows: [{ rsvp_id: 'rsvp-1' }] })
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+        const result = await fulfillPaidRsvp('cs_test_1', 'pi_test_1', false)
+
+        expect(result).toEqual({ outcome: 'test_payment_rejected', rsvp: null })
+        const rejectStatement = sqlTextOf(executeMock.mock.calls[2][0])
+        expect(rejectStatement).toContain('rsvp_payments.livemode = false')
+        expect(rejectStatement).toContain("events.stripe_mode <> 'test'")
+        errorSpy.mockRestore()
+    })
+
+    it('a live payment matching zero rows in the fallback stays a plain replay (no extra statement)', async () => {
+        executeMock.mockRejectedValueOnce(capacityFullError())
+        executeMock.mockResolvedValueOnce({ rows: [] })
+
+        const result = await fulfillPaidRsvp('cs_live_1', 'pi_live_1', true)
+
+        expect(result).toEqual({ outcome: 'replay', rsvp: null })
+        expect(executeMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('expireRsvpPaymentBySessionId matches the payment by livemode too', async () => {
+        executeMock.mockResolvedValueOnce({ rows: [] })
+
+        await expireRsvpPaymentBySessionId('cs_test_1', false)
+
+        expect(sqlTextOf(executeMock.mock.calls[0][0])).toContain('AND livemode =')
     })
 })
 
@@ -234,7 +324,7 @@ describe('expireRsvpPaymentBySessionId (ISSUE-012)', () => {
             rows: [rawRsvpRow({ status: RSVP_STATUS.EXPIRED, pending_expires_at: null, verified_at: null })],
         })
 
-        const rsvp = await expireRsvpPaymentBySessionId('cs_test_1')
+        const rsvp = await expireRsvpPaymentBySessionId('cs_test_1', true)
 
         expect(rsvp).toMatchObject({ id: 'rsvp-1', status: RSVP_STATUS.EXPIRED })
         expect(executeMock).toHaveBeenCalledTimes(1)
@@ -250,12 +340,12 @@ describe('expireRsvpPaymentBySessionId (ISSUE-012)', () => {
 
     it('a replay (payment already expired/paid) matches zero rows and no-ops', async () => {
         executeMock.mockResolvedValueOnce({ rows: [] })
-        await expect(expireRsvpPaymentBySessionId('cs_test_1')).resolves.toBeNull()
+        await expect(expireRsvpPaymentBySessionId('cs_test_1', true)).resolves.toBeNull()
     })
 
     it('payment expires but the rsvp already moved on (e.g. the lazy sweep beat the webhook to it): returns null', async () => {
         executeMock.mockResolvedValueOnce({ rows: [{ id: null }] })
-        await expect(expireRsvpPaymentBySessionId('cs_test_1')).resolves.toBeNull()
+        await expect(expireRsvpPaymentBySessionId('cs_test_1', true)).resolves.toBeNull()
     })
 })
 
@@ -272,7 +362,7 @@ describe('markRsvpPaymentRefunded (ISSUE-012)', () => {
         const whereMock = vi.fn(() => ({ returning: returningMock }))
         updateMock.mockReturnValueOnce({ set: vi.fn(() => ({ where: whereMock })) })
 
-        const refunded = await markRsvpPaymentRefunded('pi_test_1')
+        const refunded = await markRsvpPaymentRefunded('pi_test_1', true)
 
         expect(refunded).toBe(true)
         expect(updateMock).toHaveBeenCalledTimes(1)
@@ -285,6 +375,6 @@ describe('markRsvpPaymentRefunded (ISSUE-012)', () => {
         const whereMock = vi.fn(() => ({ returning: returningMock }))
         updateMock.mockReturnValueOnce({ set: vi.fn(() => ({ where: whereMock })) })
 
-        await expect(markRsvpPaymentRefunded('pi_test_1')).resolves.toBe(false)
+        await expect(markRsvpPaymentRefunded('pi_test_1', true)).resolves.toBe(false)
     })
 })

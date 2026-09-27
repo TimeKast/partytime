@@ -40,6 +40,11 @@ import {
     LEDGER_SEMANTICS_QUERY,
     ledgerSemanticStateFromRows,
 } from '@/lib/event-ledger-migration-contract'
+import {
+    STRIPE_MODE_SEMANTIC_CHECK_NAMES,
+    STRIPE_MODE_SEMANTICS_QUERY,
+    stripeModeSemanticStateFromRows,
+} from '@/lib/stripe-mode-migration-contract'
 
 type QueryRow = Record<string, unknown>
 
@@ -140,6 +145,13 @@ async function main() {
     )
     for (const checkName of LEDGER_SEMANTIC_CHECK_NAMES) {
         checks.push([`ledger semantic contract: ${checkName}`, ledgerSemantics[checkName]])
+    }
+
+    const stripeModeSemantics = stripeModeSemanticStateFromRows(
+        await query(STRIPE_MODE_SEMANTICS_QUERY),
+    )
+    for (const checkName of STRIPE_MODE_SEMANTIC_CHECK_NAMES) {
+        checks.push([`Stripe mode semantic contract: ${checkName}`, stripeModeSemantics[checkName]])
     }
 
     const foundationColumns = await query(`

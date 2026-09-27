@@ -1,0 +1,251 @@
+/* Migration 0013 — per-event Stripe mode selector + dashboard indicator.
+   Consumes the admin token layer (--ad-*, scoped under AdminShell's .shell).
+   Motion: only color/border on selection (rare, deliberate action) and a
+   short ease-out entrance for consequence notices; nothing on hover/focus
+   that would slow repeated use. */
+
+.fieldset {
+  display: grid;
+  gap: var(--ad-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  margin: 0 0 var(--ad-2);
+  padding: 0;
+  color: var(--ad-text);
+  font-size: var(--ad-fs-sm);
+  font-weight: var(--ad-weight-bold);
+}
+
+.segments {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ad-2);
+}
+
+.segment {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-r-sm);
+  background: var(--ad-surface);
+  color: var(--ad-text);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    border-color var(--ad-dur) var(--ad-ease),
+    background-color var(--ad-dur) var(--ad-ease),
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.segment:active {
+  transform: scale(0.98);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .segment:hover {
+    border-color: var(--ad-border-strong);
+  }
+}
+
+.segment[data-mode='live'][data-checked='true'] {
+  border-color: var(--ad-primary);
+  background: var(--ad-primary-soft);
+}
+
+/* Test mode reads as "caution", same amber as the dashboard indicator. */
+.segment[data-mode='test'][data-checked='true'] {
+  border-color: var(--ad-warning);
+  background: var(--ad-warning-soft);
+}
+
+.radio {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin: 1px 0 0;
+  accent-color: var(--ad-primary);
+  cursor: inherit;
+}
+
+.segment[data-mode='test'] .radio {
+  accent-color: var(--ad-warning);
+}
+
+.radio:focus-visible {
+  outline: 2px solid var(--ad-focus);
+  outline-offset: 2px;
+}
+
+.segmentText {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.segmentText strong {
+  font-size: var(--ad-fs-md);
+  font-weight: var(--ad-weight-bold);
+}
+
+.segmentText small {
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-xs);
+  line-height: 1.45;
+}
+
+/* Visible to every role that can open Config, editable only by super_admin:
+   the saved choice stays legible, the other option recedes. */
+.fieldset:disabled .segment {
+  cursor: not-allowed;
+}
+
+.fieldset:disabled .segment:active {
+  transform: none;
+}
+
+.fieldset:disabled .segment:not([data-checked='true']) {
+  opacity: 0.55;
+}
+
+.helper {
+  margin: 0;
+  color: var(--ad-text-muted);
+  font-size: var(--ad-fs-xs);
+  line-height: 1.55;
+}
+
+.notice {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--ad-warning);
+  border-radius: 0 var(--ad-r-sm) var(--ad-r-sm) 0;
+  background: var(--ad-warning-soft);
+  color: #7c3a06;
+  font-size: var(--ad-fs-sm);
+  line-height: 1.55;
+  transition:
+    opacity 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@starting-style {
+  .notice {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.notice[data-tone='danger'] {
+  border-left-color: var(--ad-danger);
+  background: var(--ad-danger-soft);
+  color: #8c1d24;
+}
+
+.notice strong {
+  color: inherit;
+  font-weight: var(--ad-weight-bold);
+}
+
+/* Dashboard "MODO PRUEBA" indicator. */
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ad-2) var(--ad-3);
+  margin: 0 0 var(--ad-5);
+  padding: var(--ad-3) var(--ad-4);
+  border: 1px solid var(--ad-border);
+  border-left: 3px solid var(--ad-warning);
+  border-radius: var(--ad-r-md);
+  background: var(--ad-warning-soft);
+  color: #7c3a06;
+}
+
+.bannerPill {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 3px 9px;
+  border: 1px solid currentColor;
+  border-radius: var(--ad-r-pill);
+  background: var(--ad-surface);
+  color: var(--ad-warning);
+  font-size: 11px;
+  font-weight: var(--ad-weight-bold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.bannerText {
+  flex: 1 1 260px;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--ad-fs-sm);
+  line-height: 1.5;
+}
+
+.bannerAction {
+  min-height: 44px;
+  padding: 0 var(--ad-2);
+  border: 0;
+  border-radius: var(--ad-r-sm);
+  background: transparent;
+  color: var(--ad-warning);
+  font: inherit;
+  font-size: var(--ad-fs-sm);
+  font-weight: var(--ad-weight-bold);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.bannerAction:active {
+  transform: scale(0.97);
+}
+
+.bannerAction:focus-visible {
+  outline: 2px solid var(--ad-focus);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .bannerAction:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+@media (max-width: 480px) {
+  .segments {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segment,
+  .notice,
+  .bannerAction {
+    transition: opacity 120ms ease, border-color 120ms ease, background-color 120ms ease;
+  }
+
+  .segment:active,
+  .bannerAction:active {
+    transform: none;
+  }
+
+  @starting-style {
+    .notice {
+      transform: none;
+    }
+  }
+}

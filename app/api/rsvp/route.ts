@@ -15,7 +15,7 @@ import {
   hashVerificationToken,
 } from '@/lib/verification'
 import { buildVerificationEmailSubject, generateVerificationEmail } from '@/lib/verification-email'
-import { stripe } from '@/lib/stripe'
+import { isStripeConfigured, stripeFor, stripeModeOfLivemode, type StripeMode } from '@/lib/stripe'
 import {
   buildCheckoutSessionParams,
   isCheckoutSessionConfirmedExpired,
@@ -59,8 +59,13 @@ function requestIpOf(request: NextRequest): string {
  * the expired session on success. If the expire call rejects (already
  * expired, completed, network ambiguity, etc.), retrieve the session and
  * proceed only when Stripe explicitly reports `expired` + `unpaid`.
+ *
+ * `mode` is the Stripe account mode the session was CREATED in (a stored
+ * payment's `livemode`, or the client that just created it) — a session only
+ * exists in that mode, so the event's current setting is never used here.
  */
-async function expireCheckoutSessionConfirmed(sessionId: string): Promise<boolean> {
+async function expireCheckoutSessionConfirmed(sessionId: string, mode: StripeMode): Promise<boolean> {
+  const stripe = stripeFor(mode)
   let session
   try {
     session = await stripe.checkout.sessions.expire(sessionId)
@@ -315,6 +320,21 @@ export async function POST(request: NextRequest) {
           getRsvpPlusOneForPaymentValidation,
         } = await import('@/lib/queries')
 
+        // The Stripe account mode NEW Checkout sessions for this event are
+        // created in (events.stripe_mode). Anything that is not exactly
+        // 'test' charges live — the column is CHECK-constrained, this is only
+        // the type narrowing. Without that mode's key there is no way to take
+        // payment: release the seat instead of leaving a row nobody can pay.
+        const stripeMode: StripeMode = event.stripeMode === 'test' ? 'test' : 'live'
+        if (!isStripeConfigured(stripeMode)) {
+          await expirePendingPaymentRsvp(rsvp.id)
+          console.error(JSON.stringify({ event: 'stripe.mode_not_configured', eventId, stripeMode }))
+          return NextResponse.json(
+            { error: 'Los pagos no están disponibles en este momento. Intenta más tarde.' },
+            { status: 503 },
+          )
+        }
+
         // ISSUE-011: a re-submit while this guest's OWN pending_payment row
         // is still valid reuses the row only with the same party size
         // (saveRSVPPendingPayment above) and must never leave two live Stripe
@@ -327,7 +347,10 @@ export async function POST(request: NextRequest) {
         // instead of reaching this branch.
         const previousPayment = await getActivePaymentForRsvp(rsvp.id)
         if (previousPayment) {
-          const previousSessionExpired = await expireCheckoutSessionConfirmed(previousPayment.stripeSessionId)
+          const previousSessionExpired = await expireCheckoutSessionConfirmed(
+            previousPayment.stripeSessionId,
+            stripeModeOfLivemode(previousPayment.livemode),
+          )
           if (!previousSessionExpired) {
             return NextResponse.json(
               { error: 'No pudimos cerrar el pago anterior de forma segura. Revisa su estado e intenta de nuevo.' },
@@ -362,7 +385,7 @@ export async function POST(request: NextRequest) {
 
         let session
         try {
-          session = await stripe.checkout.sessions.create(buildCheckoutSessionParams({
+          session = await stripeFor(stripeMode).checkout.sessions.create(buildCheckoutSessionParams({
             rsvpId: rsvp.id,
             eventSlug: eventId,
             email: rsvp.email,
@@ -398,6 +421,25 @@ export async function POST(request: NextRequest) {
           )
         }
 
+        // The key configured for this mode must actually belong to it. A test
+        // key stored as STRIPE_SECRET_KEY (or the reverse) would silently turn
+        // a live event into free seats or a demo into real charges — fail
+        // closed and say so, never persist a session of the wrong mode.
+        if (session.livemode !== (stripeMode === 'live')) {
+          console.error(JSON.stringify({
+            event: 'stripe.key_mode_mismatch',
+            eventId,
+            stripeMode,
+            sessionLivemode: session.livemode,
+          }))
+          await expireCheckoutSessionConfirmed(session.id, stripeMode)
+          await expirePendingPaymentRsvp(rsvp.id)
+          return NextResponse.json(
+            { error: 'Los pagos no están disponibles en este momento. Intenta más tarde.' },
+            { status: 503 },
+          )
+        }
+
         const paymentRecord = await createRsvpPaymentRecord({
           rsvpId: rsvp.id,
           eventId,
@@ -405,6 +447,7 @@ export async function POST(request: NextRequest) {
           // This is the total Stripe collects, not the per-person unit amount.
           amountCents: totalAmountCents,
           currency,
+          livemode: session.livemode,
         })
 
         // There is one narrow window before the `created` payment row exists
@@ -419,7 +462,7 @@ export async function POST(request: NextRequest) {
           ? (latestPlusOne ? 2 : 1)
           : null
         if (latestQuantity !== quantity) {
-          const mismatchedSessionExpired = await expireCheckoutSessionConfirmed(session.id)
+          const mismatchedSessionExpired = await expireCheckoutSessionConfirmed(session.id, stripeMode)
           if (mismatchedSessionExpired) {
             await expireRsvpPaymentRecord(paymentRecord.id)
           }
@@ -439,7 +482,7 @@ export async function POST(request: NextRequest) {
         const { electSurvivingCreatedPayment } = await import('@/lib/queries')
         const survivorId = await electSurvivingCreatedPayment(rsvp.id)
         if (survivorId !== null && survivorId !== paymentRecord.id) {
-          const losingSessionExpired = await expireCheckoutSessionConfirmed(session.id)
+          const losingSessionExpired = await expireCheckoutSessionConfirmed(session.id, stripeMode)
           if (losingSessionExpired) {
             await expireRsvpPaymentRecord(paymentRecord.id)
           }

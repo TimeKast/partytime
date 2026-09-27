@@ -25,9 +25,16 @@ más en la app pone `rsvps.status = 'confirmed'` a partir de un pago.
    - `charge.refunded`
 4. Al crear el endpoint, Stripe te muestra el **Signing secret**
    (`whsec_...`) una sola vez. Cópialo a `STRIPE_WEBHOOK_SECRET` en las
-   variables de entorno del deploy (Vercel → Settings → Environment
-   Variables). Sin esta variable configurada el endpoint responde `503` a
-   toda entrega — nunca procesa un evento sin poder verificar su firma.
+   variables de la bóveda (secrets.timekast.com, proyecto `partytime`,
+   entorno `main`); el sync de la bóveda la lleva a Vercel. Sin ninguna
+   variable de firma configurada el endpoint responde `503` a toda entrega —
+   nunca procesa un evento sin poder verificar su firma.
+   - **Modo prueba por evento:** repite estos pasos con el dashboard en
+     *Test mode*, con la **misma URL**, y guarda ese signing secret como
+     `STRIPE_TEST_WEBHOOK_SECRET` (y la key de prueba como
+     `STRIPE_TEST_SECRET_KEY`). El endpoint verifica contra ambos secretos;
+     los eventos con `stripe_mode = 'test'` cobran en modo prueba y esos
+     pagos nunca cuentan como dinero cobrado.
 5. Verifica en el dashboard, pestaña del endpoint, que las entregas de
    prueba lleguen con `200 received: true`.
 

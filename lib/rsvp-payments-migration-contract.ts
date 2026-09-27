@@ -138,8 +138,11 @@ rsvp_payments_column_checks AS (
 column_check AS (
     SELECT
         'table.rsvp_payments.columns'::text AS check_name,
+        -- livemode is added by 0013 and checked by the Stripe mode contract;
+        -- this count pins only the 0010 columns so 0013 does not invalidate it.
         (SELECT count(*) FROM information_schema.columns
-         WHERE table_schema = 'public' AND table_name = 'rsvp_payments') = 11
+         WHERE table_schema = 'public' AND table_name = 'rsvp_payments'
+           AND column_name <> 'livemode') = 11
         AND coalesce(bool_and(valid), false) AS valid
     FROM rsvp_payments_column_checks
 ),

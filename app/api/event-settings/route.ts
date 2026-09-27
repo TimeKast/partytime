@@ -8,6 +8,7 @@ import {
   normalizeEventPresentation,
 } from '@/lib/event-presentation'
 import { isStripeConfigured } from '@/lib/stripe'
+import { storedStripeMode } from '@/lib/event-api-contract'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,7 +85,12 @@ export async function GET(request: NextRequest) {
           // exposes only the boolean from lib/stripe.ts's isStripeConfigured()
           // — never the secret key itself.
           paymentRequired: event.paymentRequired || false,
-          stripeConfigured: isStripeConfigured(),
+          // Migration 0013: which Stripe account this event charges in, plus
+          // one "key present" boolean per mode (never the keys themselves).
+          // stripeConfigured keeps meaning LIVE so older readers stay correct.
+          stripeMode: storedStripeMode(event.stripeMode),
+          stripeConfigured: isStripeConfigured('live'),
+          stripeTestConfigured: isStripeConfigured('test'),
           capacity: {
             enabled: event.capacityEnabled || false,
             limit: event.capacityLimit || 0
@@ -144,7 +150,9 @@ export async function GET(request: NextRequest) {
           currency: 'MXN'
         },
         paymentRequired: false,
-        stripeConfigured: isStripeConfigured(),
+        stripeMode: 'live',
+        stripeConfigured: isStripeConfigured('live'),
+        stripeTestConfigured: isStripeConfigured('test'),
         capacity: {
           enabled: false,
           limit: 0

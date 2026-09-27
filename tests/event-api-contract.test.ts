@@ -21,6 +21,7 @@ const existingEvent: DatabaseEvent = {
     priceAmount: 0,
     priceCurrency: 'MXN',
     paymentRequired: false,
+    stripeMode: 'live',
     capacityEnabled: false,
     capacityLimit: 0,
     backgroundImageUrl: '/background.png',

@@ -92,6 +92,13 @@
       "when": 1787405572759,
       "tag": "0012_event_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787491972759,
+      "tag": "0013_stripe_mode",
+      "breakpoints": true
     }
   ]
 }

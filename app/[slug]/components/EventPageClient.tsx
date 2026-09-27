@@ -110,6 +110,7 @@ export default function EventPageClient({ slug }: EventPageClientProps) {
                         eventSlug={invitationViewModel.rsvp.modal.eventSlug}
                         requirePlusOneName={invitationViewModel.rsvp.modal.requirePlusOneName}
                         paymentPricing={paymentPricing ?? undefined}
+                        paymentTestMode={event.paymentTestMode === true}
                         theme={event.theme}
                     />
                 )}

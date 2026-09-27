@@ -202,6 +202,7 @@ export default function InvitationRegistrationClient({
             invitationToken={state.token}
             requirePlusOneName={invitationViewModel.rsvp.modal.requirePlusOneName}
             paymentPricing={paymentPricing ?? undefined}
+            paymentTestMode={state.event.paymentTestMode === true}
             theme={registrationEvent.theme}
           />
         )}

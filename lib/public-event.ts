@@ -32,6 +32,11 @@ export function buildPublicEventDto(event: DatabaseEvent): PublicEvent {
             currency: event.priceCurrency ?? 'MXN',
         },
         paymentRequired: event.paymentRequired ?? false,
+        // Migration 0013: the ONLY public trace of events.stripe_mode — a
+        // boolean for the "no real money, use 4242…" notice, emitted only
+        // when this event actually charges (a free event never carries it,
+        // so its DTO keeps exactly its pre-0013 keys).
+        ...(event.paymentRequired === true && { paymentTestMode: event.stripeMode === 'test' }),
         capacity: {
             enabled: event.capacityEnabled ?? false,
             limit: event.capacityLimit ?? 0,

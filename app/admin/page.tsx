@@ -17,7 +17,13 @@ import {
   type BackgroundImagePosition,
   type PresentationMode,
 } from '@/lib/event-presentation'
-import { buildEventExportMetadataRows, createEventExportFilename } from '@/lib/event-export'
+import {
+  buildEventExportMetadataRows,
+  createEventExportFilename,
+  describeExportPaymentsFragment,
+  exportPaymentModeSuffix,
+} from '@/lib/event-export'
+import type { StripeMode } from '@/lib/stripe'
 import {
   buildRsvpListView,
   computeCheckinArrivalCount,
@@ -25,7 +31,6 @@ import {
   describePaymentsCollected,
   describeRsvpListView,
   filterAndSortRsvps,
-  formatAmountsCollected,
   formatCentsAsCurrency,
   rsvpPaymentStatusLabel,
   rsvpStatusLabel,
@@ -45,10 +50,13 @@ import {
   InvitationLinkManager,
   LedgerTab,
   StatsCards,
+  StripeModeSelector,
+  StripeTestModeBanner,
   UserManagement,
   ReminderStatusSection,
   type RSVP,
 } from './components'
+import { describeStripeModeTransition } from './components/StripeModeSettings'
 import CheckinOverview from './components/CheckinOverview'
 import { parseCheckinStatusPayload, type CheckinStatus } from './components/CheckinStatus'
 import { AdminShell } from './components/shell'
@@ -100,12 +108,19 @@ export default function AdminDashboard() {
   const [homeEventId, setHomeEventId] = useState<string>('')
   const selectedEvent = events.find(event => event.slug === selectedEventId)
   const accessRole = selectedEvent?.accessRole
-  const canManageSelectedEvent = currentUser?.role === 'super_admin' || accessRole === 'manager'
+  const isSuperAdmin = currentUser?.role === 'super_admin'
+  const canManageSelectedEvent = isSuperAdmin || accessRole === 'manager'
   const isReadOnly = !canManageSelectedEvent
   // ISSUE-010: whether STRIPE_SECRET_KEY is set server-side (never the key
   // itself — see GET /api/event-settings). Drives the "Stripe no configurado"
   // notice next to the payment toggle.
   const [stripeConfigured, setStripeConfigured] = useState(true)
+  // Migration 0013: same boolean-only contract for the TEST key
+  // (STRIPE_TEST_SECRET_KEY), plus the event's PERSISTED Stripe mode — the
+  // selector's "you are switching to…" warning and the dashboard's MODO
+  // PRUEBA indicator both read the saved value, never an unsaved edit.
+  const [stripeTestConfigured, setStripeTestConfigured] = useState(true)
+  const [savedStripeMode, setSavedStripeMode] = useState<StripeMode>('live')
   // ISSUE-018: loaded at page level so Dashboard and viewer accounts receive
   // the event status without first visiting Config. CheckinSettings reuses
   // this DTO and only emits updates after a successful mutation.
@@ -136,6 +151,9 @@ export default function AdminDashboard() {
     // (enforced server-side too — lib/payment-config.ts) — the toggle below
     // disables itself otherwise.
     paymentRequired: false,
+    // Migration 0013: 'live' charges real money, 'test' uses Stripe test
+    // cards. Only a super_admin may change it (server-enforced 403 too).
+    stripeMode: 'live' as StripeMode,
     capacityEnabled: true,
     capacityLimit: 100,
     backgroundImage: eventConfig.event.backgroundImage,
@@ -210,6 +228,13 @@ export default function AdminDashboard() {
     [rsvps, rsvpListOptions],
   )
 
+  // Guests holding a seat paid with a test card: named in the test -> live
+  // switch warning, since they keep their seat without having paid.
+  const confirmedTestPaidCount = useMemo(
+    () => rsvps.filter(rsvp => rsvp.status === 'confirmed' && rsvp.paymentStatus === 'paid' && rsvp.paymentLivemode === false).length,
+    [rsvps],
+  )
+
   const [message, setMessage] = useState('')
 
   // Estado para modal de edición
@@ -277,6 +302,13 @@ export default function AdminDashboard() {
     selectConfigSection(section)
     setActiveTab('config')
   }, [selectConfigSection])
+
+  // Migration 0013: "Revisar cobro" on the dashboard's MODO PRUEBA banner —
+  // lands on Config → Invitados with "Cuota y cobro" already expanded.
+  const openPaymentSettings = useCallback(() => {
+    openConfigSection('guests')
+    setConfigValidationReveal(current => ({ id: 'payment', nonce: current.nonce + 1 }))
+  }, [openConfigSection])
 
   useEffect(() => {
     if (activeTab !== 'config') return
@@ -497,6 +529,7 @@ export default function AdminDashboard() {
         if (data.success && data.settings) {
           console.log('✅ Configuración cargada:', data.settings.title)
           const presentation = normalizeEventPresentation(data.settings)
+          const loadedStripeMode: StripeMode = data.settings.stripeMode === 'test' ? 'test' : 'live'
           setConfigForm({
             title: data.settings.title || '',
             displayTitle: data.settings.displayTitle || '',
@@ -509,6 +542,7 @@ export default function AdminDashboard() {
             priceEnabled: data.settings.price?.enabled || false,
             priceAmount: data.settings.price?.amount || 0,
             paymentRequired: data.settings.paymentRequired || false,
+            stripeMode: loadedStripeMode,
             capacityEnabled: data.settings.capacity?.enabled || false,
             capacityLimit: data.settings.capacity?.limit || 0,
             backgroundImage: data.settings.backgroundImage?.url || '/background.png',
@@ -538,6 +572,8 @@ export default function AdminDashboard() {
             rsvpClosedMessage: data.settings.rsvpClosedMessage || '¡Nos vemos en el próximo evento!'
           })
           setStripeConfigured(data.settings.stripeConfigured !== false)
+          setStripeTestConfigured(data.settings.stripeTestConfigured !== false)
+          setSavedStripeMode(loadedStripeMode)
         }
       }
     } catch (error) {
@@ -1080,6 +1116,18 @@ export default function AdminDashboard() {
       return null
     })()
 
+    // Migration 0013: switching live <-> test changes whether guests pay
+    // real money — rare, super_admin-only, and worth one explicit confirm
+    // with the same consequence copy the inline warning shows.
+    const stripeModeChanged = isSuperAdmin && configForm.stripeMode !== savedStripeMode
+    if (!validationFailure && stripeModeChanged) {
+      const consequence = describeStripeModeTransition(savedStripeMode, configForm.stripeMode, confirmedTestPaidCount)
+      const target = configForm.stripeMode === 'live' ? 'COBRO REAL' : 'MODO PRUEBA'
+      if (!window.confirm(`¿Cambiar el cobro de este evento a ${target}?\n\n${consequence ?? ''}`)) {
+        return
+      }
+    }
+
     if (validationFailure) {
       selectConfigSection(validationFailure.section)
       setConfigValidationReveal(current => ({
@@ -1124,6 +1172,9 @@ export default function AdminDashboard() {
         // somehow enabled without a valid price (should be prevented by the
         // `disabled` attribute already, this is defense in depth).
         paymentRequired: configForm.paymentRequired,
+        // Migration 0013: only a super_admin sends it — a manager's save must
+        // never carry a (possibly stale) mode the server would reject.
+        ...(isSuperAdmin && { stripeMode: configForm.stripeMode }),
         capacity: {
           enabled: configForm.capacityEnabled,
           limit: configForm.capacityLimit
@@ -1176,6 +1227,7 @@ export default function AdminDashboard() {
 
       if (data.success) {
         setMessage('✅ Configuración guardada correctamente')
+        if (isSuperAdmin) setSavedStripeMode(configForm.stripeMode)
       } else {
         setMessage(`❌ Error: ${data.message}`)
       }
@@ -1368,8 +1420,10 @@ export default function AdminDashboard() {
     doc.setTextColor(0, 0, 0)
     doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
+    // Migration 0013: Stripe test payments are excluded from "Pagados" and
+    // counted separately (see describeExportPaymentsFragment).
     const paymentsStatsFragment = showPaymentColumns
-      ? ` - Pagados: ${rsvpListView.paidPaymentsCount} (${formatAmountsCollected(rsvpListView.amountCollectedByCurrency)})`
+      ? describeExportPaymentsFragment(rsvpListView)
       : ''
     doc.text(
       `Resultados: ${exportRsvps.length} - Confirmados: ${rsvpListView.confirmedTotal} - Pend. pago: ${rsvpListView.pendingPaymentTotal} - Pend. verificación: ${rsvpListView.pendingVerificationTotal} - Cancelados: ${rsvpListView.cancelledTotal} - Expirados: ${rsvpListView.expiredTotal}${paymentsStatsFragment}`,
@@ -1397,9 +1451,10 @@ export default function AdminDashboard() {
       ]
       if (showPaymentColumns) {
         row.push(
-          rsvp.paymentStatus ? stripEmojis(rsvpPaymentStatusLabel(rsvp.paymentStatus)) : 'Sin cargo',
+          // Migration 0013: "(prueba)" on a Stripe test payment's cells.
+          rsvp.paymentStatus ? stripEmojis(rsvpPaymentStatusLabel(rsvp.paymentStatus)) + exportPaymentModeSuffix(rsvp) : 'Sin cargo',
           rsvp.paymentStatus && rsvp.amountCents != null && rsvp.currency
-            ? stripEmojis(formatCentsAsCurrency(rsvp.amountCents, rsvp.currency))
+            ? stripEmojis(formatCentsAsCurrency(rsvp.amountCents, rsvp.currency)) + exportPaymentModeSuffix(rsvp)
             : '—',
           rsvp.paidAt
             ? new Date(rsvp.paidAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -1538,7 +1593,7 @@ export default function AdminDashboard() {
     // ISSUE-018: same independent gate as the PDF export above.
     const showCheckinColumns = checkinEnabled
     const paymentsStatsFragment = showPaymentColumns
-      ? ` - Pagados: ${rsvpListView.paidPaymentsCount} (${formatAmountsCollected(rsvpListView.amountCollectedByCurrency)})`
+      ? describeExportPaymentsFragment(rsvpListView)
       : ''
 
     // Crear datos para la hoja
@@ -1566,9 +1621,10 @@ export default function AdminDashboard() {
         rsvp.plusOneName || '',
         rsvp.emailSent ? new Date(rsvp.emailSent).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : 'No enviado',
         ...(showPaymentColumns ? [
-          rsvp.paymentStatus ? rsvpPaymentStatusLabel(rsvp.paymentStatus) : 'Sin cargo',
+          // Migration 0013: "(prueba)" on a Stripe test payment's cells.
+          rsvp.paymentStatus ? rsvpPaymentStatusLabel(rsvp.paymentStatus) + exportPaymentModeSuffix(rsvp) : 'Sin cargo',
           rsvp.paymentStatus && rsvp.amountCents != null && rsvp.currency
-            ? formatCentsAsCurrency(rsvp.amountCents, rsvp.currency)
+            ? formatCentsAsCurrency(rsvp.amountCents, rsvp.currency) + exportPaymentModeSuffix(rsvp)
             : '—',
           rsvp.paidAt
             ? new Date(rsvp.paidAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -1704,6 +1760,13 @@ export default function AdminDashboard() {
             )}
           </div>
 
+          {/* Migration 0013: visible to every role (viewers included) —
+              reads the SAVED mode, so an unsaved edit in Config never
+              flips it. */}
+          {savedStripeMode === 'test' && configForm.paymentRequired && (
+            <StripeTestModeBanner onConfigure={canManageSelectedEvent ? openPaymentSettings : undefined} />
+          )}
+
           {/* H-008 FIX: Use extracted StatsCards component */}
           <StatsCards stats={stats} />
 
@@ -1724,7 +1787,11 @@ export default function AdminDashboard() {
               (same scope as rsvpListView's other *Total counters). */}
           {configForm.paymentRequired && (
             <p className={styles.paymentsCollectedSummary}>
-              {describePaymentsCollected(rsvpListView.paidPaymentsCount, rsvpListView.amountCollectedByCurrency)}
+              {describePaymentsCollected(
+                rsvpListView.paidPaymentsCount,
+                rsvpListView.amountCollectedByCurrency,
+                rsvpListView.testPaidPaymentsCount,
+              )}
             </p>
           )}
 
@@ -1908,6 +1975,7 @@ export default function AdminDashboard() {
             <BackstageStatusStrip
               rsvpClosed={configForm.rsvpClosed}
               paymentRequired={configForm.paymentRequired}
+              paymentTestMode={savedStripeMode === 'test'}
               priceAmount={configForm.priceAmount}
               checkinStatus={selectedCheckinStatus}
               checkinLoading={selectedCheckinStatusLoading}
@@ -2074,7 +2142,7 @@ export default function AdminDashboard() {
                   <SettingsDisclosure
                     title="Cuota y cobro"
                     summary={configForm.paymentRequired
-                      ? `$${configForm.priceAmount} MXN por persona · cobro requerido`
+                      ? `$${configForm.priceAmount} MXN por persona · cobro requerido${configForm.stripeMode === 'test' ? ' · modo prueba' : ''}`
                       : configForm.priceEnabled ? `$${configForm.priceAmount} MXN informativos` : 'Sin cuota'}
                     tone={configForm.paymentRequired ? 'warning' : 'default'}
                     revealKey={configValidationReveal.id === 'payment' ? configValidationReveal.nonce : 0}
@@ -2140,10 +2208,21 @@ export default function AdminDashboard() {
                             ? `La invitación mostrará una cuota de $${configForm.priceAmount} MXN por persona, pero no abrirá Checkout ni cobrará el +1.`
                             : 'Habilita una cuota mayor a $0 para poder requerir pago.'}
                       </p>
-                      {configForm.paymentRequired && !stripeConfigured && (
-                        <p className={styles.configCallout} data-tone="danger" role="alert">
-                          Stripe no está configurado en este entorno. Los cobros fallarán hasta agregar STRIPE_SECRET_KEY.
-                        </p>
+                      {/* Migration 0013: per-event Stripe mode. Visible to
+                          every role that can open Config, editable only by a
+                          super_admin; it also carries the "key missing"
+                          notice for the CHOSEN mode (live or test), which
+                          replaces the old live-only notice here. */}
+                      {configForm.paymentRequired && (
+                        <StripeModeSelector
+                          value={configForm.stripeMode}
+                          savedValue={savedStripeMode}
+                          canEdit={isSuperAdmin}
+                          liveConfigured={stripeConfigured}
+                          testConfigured={stripeTestConfigured}
+                          confirmedTestPaidCount={confirmedTestPaidCount}
+                          onChange={(stripeMode) => setConfigForm({ ...configForm, stripeMode })}
+                        />
                       )}
                     </div>
                   </SettingsDisclosure>

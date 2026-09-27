@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import { validateSession } from '@/lib/auth-utils'
 import { userHasEventAccess } from '@/lib/user-queries'
 import type { Event as DatabaseEvent } from '@/lib/schema'
-import { parseFullUpdatePrice } from '@/lib/event-api-contract'
+import { parseFullUpdatePrice, resolveStripeModeChange } from '@/lib/event-api-contract'
 import { checkPaymentRequiredEligibility } from '@/lib/payment-config'
 import {
   normalizeBackgroundImageUrl,
@@ -86,6 +86,17 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Migration 0013: stripeMode is honored on BOTH the partial and the full
+      // path below. Re-sending the stored value is not a change (every full
+      // save from a manager carries it); only a real change needs super_admin.
+      const stripeModeChange = resolveStripeModeChange(body, event.stripeMode, currentUser.role === 'super_admin')
+      if (!stripeModeChange.success) {
+        return NextResponse.json(
+          { success: false, message: stripeModeChange.error, error: stripeModeChange.error },
+          { status: stripeModeChange.status },
+        )
+      }
+
       // Check if this is a partial update (just images without title key) or full update
       // Note: body.title === undefined means no title provided; body.title === '' means empty title (valid)
       const isPartialUpdate = (body.backgroundImage || body.ogImage) && body.title === undefined
@@ -93,6 +104,7 @@ export async function POST(request: NextRequest) {
       // Prepare update data
       const updates: Partial<Omit<DatabaseEvent, 'id' | 'createdAt'>> = {
         ...presentationPatch.value,
+        ...(stripeModeChange.value !== undefined && { stripeMode: stripeModeChange.value }),
       }
       
       if (isPartialUpdate) {

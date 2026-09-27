@@ -2,7 +2,7 @@
 
 import styles from '../../admin.module.css'
 import type { RSVP } from '../index'
-import { formatCentsAsCurrency, rsvpPaymentStatusLabel, type RsvpPaymentStatus, type RsvpStatus } from '@/lib/rsvp-list'
+import { formatCentsAsCurrency, isTestPayment, rsvpPaymentLabel, type RsvpPaymentStatus, type RsvpStatus } from '@/lib/rsvp-list'
 import { AlertTriangle, CheckCircle, Mail, MessageCircle, Phone, Pencil, XCircle } from '../ui/icons'
 
 type RsvpTableVariant = RsvpStatus
@@ -43,8 +43,12 @@ const PAYMENT_BADGE_CLASS: Record<RsvpPaymentStatus, string> = {
 // seat (expired — capacity/TTL raced the payment; cancelled — the guest
 // cancelled after paying) is money Stripe collected with nobody left to
 // honor it. Flagged here for a human, never auto-refunded.
+// Migration 0013: a Stripe TEST payment moved no real money, so there is
+// nothing to refund — never flagged.
 function isPaymentWithoutSeat(rsvp: RSVP): boolean {
-  return rsvp.paymentStatus === 'paid' && (rsvp.status === 'expired' || rsvp.status === 'cancelled')
+  return rsvp.paymentStatus === 'paid'
+    && !isTestPayment(rsvp)
+    && (rsvp.status === 'expired' || rsvp.status === 'cancelled')
 }
 
 // ISSUE-006: section title + empty-state copy per status. confirmed/cancelled
@@ -188,12 +192,27 @@ export function RsvpTable({
                 <td className={styles.paymentCell}>
                   {rsvp.paymentStatus ? (
                     <>
-                      <span className={`${styles.paymentBadge} ${PAYMENT_BADGE_CLASS[rsvp.paymentStatus]}`}>
-                        {rsvpPaymentStatusLabel(rsvp.paymentStatus)}
+                      {/* Migration 0013: a test payment keeps its status
+                          label + "(prueba)", but a paid test never wears the
+                          green "money in" badge — it uses the neutral dashed
+                          test badge so it can't be misread as collected. */}
+                      <span
+                        className={`${styles.paymentBadge} ${
+                          isTestPayment(rsvp) && rsvp.paymentStatus === 'paid'
+                            ? styles.paymentBadgeTest
+                            : PAYMENT_BADGE_CLASS[rsvp.paymentStatus]
+                        }`}
+                        data-payment-mode={isTestPayment(rsvp) ? 'test' : undefined}
+                      >
+                        {rsvpPaymentLabel(rsvp)}
                       </span>
                       {rsvp.paymentStatus === 'paid' && rsvp.amountCents != null && rsvp.currency && (
-                        <span className={styles.paymentAmount}>
+                        <span
+                          className={styles.paymentAmount}
+                          data-payment-mode={isTestPayment(rsvp) ? 'test' : undefined}
+                        >
                           {formatCentsAsCurrency(rsvp.amountCents, rsvp.currency)}
+                          {isTestPayment(rsvp) && ' · sin cobro real'}
                         </span>
                       )}
                       {isPaymentWithoutSeat(rsvp) && (

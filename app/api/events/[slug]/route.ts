@@ -143,6 +143,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             existingEvent,
             currentUser.role === 'super_admin',
             { updateSlug: updateEventSlug, updateEvent },
+            // Migration 0013: live <-> test is super_admin-only (fails closed).
+            { canChangeStripeMode: currentUser.role === 'super_admin' },
         )
         if (!result.success) {
             return NextResponse.json({ success: false, error: result.error }, { status: result.status })

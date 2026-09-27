@@ -1064,10 +1064,12 @@ export async function getLedgerSnapshot(eventId: string): Promise<LedgerSnapshot
 }
 
 /**
- * Σ `amount_cents` of `rsvp_payments` with `status = 'paid'` for this event.
- * **Read-only** — this is the single point where the ledger reads
- * `rsvp_payments`; it is never written from anywhere in this module (PLAN
- * §7 review focus: the ledger must never mutate Stripe payment records).
+ * Σ `amount_cents` of LIVE `rsvp_payments` with `status = 'paid'` for this
+ * event. Test-mode payments (`livemode = false`, test cards on a demo event)
+ * moved no money and never count as collected. **Read-only** — this is the
+ * single point where the ledger reads `rsvp_payments`; it is never written
+ * from anywhere in this module (PLAN §7 review focus: the ledger must never
+ * mutate Stripe payment records).
  */
 export async function getStripePaidTotal(eventId: string): Promise<number> {
     const database = requireDb()
@@ -1078,6 +1080,7 @@ export async function getStripePaidTotal(eventId: string): Promise<number> {
         .where(and(
             eq(rsvpPayments.eventId, eventId),
             eq(rsvpPayments.status, 'paid'),
+            eq(rsvpPayments.livemode, true),
         ))
     return Number(row?.total ?? 0)
 }

@@ -23,6 +23,11 @@ export interface PublicEvent {
     }
     /** Whether this RSVP must complete Stripe Checkout to be confirmed. */
     paymentRequired: boolean
+    /**
+     * Migration 0013: present only when `paymentRequired` is true. `true`
+     * means Checkout runs in Stripe test mode (test cards, no real money).
+     */
+    paymentTestMode?: boolean
     capacity: {
         enabled: boolean
         limit: number

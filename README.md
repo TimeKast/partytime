@@ -86,6 +86,9 @@ CRON_SECRET=tu-cron-secret
 # Cobro con Stripe (opcional, solo eventos con payment_required)
 STRIPE_SECRET_KEY=sk_test_xxx
 STRIPE_WEBHOOK_SECRET=whsec_xxx
+# Par de modo prueba, para eventos con stripe_mode='test' (ej. demo)
+STRIPE_TEST_SECRET_KEY=sk_test_xxx
+STRIPE_TEST_WEBHOOK_SECRET=whsec_xxx
 ```
 
 Para configurar el webhook de Stripe (dashboard en producción, Stripe CLI en

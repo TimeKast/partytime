@@ -44,6 +44,7 @@ vi.mock('@/lib/resend', () => ({
 // exercising the real Stripe SDK's signature verification.
 
 const WEBHOOK_SECRET = 'whsec_test_secret_for_issue_012'
+const TEST_WEBHOOK_SECRET = 'whsec_test_mode_endpoint_secret'
 
 // A separate, standalone Stripe instance used ONLY to produce realistic
 // signed test payloads (`generateTestHeaderString` does not call the Stripe
@@ -52,7 +53,10 @@ const WEBHOOK_SECRET = 'whsec_test_secret_for_issue_012'
 // constructEvent" means in practice — the route verifies a REAL signature.
 const signer = new Stripe('sk_test_signing_helper_only', { apiVersion: Stripe.API_VERSION })
 
-function stripeEventPayload(type: string, dataObject: Record<string, unknown>, id = 'evt_test_1'): string {
+// `livemode` defaults to true: the suite's default delivery is a LIVE event
+// signed with the live endpoint secret (STRIPE_WEBHOOK_SECRET). Test-mode
+// deliveries are exercised explicitly in the "Stripe mode" block below.
+function stripeEventPayload(type: string, dataObject: Record<string, unknown>, id = 'evt_test_1', livemode = true): string {
     return JSON.stringify({
         id,
         object: 'event',
@@ -60,7 +64,7 @@ function stripeEventPayload(type: string, dataObject: Record<string, unknown>, i
         created: Math.floor(Date.now() / 1000),
         type,
         data: { object: dataObject },
-        livemode: false,
+        livemode,
         pending_webhooks: 1,
         request: { id: null, idempotency_key: null },
     })
@@ -84,6 +88,7 @@ const checkoutSession = {
     id: 'cs_test_123',
     object: 'checkout.session',
     payment_intent: 'pi_test_123',
+    payment_status: 'paid',
     metadata: { rsvpId: 'rsvp-1', eventSlug: 'fiesta' },
 }
 
@@ -109,22 +114,28 @@ const paidEvent = {
 }
 
 let originalWebhookSecret: string | undefined
+let originalTestWebhookSecret: string | undefined
 
 beforeEach(() => {
     vi.clearAllMocks()
     mocks.databaseConfigured = true
     originalWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+    originalTestWebhookSecret = process.env.STRIPE_TEST_WEBHOOK_SECRET
     process.env.STRIPE_WEBHOOK_SECRET = WEBHOOK_SECRET
+    delete process.env.STRIPE_TEST_WEBHOOK_SECRET
 })
 
 afterEach(() => {
     if (originalWebhookSecret === undefined) delete process.env.STRIPE_WEBHOOK_SECRET
     else process.env.STRIPE_WEBHOOK_SECRET = originalWebhookSecret
+    if (originalTestWebhookSecret === undefined) delete process.env.STRIPE_TEST_WEBHOOK_SECRET
+    else process.env.STRIPE_TEST_WEBHOOK_SECRET = originalTestWebhookSecret
 })
 
 describe('POST /api/webhooks/stripe — signature verification (ISSUE-012)', () => {
-    it('responds 503 and never reaches any handler when STRIPE_WEBHOOK_SECRET is not configured', async () => {
+    it('responds 503 and never reaches any handler when no webhook secret (live or test) is configured', async () => {
         delete process.env.STRIPE_WEBHOOK_SECRET
+        delete process.env.STRIPE_TEST_WEBHOOK_SECRET
         const payload = stripeEventPayload('checkout.session.completed', checkoutSession)
 
         const { POST } = await import('@/app/api/webhooks/stripe/route')
@@ -174,7 +185,7 @@ describe('POST /api/webhooks/stripe — signature verification (ISSUE-012)', () 
         const response = await POST(webhookRequest(payload, signedHeader(payload)))
 
         expect(response.status).toBe(200)
-        expect(mocks.fulfillPaidRsvp).toHaveBeenCalledWith('cs_test_123', 'pi_test_123')
+        expect(mocks.fulfillPaidRsvp).toHaveBeenCalledWith('cs_test_123', 'pi_test_123', true)
     })
 })
 
@@ -197,7 +208,7 @@ describe('POST /api/webhooks/stripe — checkout.session.completed / async_payme
 
             expect(response.status).toBe(200)
             expect(body).toEqual({ received: true })
-            expect(mocks.fulfillPaidRsvp).toHaveBeenCalledWith('cs_test_123', 'pi_test_123')
+            expect(mocks.fulfillPaidRsvp).toHaveBeenCalledWith('cs_test_123', 'pi_test_123', true)
             expect(mocks.send).toHaveBeenCalledTimes(1)
             expect(mocks.send.mock.calls[0][0]).toMatchObject({ to: 'alex@example.com' })
             expect(mocks.recordEmailSent).toHaveBeenCalledWith('rsvp-1', 'confirmation')
@@ -286,7 +297,7 @@ describe('POST /api/webhooks/stripe — checkout.session.expired (ISSUE-012)', (
         const response = await POST(webhookRequest(payload, signedHeader(payload)))
 
         expect(response.status).toBe(200)
-        expect(mocks.expireRsvpPaymentBySessionId).toHaveBeenCalledWith('cs_test_123')
+        expect(mocks.expireRsvpPaymentBySessionId).toHaveBeenCalledWith('cs_test_123', true)
         expect(mocks.fulfillPaidRsvp).not.toHaveBeenCalled()
     })
 
@@ -317,7 +328,7 @@ describe('POST /api/webhooks/stripe — charge.refunded (ISSUE-012)', () => {
         const response = await POST(webhookRequest(payload, signedHeader(payload)))
 
         expect(response.status).toBe(200)
-        expect(mocks.markRsvpPaymentRefunded).toHaveBeenCalledWith('pi_test_123')
+        expect(mocks.markRsvpPaymentRefunded).toHaveBeenCalledWith('pi_test_123', true)
         expect(mocks.fulfillPaidRsvp).not.toHaveBeenCalled()
         expect(mocks.expireRsvpPaymentBySessionId).not.toHaveBeenCalled()
     })
@@ -346,6 +357,121 @@ describe('POST /api/webhooks/stripe — unhandled event types (ISSUE-012)', () =
         expect(mocks.fulfillPaidRsvp).not.toHaveBeenCalled()
         expect(mocks.expireRsvpPaymentBySessionId).not.toHaveBeenCalled()
         expect(mocks.markRsvpPaymentRefunded).not.toHaveBeenCalled()
+    })
+})
+
+describe('POST /api/webhooks/stripe — unpaid completed sessions (OXXO/SPEI vouchers)', () => {
+    it('checkout.session.completed with payment_status unpaid confirms nothing and acks 200', async () => {
+        const payload = stripeEventPayload('checkout.session.completed', { ...checkoutSession, payment_status: 'unpaid' })
+
+        const { POST } = await import('@/app/api/webhooks/stripe/route')
+        const response = await POST(webhookRequest(payload, signedHeader(payload, WEBHOOK_SECRET)))
+
+        expect(response.status).toBe(200)
+        expect(mocks.fulfillPaidRsvp).not.toHaveBeenCalled()
+    })
+
+    it('async_payment_succeeded still confirms the same session once the voucher is paid', async () => {
+        mocks.fulfillPaidRsvp.mockResolvedValue({ outcome: 'replay', rsvp: null })
+        const payload = stripeEventPayload('checkout.session.async_payment_succeeded', { ...checkoutSession, payment_status: 'paid' })
+
+        const { POST } = await import('@/app/api/webhooks/stripe/route')
+        const response = await POST(webhookRequest(payload, signedHeader(payload, WEBHOOK_SECRET)))
+
+        expect(response.status).toBe(200)
+        expect(mocks.fulfillPaidRsvp).toHaveBeenCalledWith('cs_test_123', 'pi_test_123', true)
+    })
+})
+
+describe('POST /api/webhooks/stripe — Stripe mode (live vs test deliveries)', () => {
+    // Live and test endpoints post to this same URL, each signed with its own
+    // secret. The secret that verifies decides the only mode the delivery may
+    // act on, and it is passed down so every mutation matches the payment by
+    // (id, livemode).
+
+    it('a test-mode delivery signed with STRIPE_TEST_WEBHOOK_SECRET fulfills with livemode=false (both secrets configured)', async () => {
+        process.env.STRIPE_TEST_WEBHOOK_SECRET = TEST_WEBHOOK_SECRET
+        mocks.fulfillPaidRsvp.mockResolvedValue({ outcome: 'replay', rsvp: null })
+        const payload = stripeEventPayload('checkout.session.completed', checkoutSession, 'evt_test_mode', false)
+
+        const { POST } = await import('@/app/api/webhooks/stripe/route')
+        const response = await POST(webhookRequest(payload, signedHeader(payload, TEST_WEBHOOK_SECRET)))
+
+        expect(response.status).toBe(200)
+        expect(mocks.fulfillPaidRsvp).toHaveBeenCalledWith('cs_test_123', 'pi_test_123', false)
+    })
+
+    it('only the test secret configured: test deliveries still verify and act with livemode=false', async () => {
+        delete process.env.STRIPE_WEBHOOK_SECRET
+        process.env.STRIPE_TEST_WEBHOOK_SECRET = TEST_WEBHOOK_SECRET
+        mocks.expireRsvpPaymentBySessionId.mockResolvedValue(null)
+        const payload = stripeEventPayload('checkout.session.expired', checkoutSession, 'evt_test_mode', false)
+
+        const { POST } = await import('@/app/api/webhooks/stripe/route')
+        const response = await POST(webhookRequest(payload, signedHeader(payload, TEST_WEBHOOK_SECRET)))
+
+        expect(response.status).toBe(200)
+        expect(mocks.expireRsvpPaymentBySessionId).toHaveBeenCalledWith('cs_test_123', false)
+    })
+
+    it('the same whsec in both variables (stripe listen): a test delivery still verifies as test instead of being refused', async () => {
+        process.env.STRIPE_TEST_WEBHOOK_SECRET = WEBHOOK_SECRET
+        mocks.fulfillPaidRsvp.mockResolvedValue({ outcome: 'replay', rsvp: null })
+        const payload = stripeEventPayload('checkout.session.completed', checkoutSession, 'evt_shared', false)
+
+        const { POST } = await import('@/app/api/webhooks/stripe/route')
+        const response = await POST(webhookRequest(payload, signedHeader(payload, WEBHOOK_SECRET)))
+
+        expect(response.status).toBe(200)
+        expect(mocks.fulfillPaidRsvp).toHaveBeenCalledWith('cs_test_123', 'pi_test_123', false)
+    })
+
+    it('a test-signed delivery is refused (400) when only the live secret is configured', async () => {
+        const payload = stripeEventPayload('checkout.session.completed', checkoutSession, 'evt_test_mode', false)
+
+        const { POST } = await import('@/app/api/webhooks/stripe/route')
+        const response = await POST(webhookRequest(payload, signedHeader(payload, TEST_WEBHOOK_SECRET)))
+
+        expect(response.status).toBe(400)
+        expect(mocks.fulfillPaidRsvp).not.toHaveBeenCalled()
+    })
+
+    it('refuses (400) a body signed with the LIVE secret that claims livemode=false, touching nothing', async () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        const payload = stripeEventPayload('checkout.session.completed', checkoutSession, 'evt_x', false)
+
+        const { POST } = await import('@/app/api/webhooks/stripe/route')
+        const response = await POST(webhookRequest(payload, signedHeader(payload, WEBHOOK_SECRET)))
+
+        expect(response.status).toBe(400)
+        expect(mocks.fulfillPaidRsvp).not.toHaveBeenCalled()
+        errorSpy.mockRestore()
+    })
+
+    it('refuses (400) a body signed with the TEST secret that claims livemode=true, touching nothing', async () => {
+        process.env.STRIPE_TEST_WEBHOOK_SECRET = TEST_WEBHOOK_SECRET
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        const payload = stripeEventPayload('charge.refunded', { id: 'ch_1', object: 'charge', payment_intent: 'pi_1' }, 'evt_x', true)
+
+        const { POST } = await import('@/app/api/webhooks/stripe/route')
+        const response = await POST(webhookRequest(payload, signedHeader(payload, TEST_WEBHOOK_SECRET)))
+
+        expect(response.status).toBe(400)
+        expect(mocks.markRsvpPaymentRefunded).not.toHaveBeenCalled()
+        errorSpy.mockRestore()
+    })
+
+    it('a test payment rejected because its event is now live responds 200 without any confirmation email', async () => {
+        process.env.STRIPE_TEST_WEBHOOK_SECRET = TEST_WEBHOOK_SECRET
+        mocks.fulfillPaidRsvp.mockResolvedValue({ outcome: 'test_payment_rejected', rsvp: null })
+        const payload = stripeEventPayload('checkout.session.completed', checkoutSession, 'evt_test_mode', false)
+
+        const { POST } = await import('@/app/api/webhooks/stripe/route')
+        const response = await POST(webhookRequest(payload, signedHeader(payload, TEST_WEBHOOK_SECRET)))
+
+        expect(response.status).toBe(200)
+        expect(mocks.send).not.toHaveBeenCalled()
+        expect(mocks.recordEmailSent).not.toHaveBeenCalled()
     })
 })
 

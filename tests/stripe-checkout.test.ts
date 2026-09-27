@@ -474,16 +474,33 @@ describe('rsvp_payments row helpers (ISSUE-011)', () => {
     it('createRsvpPaymentRecord inserts a created row with the exact amount/currency passed in', async () => {
         mockInsertReturning([{
             id: 'pay-2', rsvpId: 'rsvp-1', eventId: 'fiesta', stripeSessionId: 'cs_new',
-            amountCents: 25000, currency: 'MXN', status: RSVP_PAYMENT_STATUS.CREATED,
+            amountCents: 25000, currency: 'MXN', status: RSVP_PAYMENT_STATUS.CREATED, livemode: true,
         }])
 
         const payment = await createRsvpPaymentRecord({
             rsvpId: 'rsvp-1', eventId: 'fiesta', stripeSessionId: 'cs_new', amountCents: 25000, currency: 'MXN',
+            livemode: true,
         })
 
         expect(payment).toMatchObject({ stripeSessionId: 'cs_new', amountCents: 25000, currency: 'MXN' })
         const insertedValues = (insertMock.mock.results[0]!.value.values as ReturnType<typeof vi.fn>).mock.calls[0][0]
         expect(insertedValues.status).toBe(RSVP_PAYMENT_STATUS.CREATED)
+        expect(insertedValues.livemode).toBe(true)
+    })
+
+    it('createRsvpPaymentRecord persists a test-mode session as livemode=false (never defaulted to live)', async () => {
+        mockInsertReturning([{
+            id: 'pay-3', rsvpId: 'rsvp-1', eventId: 'fiesta', stripeSessionId: 'cs_test_demo',
+            amountCents: 1000, currency: 'MXN', status: RSVP_PAYMENT_STATUS.CREATED, livemode: false,
+        }])
+
+        await createRsvpPaymentRecord({
+            rsvpId: 'rsvp-1', eventId: 'fiesta', stripeSessionId: 'cs_test_demo', amountCents: 1000, currency: 'MXN',
+            livemode: false,
+        })
+
+        const insertedValues = (insertMock.mock.results[0]!.value.values as ReturnType<typeof vi.fn>).mock.calls[0][0]
+        expect(insertedValues.livemode).toBe(false)
     })
 
     it('reads plusOne with FOR SHARE after insert so a concurrent RSVP UPDATE must finish first', async () => {

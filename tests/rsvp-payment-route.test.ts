@@ -33,6 +33,10 @@ const mocks = vi.hoisted(() => ({
     stripeSessionsCreate: vi.fn(),
     stripeSessionsExpire: vi.fn(),
     stripeSessionsRetrieve: vi.fn(),
+    // Which Stripe account mode each client was requested for, and whether a
+    // mode's key is configured (default: both configured).
+    stripeFor: vi.fn(),
+    isStripeConfigured: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({ isDatabaseConfigured: () => mocks.databaseConfigured }))
@@ -60,7 +64,15 @@ vi.mock('@/lib/queries', () => ({
     },
 }))
 vi.mock('@/lib/stripe', () => ({
-    stripe: {
+    stripeFor: mocks.stripeFor,
+    isStripeConfigured: mocks.isStripeConfigured,
+    stripeModeOfLivemode: (livemode: boolean) => (livemode ? 'live' : 'test'),
+}))
+
+// Every mode gets the same mocked sessions API; tests assert WHICH mode was
+// requested through `mocks.stripeFor`'s calls.
+function installStripeClientMocks() {
+    mocks.stripeFor.mockImplementation(() => ({
         checkout: {
             sessions: {
                 create: mocks.stripeSessionsCreate,
@@ -68,8 +80,9 @@ vi.mock('@/lib/stripe', () => ({
                 retrieve: mocks.stripeSessionsRetrieve,
             },
         },
-    },
-}))
+    }))
+    mocks.isStripeConfigured.mockReturnValue(true)
+}
 vi.mock('@/lib/resend', () => ({
     resend: { emails: { send: mocks.send } },
     FROM_EMAIL: 'noreply@example.com',
@@ -132,13 +145,14 @@ function request(overrides: Record<string, unknown> = {}, headers: Record<string
 describe('POST /api/rsvp — public payment branch (ISSUE-011)', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        installStripeClientMocks()
         mocks.databaseConfigured = true
         mocks.getEventBySlug.mockResolvedValue(paidEvent)
         mocks.getRsvpPlusOneForPaymentValidation.mockResolvedValue(false)
         mocks.expireStalePendingRsvps.mockResolvedValue([])
         mocks.saveRSVPPendingPayment.mockResolvedValue(pendingPaymentRsvp)
         mocks.getActivePaymentForRsvp.mockResolvedValue(null)
-        mocks.stripeSessionsCreate.mockResolvedValue({ id: 'cs_new123', url: 'https://checkout.stripe.com/pay/cs_new123' })
+        mocks.stripeSessionsCreate.mockResolvedValue({ id: 'cs_new123', url: 'https://checkout.stripe.com/pay/cs_new123', livemode: true })
         mocks.stripeSessionsExpire.mockResolvedValue({ status: 'expired', payment_status: 'unpaid' })
         mocks.createRsvpPaymentRecord.mockResolvedValue({ id: 'pay-1', stripeSessionId: 'cs_new123' })
         mocks.electSurvivingCreatedPayment.mockResolvedValue('pay-1')
@@ -207,7 +221,11 @@ describe('POST /api/rsvp — public payment branch (ISSUE-011)', () => {
 
         expect(mocks.createRsvpPaymentRecord).toHaveBeenCalledWith({
             rsvpId: 'rsvp-1', eventId: 'fiesta', stripeSessionId: 'cs_new123', amountCents: 25000, currency: 'MXN',
+            livemode: true,
         })
+        // An event without stripe_mode set (or 'live') charges through the live client.
+        expect(mocks.stripeFor).toHaveBeenCalledWith('live')
+        expect(mocks.stripeFor).not.toHaveBeenCalledWith('test')
     })
 
     it('charges the per-person fee twice when the persisted RSVP includes a companion', async () => {
@@ -227,6 +245,7 @@ describe('POST /api/rsvp — public payment branch (ISSUE-011)', () => {
         expect(sessionParams.line_items[0].quantity).toBe(2)
         expect(mocks.createRsvpPaymentRecord).toHaveBeenCalledWith({
             rsvpId: 'rsvp-1', eventId: 'fiesta', stripeSessionId: 'cs_new123', amountCents: 50000, currency: 'MXN',
+            livemode: true,
         })
     })
 
@@ -308,7 +327,7 @@ describe('POST /api/rsvp — public payment branch (ISSUE-011)', () => {
     // vivo / Then ... la sesión anterior se expira en Stripe y solo hay una
     // sesión activa".
     it('re-submit with an existing active Checkout Session: expires the old session and marks its row expired before creating a new one', async () => {
-        mocks.getActivePaymentForRsvp.mockResolvedValue({ id: 'pay-old', stripeSessionId: 'cs_old999' })
+        mocks.getActivePaymentForRsvp.mockResolvedValue({ id: 'pay-old', stripeSessionId: 'cs_old999', livemode: true })
         mocks.stripeSessionsExpire.mockResolvedValue({ status: 'expired', payment_status: 'unpaid' })
 
         const { POST } = await import('@/app/api/rsvp/route')
@@ -337,7 +356,7 @@ describe('POST /api/rsvp — public payment branch (ISSUE-011)', () => {
     })
 
     it('a failed previous-session expiration continues only after retrieve confirms expired/unpaid', async () => {
-        mocks.getActivePaymentForRsvp.mockResolvedValue({ id: 'pay-old', stripeSessionId: 'cs_old999' })
+        mocks.getActivePaymentForRsvp.mockResolvedValue({ id: 'pay-old', stripeSessionId: 'cs_old999', livemode: true })
         mocks.stripeSessionsExpire.mockRejectedValue(new Error('already expired'))
         mocks.stripeSessionsRetrieve.mockResolvedValue({ status: 'expired', payment_status: 'unpaid' })
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -357,7 +376,7 @@ describe('POST /api/rsvp — public payment branch (ISSUE-011)', () => {
         ['open', 'unpaid'],
         ['expired', 'paid'],
     ])('keeps the previous row created and creates no replacement when retrieve reports %s/%s', async (status, paymentStatus) => {
-        mocks.getActivePaymentForRsvp.mockResolvedValue({ id: 'pay-old', stripeSessionId: 'cs_old999' })
+        mocks.getActivePaymentForRsvp.mockResolvedValue({ id: 'pay-old', stripeSessionId: 'cs_old999', livemode: true })
         mocks.stripeSessionsExpire.mockRejectedValue(new Error('cannot expire'))
         mocks.stripeSessionsRetrieve.mockResolvedValue({ status, payment_status: paymentStatus })
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -376,7 +395,7 @@ describe('POST /api/rsvp — public payment branch (ISSUE-011)', () => {
     })
 
     it('keeps the previous row created and creates no replacement when Stripe state cannot be verified', async () => {
-        mocks.getActivePaymentForRsvp.mockResolvedValue({ id: 'pay-old', stripeSessionId: 'cs_old999' })
+        mocks.getActivePaymentForRsvp.mockResolvedValue({ id: 'pay-old', stripeSessionId: 'cs_old999', livemode: true })
         mocks.stripeSessionsExpire.mockRejectedValue(new Error('timeout'))
         mocks.stripeSessionsRetrieve.mockRejectedValue(new Error('timeout'))
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -443,6 +462,92 @@ describe('POST /api/rsvp — public payment branch (ISSUE-011)', () => {
     })
 })
 
+describe('POST /api/rsvp — Stripe mode per event (live vs test)', () => {
+    const testModeEvent = { ...paidEvent, stripeMode: 'test' }
+
+    beforeEach(() => {
+        vi.clearAllMocks()
+        installStripeClientMocks()
+        mocks.databaseConfigured = true
+        mocks.getEventBySlug.mockResolvedValue(testModeEvent)
+        mocks.getRsvpPlusOneForPaymentValidation.mockResolvedValue(false)
+        mocks.expireStalePendingRsvps.mockResolvedValue([])
+        mocks.saveRSVPPendingPayment.mockResolvedValue(pendingPaymentRsvp)
+        mocks.getActivePaymentForRsvp.mockResolvedValue(null)
+        mocks.stripeSessionsCreate.mockResolvedValue({ id: 'cs_test_demo', url: 'https://checkout.stripe.com/pay/cs_test_demo', livemode: false })
+        mocks.stripeSessionsExpire.mockResolvedValue({ status: 'expired', payment_status: 'unpaid' })
+        mocks.createRsvpPaymentRecord.mockResolvedValue({ id: 'pay-1', stripeSessionId: 'cs_test_demo' })
+        mocks.electSurvivingCreatedPayment.mockResolvedValue('pay-1')
+    })
+
+    it('a test-mode event creates its Checkout with the TEST client and records livemode=false', async () => {
+        const { POST } = await import('@/app/api/rsvp/route')
+        const response = await POST(request())
+
+        expect(response.status).toBe(201)
+        expect(mocks.stripeFor).toHaveBeenCalledWith('test')
+        expect(mocks.stripeFor).not.toHaveBeenCalledWith('live')
+        expect(mocks.createRsvpPaymentRecord).toHaveBeenCalledWith(expect.objectContaining({
+            stripeSessionId: 'cs_test_demo', livemode: false,
+        }))
+    })
+
+    it('without the key of the event mode, releases the seat and answers 503 before calling Stripe', async () => {
+        mocks.isStripeConfigured.mockImplementation((mode: string) => mode === 'live')
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+        const { POST } = await import('@/app/api/rsvp/route')
+        const response = await POST(request())
+
+        expect(response.status).toBe(503)
+        expect(mocks.isStripeConfigured).toHaveBeenCalledWith('test')
+        expect(mocks.stripeSessionsCreate).not.toHaveBeenCalled()
+        expect(mocks.expirePendingPaymentRsvp).toHaveBeenCalledWith('rsvp-1')
+        expect(mocks.createRsvpPaymentRecord).not.toHaveBeenCalled()
+        errorSpy.mockRestore()
+    })
+
+    it('fails closed when the configured key belongs to the other mode (a live session for a test event): expires it, never persists it', async () => {
+        mocks.stripeSessionsCreate.mockResolvedValue({ id: 'cs_live_wrongkey', url: 'https://checkout.stripe.com/pay/cs_live_wrongkey', livemode: true })
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+        const { POST } = await import('@/app/api/rsvp/route')
+        const response = await POST(request())
+
+        expect(response.status).toBe(503)
+        expect(mocks.stripeSessionsExpire).toHaveBeenCalledWith('cs_live_wrongkey')
+        expect(mocks.expirePendingPaymentRsvp).toHaveBeenCalledWith('rsvp-1')
+        expect(mocks.createRsvpPaymentRecord).not.toHaveBeenCalled()
+        errorSpy.mockRestore()
+    })
+
+    it('fails closed the same way when a LIVE event gets a test session (test key stored as STRIPE_SECRET_KEY)', async () => {
+        mocks.getEventBySlug.mockResolvedValue(paidEvent)
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+        const { POST } = await import('@/app/api/rsvp/route')
+        const response = await POST(request())
+
+        expect(response.status).toBe(503)
+        expect(mocks.stripeFor).toHaveBeenCalledWith('live')
+        expect(mocks.createRsvpPaymentRecord).not.toHaveBeenCalled()
+        errorSpy.mockRestore()
+    })
+
+    it('expires a previous open session with the mode it was CREATED in, not the event current mode', async () => {
+        // The event is now 'test', but the guest's open session was created while it was live.
+        mocks.getActivePaymentForRsvp.mockResolvedValue({ id: 'pay-old', stripeSessionId: 'cs_live_old', livemode: true })
+
+        const { POST } = await import('@/app/api/rsvp/route')
+        const response = await POST(request())
+
+        expect(response.status).toBe(201)
+        expect(mocks.stripeFor.mock.calls.map(call => call[0])).toEqual(['live', 'test'])
+        expect(mocks.stripeSessionsExpire).toHaveBeenCalledWith('cs_live_old')
+        expect(mocks.expireRsvpPaymentRecord).toHaveBeenCalledWith('pay-old')
+    })
+})
+
 const token = 'c'.repeat(43)
 
 function invitationRequest(overrides: Record<string, unknown> = {}, headers: Record<string, string> = {}) {
@@ -452,12 +557,13 @@ function invitationRequest(overrides: Record<string, unknown> = {}, headers: Rec
 describe('POST /api/rsvp — invitation payment branch (ISSUE-011)', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        installStripeClientMocks()
         mocks.databaseConfigured = true
         mocks.getEventBySlug.mockResolvedValue(paidEvent)
         mocks.getRsvpPlusOneForPaymentValidation.mockResolvedValue(false)
         mocks.expireStalePendingRsvps.mockResolvedValue([])
         mocks.getActivePaymentForRsvp.mockResolvedValue(null)
-        mocks.stripeSessionsCreate.mockResolvedValue({ id: 'cs_invite1', url: 'https://checkout.stripe.com/pay/cs_invite1' })
+        mocks.stripeSessionsCreate.mockResolvedValue({ id: 'cs_invite1', url: 'https://checkout.stripe.com/pay/cs_invite1', livemode: true })
         mocks.stripeSessionsExpire.mockResolvedValue({ status: 'expired', payment_status: 'unpaid' })
         mocks.createRsvpPaymentRecord.mockResolvedValue({ id: 'pay-2', stripeSessionId: 'cs_invite1' })
         mocks.electSurvivingCreatedPayment.mockResolvedValue('pay-2')
@@ -522,13 +628,14 @@ describe('POST /api/rsvp — invitation payment branch (ISSUE-011)', () => {
 describe('POST /api/rsvp — payment branch rate limit (ISSUE-014)', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        installStripeClientMocks()
         mocks.databaseConfigured = true
         mocks.getEventBySlug.mockResolvedValue(paidEvent)
         mocks.getRsvpPlusOneForPaymentValidation.mockResolvedValue(false)
         mocks.expireStalePendingRsvps.mockResolvedValue([])
         mocks.saveRSVPPendingPayment.mockResolvedValue(pendingPaymentRsvp)
         mocks.getActivePaymentForRsvp.mockResolvedValue(null)
-        mocks.stripeSessionsCreate.mockResolvedValue({ id: 'cs_new123', url: 'https://checkout.stripe.com/pay/cs_new123' })
+        mocks.stripeSessionsCreate.mockResolvedValue({ id: 'cs_new123', url: 'https://checkout.stripe.com/pay/cs_new123', livemode: true })
         mocks.stripeSessionsExpire.mockResolvedValue({ status: 'expired', payment_status: 'unpaid' })
         mocks.createRsvpPaymentRecord.mockResolvedValue({ id: 'pay-1', stripeSessionId: 'cs_new123' })
         mocks.electSurvivingCreatedPayment.mockResolvedValue('pay-1')
@@ -640,6 +747,7 @@ describe('POST /api/rsvp — payment branch rate limit (ISSUE-014)', () => {
 describe('GET /api/rsvp/payment-status (ISSUE-011)', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        installStripeClientMocks()
         mocks.databaseConfigured = true
     })
 
