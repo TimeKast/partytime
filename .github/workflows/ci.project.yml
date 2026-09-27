@@ -1,0 +1,40 @@
+# Project pipeline preserved from the pre-kit ci.yml. Keeps the `verify` job (required
+# status check on main) and the production build gate (A8-01: build without RESEND_API_KEY).
+
+name: CI (project)
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    # Cost guard: a push touching ONLY docs has nothing for this workflow to verify.
+    # A mixed docs+code push still runs (the filter skips only when EVERY path matches).
+    paths-ignore: ["project/**", "docs/**", "*.md"]
+
+# Supersede in-flight runs of the same ref — an outdated run is wasted billing.
+# Exception: never cancel on `main`, where every commit must stay verified.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    # Cost guard: GitHub's default job timeout is 6 HOURS, all of it billable.
+    # A hung job would burn 360 minutes of the monthly allowance.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
+      - run: pnpm test
+      # Build runs WITHOUT RESEND_API_KEY on purpose: it verifies the A8-01 fix
+      # (lib/resend.ts no longer throws at module load when the key is absent).
+      - run: pnpm run build
