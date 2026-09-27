@@ -1,0 +1,33 @@
+<!-- chart-line — línea / área sobre canvas pk-chart. La DATA (los `d` de los paths,
+     las coordenadas de dots, los y-ticks) se calcula por instancia: viewBox fijo
+     (ej. 0 0 320 132) + preserveAspectRatio="none" para que llene el ancho del card.
+     1 serie = área + stroke (s1). Multi-serie = varios <path class="line sN"> + direct
+     labels al final de cada línea (sin leyenda) — ver variante abajo. Colores por token
+     vía .s1..s4 (NO hex). Bajo el SVG va la fila de labels del eje X (.pk-chart-x). -->
+
+<!-- ── 1 serie (área + línea) ── -->
+<div class="pk-card">
+  <p class="mck-card-ttl">Título de la serie</p>
+  <svg class="pk-chart" style="height:132px" viewBox="0 0 320 132" preserveAspectRatio="none" role="img" aria-label="Descripción de la tendencia">
+    <line class="grid" x1="0" y1="20" x2="320" y2="20" />
+    <line class="grid" x1="0" y1="56" x2="320" y2="56" />
+    <line class="grid" x1="0" y1="92" x2="320" y2="92" />
+    <path class="area s1" d="M8,84 L52,60 L96,72 L140,38 L184,52 L228,28 L272,44 L312,22 L312,118 L8,118 Z" />
+    <path class="line s1" d="M8,84 L52,60 L96,72 L140,38 L184,52 L228,28 L272,44 L312,22" />
+    <circle class="dot s1" cx="312" cy="22" r="3" />
+  </svg>
+  <div class="pk-chart-x"><span>S-7</span><span>S-6</span><span>S-5</span><span>S-4</span><span>S-3</span><span>S-2</span><span>S-1</span><span>Actual</span></div>
+</div>
+
+<!-- ── Multi-serie (direct labels, sin leyenda) ── -->
+<!--
+  <svg class="pk-chart" style="height:150px" viewBox="0 0 320 150" preserveAspectRatio="none" role="img" aria-label="...">
+    <line class="grid" x1="20" y1="30" x2="320" y2="30"/> ...
+    <text class="tick" x="2" y="33">80</text> ...
+    <path class="line s1" d="..."/>  <text x="300" y="..." fill="var(--chart-1)" font-size="8">A-102</text>
+    <path class="line s2" d="..."/>  <text x="300" y="..." fill="var(--chart-2)" font-size="8">A-310</text>
+    <path class="line s3" d="..."/>  <text x="300" y="..." fill="var(--chart-3)" font-size="8">A-220</text>
+  </svg>
+  <div class="pk-chart-x inset"><span>S-5</span>…<span>Actual</span></div>   // .inset alinea con el plot cuando hay y-ticks
+-->
+

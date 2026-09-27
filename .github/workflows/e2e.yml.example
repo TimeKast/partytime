@@ -1,0 +1,227 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+#
+# E2E Workflow
+# Runs Playwright E2E tests with a Neon database on the org's self-hosted runner pool.
+#
+# This file is copied to .github/workflows/e2e.yml by `pnpm setup:e2e`.
+# Do not edit this template directly — it will be overwritten on next run.
+#
+# 🔴 WHERE THIS RUNS. `runs-on` targets the org's self-hosted pool
+# (TimeKast/gh-runner-pool: labels self-hosted/e2e/playwright, 4 vCPU + 12 GB per job).
+# Those runners ARE the Playwright image — browsers and system deps baked in — which is
+# why there is no `container:` block here any more: nesting one would need
+# Docker-in-Docker. The `playwright install` step below stays, and is what keeps this
+# correct for every consumer: it installs the version THIS repo's lockfile pins, so the
+# pool never has to guess (a version already baked into the image is a cache hit; one
+# that is not downloads once).
+#
+# Every PRIVATE repo of the TimeKast org can use the pool as-is: the runner group
+# (`e2e-pool`) is open to all of them, with no per-repo enrollment. Keep `runs-on` as it
+# is and regenerate this file freely — there is nothing to re-apply afterwards.
+# Only a repo OUTSIDE that set (public, or in another org) runs on GitHub-hosted, and
+# then it needs TWO edits, not one: `runs-on: ubuntu-latest`, and
+# `playwright install --with-deps chromium` — a hosted VM has no browser system libs
+# baked in the way the pool image does. The pnpm cache below adapts on its own.
+# Migration guide: .claude/docs/retrofits/self-hosted-e2e-pool.md
+#
+# Branch substitution: each `branches: [...]` line tagged with the trailing
+# TRIGGER_BRANCH anchor comment is rewritten at copy time to the repo's RELEASE
+# branch — its remote default, resolved from `origin/HEAD` — PLUS the working
+# branch you ran the setup on, when it is a different one (see
+# `formatTriggerBranches` in scripts/tools/setup-e2e.ts; fallback: 'main'). So a
+# develop-first repo gets `[main, develop]` and a main-first one `[main]`.
+# The literal value stays 'main' so a project that copies this template without
+# running the setup script still gets a safe default.
+#
+# Required GitHub Actions secrets (configure under Settings → Secrets and
+# variables → Actions, or let `pnpm setup:e2e` set them for you):
+#   - DATABASE_URL    Neon connection string the runner injects into Next.js.
+#   - NEON_API_KEY    Neon API key — the runner uses it to create an isolated
+#                     database branch per CI run (account → API Keys).
+#   - NEON_PROJECT_ID Neon project id the per-run branch is created under.
+#
+# Optional GitHub Actions VARIABLES (Settings → Secrets and variables → Actions
+# → Variables — not secrets):
+#   - NEXT_PUBLIC_AUTH_*  The project's auth flags, as `pnpm setup:e2e` publishes
+#                         them from `.env.local`. The step below is what puts them
+#                         in the job's environment, and it filters by that same
+#                         prefix. None published ⇒ the kit's defaults, unchanged.
+
+name: E2E
+
+on:
+  push:
+    # `pnpm setup:e2e` rewrites the anchored lines for you: the repo's release branch (its
+    # remote default — `main` almost always, `master` where that is the convention) plus the
+    # working branch you ran it on, when it differs. See the COSTO note above before widening
+    # this on a repo that still runs on GitHub-hosted runners.
+    branches: [main] # __TRIGGER_BRANCH__
+    # Docs-only commits can't change E2E outcomes, and E2E is the priciest workflow here.
+    # (Listed twice on purpose: GitHub Actions does NOT support YAML anchors/aliases.)
+    # ⚠️ If E2E is a REQUIRED status check on PRs, a docs-only PR is skipped — which
+    # GitHub reports as "not run", not "passed", and the PR stays blocked. Either drop
+    # `paths-ignore` from `pull_request` or make the check non-required.
+    paths-ignore: ['**/*.md', 'project/**', 'docs/**', '.claude/**']
+  pull_request:
+    branches: [main] # __TRIGGER_BRANCH__
+    paths-ignore: ['**/*.md', 'project/**', 'docs/**', '.claude/**']
+  workflow_dispatch:
+    inputs:
+      workers:
+        description: 'Playwright workers (vacío = el default de playwright.config.ts)'
+        required: false
+        default: ''
+      retries:
+        description: 'Playwright retries (0 para cazar carreras: nada queda enmascarado)'
+        required: false
+        default: ''
+
+# ⚠️ COSTO — por qué este workflow dispara donde dispara.
+#
+# E2E es, por mucho, el workflow más caro del kit: navegadores + build de producción +
+# branch efímero de Neon, ~4-12 min por corrida. **En el pool self-hosted no consume
+# minutos de GitHub** (cómputo propio, centavos por corrida), y por eso el default cubre
+# la rama de release Y la de trabajo: es ahí donde aterriza el código, y verificarlo solo
+# después del merge es verificarlo tarde.
+#
+# 🔴 Si tu repo NO está en el pool, ese cálculo se invierte: en runners de GitHub esta es
+# la corrida que más minutos consume, y dispararla en cada push a la rama de trabajo se
+# come la cuota mensual verificando algo que `/implement` ya corrió local y gratis en la
+# máquina del dev (tk-implement Phase 4.1). En ese caso deja UNA rama en los `branches:`
+# de abajo — la de release. Cómo entrar al pool:
+# .claude/docs/retrofits/self-hosted-e2e-pool.md
+#
+# Ojo con `pull_request` en un repo que mergea `develop` → `main` SIN PR (lo que hace
+# `/deploy`): ahí el evento nunca dispara y el único gate real es `push`. Si tu equipo sí
+# abre PR hacia `main`, `pull_request` te da el mismo gate ANTES del merge, que es mejor —
+# pero entonces `push` a `main` lo repite. Deja UNO de los dos según cómo mergees; tenerlos
+# ambos paga dos veces por el mismo commit.
+
+# Least privilege: without this block the job inherits the REPOSITORY default for
+# `GITHUB_TOKEN`, which is `write` in many orgs. This workflow only reads the code and
+# uploads a Playwright report — `actions/upload-artifact` authenticates with the runner's
+# own artifact token, not with `GITHUB_TOKEN`, so it does not need contents write either.
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: E2E Tests
+    # The org's self-hosted pool — open to every private repo of the org, no enrollment.
+    # Public or outside the org? See the header: `ubuntu-latest` + `--with-deps`.
+    runs-on: [self-hosted, e2e, playwright]
+    # Cost guard: GitHub's default job timeout is 6 HOURS, all of it billable. E2E is the
+    # most expensive workflow in the kit (Playwright container + a production build + a
+    # Neon branch), and a hung browser is its most likely failure — exactly the case the
+    # default would bill for 360 minutes. A full run is ~7-12 min; 30 is generous headroom.
+    timeout-minutes: 30
+
+    # Skip PRs from forks (no secrets access)
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+
+    env:
+      # V8 sizes its default old-space from the memory it can SEE, and inside the
+      # Playwright container that default lands well under what the production `next build`
+      # this suite runs needs — derived projects were hitting `JavaScript heap out of
+      # memory` and patching the value by hand in every repo. One explicit ceiling instead.
+      # Free in billed minutes: a ceiling reserves nothing, and an OOM re-run bills twice.
+      #
+      # Reaches the build and the Playwright process (the runner COMPOSES onto an inherited
+      # NODE_OPTIONS), but NOT the per-phase `next start` — that one is set by
+      # `serverEnvOverrides` in scripts/tools/e2e-runner.ts, which replaces the inherited
+      # value on purpose. Raise it there, not here.
+      NODE_OPTIONS: '--max-old-space-size=4096'
+      AUTH_SECRET: ci-test-secret-minimum-32-characters-required
+      AUTH_TRUST_HOST: "true"
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+      # The branch the run's throwaway Neon branch is CLONED FROM — NOT the branch this
+      # workflow fires on. CI fires on the release branch; the clone has to come from the
+      # working branch, where the migrations of the commit under test live.
+      #
+      # 🔴 Without this line `resolveParentBranchName()` returns undefined under CI by rule:
+      # the POST omits `parent_id` and Neon clones the project's DEFAULT branch, which in the
+      # kit's dual-database model is `main` — production. The suite then runs against a stale
+      # schema (every spec touching a new table dies with `relation ... does not exist`, which
+      # reads like a product bug) on top of a full copy of production data.
+      #
+      # `pnpm setup:e2e` rewrites this value from the branch you run it on. Change it here if
+      # you meant a different one — the setup warns before overwriting a value that differs.
+      #
+      # 🔴 Declared means enforced: if this branch does not resolve in Neon (missing, 403,
+      # timeout), the run ABORTS before creating anything instead of cloning the default
+      # branch. Remove the line only to knowingly accept the default as the parent.
+      E2E_PARENT_BRANCH: develop # __E2E_PARENT_BRANCH__
+
+    steps:
+      # `persist-credentials: false`: by default checkout leaves the job token in
+      # `.git/config` as an HTTP auth header, readable by EVERY later step of the job —
+      # including `pnpm install` and `playwright install`, which run third-party code.
+      # Nothing here pushes back to the repo, so the credential has no reason to survive.
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          # Only where it pays. On a GitHub-hosted runner every job starts on an empty
+          # machine, so restoring the pnpm store beats fetching from the registry. On the
+          # self-hosted pool the store already lives in the container between jobs, and
+          # the round-trip to GitHub's cache cost 1.3 min per job — measured — for
+          # something that was already on disk. An empty string disables the cache.
+          cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec playwright install chromium
+
+      # Las decisiones del wizard de auth del proyecto (registro abierto/cerrado, contraseña,
+      # passkey…) viven en `.env.local`, que es gitignored y nunca llega al runner. Sin este
+      # paso, CI corre con los defaults del kit: `register.spec.ts` prueba el registro contra
+      # una app que lo tiene cerrado, y pasa en verde.
+      #
+      # `pnpm setup:e2e` las publica como VARIABLES del repo (no secrets: son `NEXT_PUBLIC_*`,
+      # o sea que `next build` ya las inlinea en el bundle del cliente). Este paso va ANTES de
+      # `pnpm test:e2e` porque ahí adentro ocurre el build, que es cuando se hornean.
+      #
+      # 🔴 El filtro por prefijo se repite AQUÍ, del lado del consumidor: `toJSON(vars)` trae
+      # TODA variable del repo, incluida cualquiera que alguien agregue después en la UI de
+      # GitHub — y el runner spawnea con `{ ...process.env, ...overrides }`, así que un nombre
+      # como `NODE_OPTIONS` o `DATABASE_URL` entraría al build y al proceso de tests. El filtro
+      # vive en `selectCiEnv()` (scripts/tools/setup-e2e.ts) y NO en un `node -e` dentro de
+      # este YAML: un control que nadie puede testear no es un control.
+      #
+      # `node` (vía tsx), no `jq`: `jq` no está garantizado en `mcr.microsoft.com/playwright:*`.
+      # El JSON entra por `env:` y nunca interpolado en el `run`. La salida usa heredoc con
+      # delimitador aleatorio, no `clave=valor`: un valor con salto de línea corrompería
+      # $GITHUB_ENV y permitiría definir claves arbitrarias del job.
+      #
+      # Sin variables publicadas no escribe nada y el job sigue con los defaults del kit.
+      - name: Volcar las variables de auth del repo al entorno del job
+        env:
+          E2E_REPO_VARIABLES: ${{ toJSON(vars) }}
+        run: pnpm exec tsx scripts/tools/setup-e2e.ts --emit-ci-env >> "$GITHUB_ENV"
+
+      - name: Run E2E tests
+        env:
+          # Empty unless a `workflow_dispatch` supplied them → `playwright.config.ts`
+          # falls back to its own defaults. `E2E_RETRIES=0` is how a race is hunted:
+          # a retry re-runs a whole worker, which is exactly what hides one.
+          E2E_WORKERS: ${{ inputs.workers }}
+          E2E_RETRIES: ${{ inputs.retries }}
+        run: pnpm test:e2e
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

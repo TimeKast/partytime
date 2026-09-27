@@ -1,13 +1,40 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+#
+# CI Workflow - Base
+# Runs lint, typecheck, and unit tests.
+# E2E tests are in a separate workflow (only runs on main)
+#
+# Trigger scope: `push` is limited to the long-lived branches on purpose. Feature
+# branches are covered by the `pull_request` event, so listing them under `push`
+# too would run the SAME commit twice and bill both. `dev` is listed alongside
+# `develop` because some derived repos use the short name.
+
 name: CI
 
 on:
-  pull_request:
-    branches: [main]
   push:
-    branches: [main]
-    # Cost guard: a push touching ONLY docs has nothing for this workflow to verify.
-    # A mixed docs+code push still runs (the filter skips only when EVERY path matches).
-    paths-ignore: ["project/**", "docs/**", "*.md"]
+    branches: [main, develop, dev]
+    tags-ignore: ['**'] # Explicitly ignore tags
+    # Cost guard: a push that touches ONLY documentation has nothing for lint /
+    # typecheck / test to verify. A push that mixes docs with code does NOT match
+    # (the filter skips only when EVERY changed path matches), so coverage is intact.
+    #
+    # Deliberately NOT mirrored under `pull_request`: if CI ever becomes a required
+    # check, a docs-only PR would hang in `pending` forever with no run to report.
+    # `*.md` is root-only on purpose — `.claude/**/*.md` is the kit itself (skills,
+    # rules, agents), not docs, and is the natural place to grow CI validation.
+    paths-ignore:
+      - 'project/**'
+      - 'docs/**'
+      - '*.md'
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege: without this block every job inherits the REPOSITORY default for
+# `GITHUB_TOKEN`, which is `write` in many orgs. Nothing here writes to the repo — it
+# lints, typechecks and runs unit tests — so read access to the contents is all it needs.
+permissions:
+  contents: read
 
 # Supersede in-flight runs of the same ref — an outdated run is wasted billing.
 # Exception: never cancel on `main`, where every commit must stay verified.
@@ -16,22 +43,86 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  verify:
+  validate:
+    name: Lint, TypeCheck, Test
+    # `partytime` is a PUBLIC repo (`gh api repos/TimeKast/partytime` → visibility: public).
+    # The org's self-hosted pool (TimeKast/gh-runner-pool, runner group `e2e-pool`) has
+    # `allows_public_repositories: false` by design (a public repo's PRs — including from
+    # forks — would otherwise run arbitrary code on the org's self-hosted infra). Confirmed
+    # empirically: the kit's default `[self-hosted, linux, x64]` left this job queued
+    # indefinitely with 0 runners picking it up, while the identical line works for private
+    # derivatives (e.g. yalavi) with the exact same runner labels.
+    # Migration guide: .claude/docs/retrofits/self-hosted-e2e-pool.md §1 — "Solo un repo
+    # público ... se queda en hosted". If this repo is ever made private, switch back to
+    # `[self-hosted, linux, x64]` (the `cache:` ternary below already handles both cases).
     runs-on: ubuntu-latest
-    # Cost guard: GitHub's default job timeout is 6 HOURS, all of it billable.
-    # A hung job would burn 360 minutes of the monthly allowance.
+    # Cost guard: GitHub's default job timeout is 6 HOURS, all of it billable. A single
+    # hung job (stuck install, deadlocked test) would burn 360 minutes — a large slice of
+    # a monthly allowance. This suite runs in single digits; 15 min is generous headroom.
     timeout-minutes: 15
+
+    # V8 sizes its default old-space from the memory it can SEE, and a GitHub-hosted
+    # runner leaves that default well under what `next build` + a full Vitest run need —
+    # derived projects were hitting `JavaScript heap out of memory` and patching this
+    # value by hand in every repo. Declared here so the whole job inherits one explicit
+    # ceiling instead.
+    #
+    # This costs NOTHING in billed minutes: `--max-old-space-size` is a CEILING, not a
+    # reservation — no memory is taken up front, the runner type is unchanged, and the
+    # minute-based billing only counts wall clock. If anything it saves minutes, since an
+    # OOM today means a re-run that bills twice.
+    env:
+      NODE_OPTIONS: '--max-old-space-size=4096'
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      # `persist-credentials: false`: by default checkout leaves the job token in
+      # `.git/config` as an HTTP auth header, readable by EVERY later step of the job —
+      # including `pnpm install`, which runs third-party post-install scripts. No step
+      # here pushes back to the repo, so the credential has no reason to survive.
+      - name: Checkout
+        uses: actions/checkout@v6
         with:
-          node-version: 22
-          cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run lint
-      - run: pnpm test
-      # Build runs WITHOUT RESEND_API_KEY on purpose: it verifies the A8-01 fix
-      # (lib/resend.ts no longer throws at module load when the key is absent).
-      - run: pnpm run build
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          # Only where it pays: a hosted runner starts on an empty machine, so restoring
+          # the pnpm store beats the registry. On the self-hosted pool the store already
+          # lives in the container between jobs, and the round-trip to GitHub's cache cost
+          # 1.3 min per job — measured — for something already on disk. Empty = no cache.
+          cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: TypeCheck
+        run: pnpm typecheck
+
+      - name: Unit Tests
+        run: pnpm test
+
+      # Project-owned step (not part of the kit's default pipeline): this repo predates
+      # the kit and its own ci.yml (preserved at ci.project.yml for reference) always ran
+      # a production build as a real regression check — build runs WITHOUT RESEND_API_KEY
+      # on purpose, verifying the A8-01 fix (lib/resend.ts no longer throws at module load
+      # when the key is absent). The kit's default ci.yml has no build step; this one is
+      # added here rather than left only in ci.project.yml so it isn't a second, duplicate
+      # "CI"-named workflow (which would share this workflow's concurrency group and
+      # cancel it — see git history for the discarded ci.project.yml as a second workflow).
+      - name: Build
+        run: pnpm build
+
+      # Dead-code / unused-dependency detection. Non-blocking for this first
+      # iteration (continue-on-error) — surfaces findings without gating the
+      # pipeline while the existing knip backlog is still being cleaned up.
+      - name: Knip (dead code / deps)
+        run: pnpm knip
+        continue-on-error: true

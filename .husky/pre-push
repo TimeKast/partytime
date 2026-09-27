@@ -1,0 +1,23 @@
+#!/usr/bin/env sh
+# ============================================
+# TimeKast Factory — Pre-push Hook (Full)
+# Complete validation before pushing to remote
+# ============================================
+
+echo "🚀 Pre-push: Full validation..."
+
+# 1. TypeScript check
+echo "📘 TypeScript check..."
+pnpm typecheck || {
+  echo "❌ TypeScript errors found. Fix them before pushing."
+  exit 1
+}
+
+# 2. ESLint check
+echo "📋 ESLint check..."
+pnpm lint || {
+  echo "❌ ESLint errors found. Fix them before pushing."
+  exit 1
+}
+
+echo "✅ Pre-push validation passed! Pushing..."

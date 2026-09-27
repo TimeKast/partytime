@@ -1,0 +1,276 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --purple: #5b2d8e;
+  --purple-light: #f1ecf7;
+  --green: #00c853;
+  --teal: #4db6ac;
+  --bg: #ffffff;
+  --text: #1a1a2e;
+  --text-secondary: #555;
+  --border: #e2e8f0;
+  --code-bg: #f6f8fa;
+  --table-header-bg: #f1ecf7;
+  --table-stripe: #faf8fc;
+}
+
+/* ===== COVER PAGE ===== */
+.cover-page {
+  page-break-after: always;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 90vh;
+  text-align: center;
+  padding: 60px 40px;
+}
+
+.cover-logos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  margin-bottom: 60px;
+}
+
+.cover-logos img {
+  height: 80px;
+  object-fit: contain;
+}
+
+.cover-divider-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ccc;
+}
+
+.cover-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 42px;
+  font-weight: 700;
+  color: var(--purple);
+  margin: 0 0 12px 0;
+  letter-spacing: -0.5px;
+}
+
+.cover-subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin: 0 0 50px 0;
+  max-width: 500px;
+}
+
+.cover-line {
+  width: 120px;
+  height: 4px;
+  background: linear-gradient(90deg, var(--purple), var(--green));
+  border-radius: 2px;
+  margin-bottom: 50px;
+}
+
+.cover-meta {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: #888;
+  line-height: 2;
+}
+
+.cover-meta strong {
+  color: #555;
+  font-weight: 500;
+}
+
+.cover-badge {
+  display: inline-block;
+  background: var(--purple-light);
+  color: var(--purple);
+  font-weight: 600;
+  font-size: 11px;
+  padding: 4px 14px;
+  border-radius: 20px;
+  margin-top: 30px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.cover-footer {
+  margin-top: auto;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  color: #bbb;
+}
+
+/* ===== BODY ===== */
+body {
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  color: var(--text);
+  line-height: 1.7;
+  font-size: 13px;
+  max-width: 100%;
+  padding: 0;
+}
+
+/* Title */
+h1 {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--purple);
+  border-bottom: 3px solid var(--green);
+  padding-bottom: 10px;
+  margin-top: 40px;
+}
+
+h2 {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--purple);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+  margin-top: 30px;
+}
+
+h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  margin-top: 22px;
+}
+
+h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--purple);
+  margin-top: 16px;
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 14px 0;
+  font-size: 12px;
+}
+
+th {
+  background: var(--table-header-bg);
+  color: var(--purple);
+  font-weight: 600;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+td {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  vertical-align: top;
+}
+
+tr:nth-child(even) {
+  background: var(--table-stripe);
+}
+
+/* Blockquotes / callouts */
+blockquote {
+  border-left: 4px solid var(--purple);
+  background: #f8f5fc;
+  padding: 10px 14px;
+  margin: 14px 0;
+  border-radius: 0 6px 6px 0;
+  font-size: 12.5px;
+}
+
+blockquote strong {
+  color: var(--purple);
+}
+
+/* Code blocks */
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+code {
+  font-family: 'Menlo', 'Monaco', monospace;
+  font-size: 11.5px;
+  background: var(--code-bg);
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+}
+
+/* Lists */
+ul,
+ol {
+  padding-left: 22px;
+}
+
+li {
+  margin-bottom: 3px;
+}
+
+/* Horizontal rules */
+hr {
+  border: none;
+  height: 2px;
+  background: linear-gradient(90deg, var(--purple), var(--teal), transparent);
+  margin: 28px 0;
+}
+
+/* Links */
+a {
+  color: var(--purple);
+  text-decoration: none;
+}
+
+/* Strong emphasis */
+strong {
+  font-weight: 600;
+}
+
+/* Checkboxes */
+input[type='checkbox'] {
+  accent-color: var(--purple);
+}
+
+/* Page break helpers */
+h2 {
+  page-break-after: avoid;
+}
+
+table {
+  page-break-inside: avoid;
+}
+
+/* Appendix header */
+.appendix-break {
+  page-break-before: always;
+  text-align: center;
+  padding: 80px 0 20px 0;
+}
+
+.appendix-break h1 {
+  border-bottom: 3px solid var(--teal);
+  display: inline-block;
+  padding-bottom: 8px;
+}

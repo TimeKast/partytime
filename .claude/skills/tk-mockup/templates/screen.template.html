@@ -1,0 +1,38 @@
+<!--
+  screen.template.html — FRAGMENTO de una pantalla (modelo B'). NO es un HTML completo:
+  el shell ({slug}-mockup.html) provee el device frame + sidebar + header + bottomnav. Cada pantalla
+  aporta SOLO su body (lo que va dentro de .pk-body), y el shell lo intercambia al navegar.
+
+  Dos formas según ruta:
+
+  ── (protected) — pantalla con shell → fragmento de BODY:
+  <section class="mck-screen" data-screen="{{SLUG}}">
+    <!-- toggle de estados (omitir si 1 solo estado). data-state-for liga el toggle a ESTA sección -->
+    <div class="mck-states" data-state-for="{{SLUG}}">
+      <button class="on" data-state="{{state-1}}">{{Label-1}}</button>
+      <button data-state="{{state-2}}">{{Label-2}}</button>
+    </div>
+    <!-- uno o más paneles de estado (§9). El primero lleva 'on'. -->
+    <div class="pk-state on" data-state-panel="{{state-1}}"> {{contenido del estado}} </div>
+    <div class="pk-state" data-state-panel="{{state-2}}"> … </div>
+  </section>
+
+  ── (public/auth) — pantalla SIN shell → fragmento full-screen:
+  <section class="mck-auth-screen" data-screen="{{SLUG}}">
+    <div class="pk-auth"> {{logo var-driven vacío + h2 + sub + pk-card con campos}} </div>
+  </section>
+
+  Reglas (ver methodology/render-contract.md):
+    - Iconos inline desde lucide.json (cero data-icon en el output).
+    - Copy literal del §11. Binding §5 → primitivas pk-*. CMP → leer su .md.
+    - Brand var-driven (elementos .pk-logo/.pk-brand-name/.pk-auth-logo VACÍOS).
+    - NO emitir sidebar/header/bottomnav/device: eso vive en el shell, una sola vez.
+    - Estilos locales (helpers de composición) en un <style scoped> o anotados para que Phase 3 los
+      consolide en el <style> del shell.
+-->
+<section class="mck-screen" data-screen="{{SLUG}}">
+  <div class="mck-states" data-state-for="{{SLUG}}">
+    {{STATE_TABS}}
+  </div>
+  {{BODY_STATES}}
+</section>

@@ -1,0 +1,414 @@
+/* ============================================================================
+   TimeKast — Presentation Kit · theme.css
+   FROZEN at neomorphism 2.0 — do not regenerate; see SKINS-005.
+   This snapshot is intentionally decoupled from src/app/globals.css and uses the
+   original neomorphism vocab (--neo-*). It no longer follows the active skin.
+   Tokens for the 3 kit themes + neo utilities; all vars are self-contained.
+   ============================================================================ */
+
+/* ===== light ===== */
+/* Theme: Light */
+:root,
+.light {
+  /* Base — NOT pure white, slightly warm gray for neumo effect */
+  --background: #e0e5ec;
+  --foreground: #0f172a;
+
+  /* Cards & Surfaces — SAME as background (shadow defines edges) */
+  --card: #e0e5ec;
+  --card-foreground: #0f172a;
+  --card-border: transparent;
+
+  /* Sidebar */
+  --sidebar-bg: #d5dae2;
+  --sidebar-foreground: #334155;
+  --sidebar-active: #1e40af;
+  --sidebar-active-foreground: #1e293b;
+  --sidebar-border: transparent;
+
+  /* Header */
+  --header-bg: #e0e5ec;
+  --header-foreground: #0f172a;
+  --header-border: transparent;
+
+  /* Primary (Brand Blue) */
+  --primary: #1e40af;
+  --primary-foreground: #ffffff;
+  --primary-hover: #1e3a8a;
+
+  /* Secondary */
+  --secondary: #d5dae2;
+  --secondary-foreground: #0f172a;
+  --secondary-hover: #c8ced6;
+
+  /* Muted */
+  --muted: #d5dae2;
+  --muted-foreground: #64748b;
+
+  /* Accent */
+  --accent: #c8d4f0;
+  --accent-foreground: #1e40af;
+
+  /* Inputs */
+  --input-bg: #dce1e9;
+  --input-border: transparent;
+  --input-focus: #3b82f6;
+
+  /* Tables */
+  --table-header-bg: #d5dae2;
+  --table-header-foreground: #475569;
+  --table-row-bg: #e0e5ec;
+  --table-row-hover: #d8dde5;
+  --table-border: transparent;
+
+  /* Status Colors */
+  --success: #10b981;
+  --success-foreground: #ffffff;
+  --error: #ef4444;
+  --error-foreground: #ffffff;
+  --warning: #f59e0b;
+  --warning-foreground: #000000;
+  --info: #3b82f6;
+  --info-foreground: #ffffff;
+
+  /* ─── Neomorphism Shadow Tokens ─── */
+  --neo-light: rgba(245, 245, 245, 0.55);
+  --neo-dark: rgba(136, 150, 171, 0.35);
+  --neo-outset: 6px 6px 12px var(--neo-dark), -6px -6px 12px var(--neo-light);
+  --neo-outset-sm: 3px 3px 6px var(--neo-dark), -3px -3px 6px var(--neo-light);
+  --neo-outset-lg: 10px 10px 20px var(--neo-dark), -10px -10px 20px var(--neo-light);
+  --neo-outset-hover: 8px 8px 16px var(--neo-dark), -8px -8px 16px var(--neo-light);
+  --neo-float: 0 8px 32px rgba(136, 150, 171, 0.25), 0 2px 8px rgba(136, 150, 171, 0.15);
+  --neo-inset: inset 3px 3px 6px var(--neo-dark), inset -3px -3px 6px var(--neo-light);
+  --neo-inset-sm: inset 2px 2px 4px var(--neo-dark), inset -2px -2px 4px var(--neo-light);
+  --neo-pressed: inset 4px 4px 8px var(--neo-dark), inset -4px -4px 8px var(--neo-light);
+  --neo-flat: none;
+
+  /* Legacy shadow mapping → neumorphic */
+  --shadow-sm: var(--neo-outset-sm);
+  --shadow-md: var(--neo-outset);
+  --shadow-lg: var(--neo-outset-lg);
+
+  /* shadcn/ui compatibility tokens */
+  --border: transparent;
+  --ring: #3b82f6;
+  --radius: 0.75rem;
+  --popover: #e0e5ec;
+  --popover-foreground: #0f172a;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+
+  /* Showcase Banner */
+  --showcase-banner-bg: rgba(245, 158, 11, 0.2);
+  --showcase-banner-text: #78350f;
+
+  /* ─── Badge Color Tokens ─── */
+  --badge-purple-bg: rgba(147, 51, 234, 0.18);
+  --badge-purple-text: #6b21a8;
+  --badge-purple-dot: #9333ea;
+  --badge-blue-bg: rgba(59, 130, 246, 0.18);
+  --badge-blue-text: #1e40af;
+  --badge-blue-dot: #3b82f6;
+  --badge-slate-bg: rgba(100, 116, 139, 0.18);
+  --badge-slate-text: #334155;
+  --badge-slate-dot: #94a3b8;
+  --badge-emerald-bg: rgba(16, 185, 129, 0.18);
+  --badge-emerald-text: #065f46;
+  --badge-emerald-dot: #10b981;
+  --badge-red-bg: rgba(239, 68, 68, 0.18);
+  --badge-red-text: #991b1b;
+  --badge-red-dot: #ef4444;
+  --badge-amber-bg: rgba(245, 158, 11, 0.18);
+  --badge-amber-text: #92400e;
+  --badge-amber-dot: #f59e0b;
+  --badge-pink-bg: rgba(236, 72, 153, 0.18);
+  --badge-pink-text: #9d174d;
+  --badge-pink-dot: #ec4899;
+}
+
+/* ===== midnight ===== */
+/* Theme: Midnight (Deep Blue) */
+.midnight {
+  --background: #1a2332;
+  --foreground: #e2e8f0;
+
+  --card: #1a2332;
+  --card-foreground: #e2e8f0;
+  --card-border: transparent;
+
+  --sidebar-bg: #162029;
+  --sidebar-foreground: #94a3b8;
+  --sidebar-active: #3b82f6;
+  --sidebar-active-foreground: #ffffff;
+  --sidebar-border: transparent;
+
+  --header-bg: #1a2332;
+  --header-foreground: #e2e8f0;
+  --header-border: transparent;
+
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --primary-hover: #2563eb;
+
+  --secondary: #243244;
+  --secondary-foreground: #e2e8f0;
+  --secondary-hover: #2e3f54;
+
+  --muted: #1f2d3d;
+  --muted-foreground: #94a3b8;
+
+  --accent: #1e3a8a;
+  --accent-foreground: #93c5fd;
+
+  --input-bg: #182030;
+  --input-border: transparent;
+  --input-focus: #3b82f6;
+
+  --table-header-bg: #243244;
+  --table-header-foreground: #e2e8f0;
+  --table-row-bg: #1a2332;
+  --table-row-hover: #1f2d3d;
+  --table-border: transparent;
+
+  --success: #22c55e;
+  --success-foreground: #ffffff;
+  --error: #f87171;
+  --error-foreground: #ffffff;
+  --warning: #fbbf24;
+  --warning-foreground: #000000;
+  --info: #60a5fa;
+  --info-foreground: #ffffff;
+
+  /* ─── Neomorphism Shadow Tokens ─── */
+  --neo-light: rgba(35, 55, 80, 0.7);
+  --neo-dark: rgba(10, 15, 25, 0.7);
+  --neo-outset: 6px 6px 12px var(--neo-dark), -6px -6px 12px var(--neo-light);
+  --neo-outset-sm: 3px 3px 6px var(--neo-dark), -3px -3px 6px var(--neo-light);
+  --neo-outset-lg: 10px 10px 20px var(--neo-dark), -10px -10px 20px var(--neo-light);
+  --neo-outset-hover: 8px 8px 16px var(--neo-dark), -8px -8px 16px var(--neo-light);
+  --neo-float: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --neo-inset: inset 3px 3px 6px var(--neo-dark), inset -3px -3px 6px var(--neo-light);
+  --neo-inset-sm: inset 2px 2px 4px var(--neo-dark), inset -2px -2px 4px var(--neo-light);
+  --neo-pressed: inset 4px 4px 8px var(--neo-dark), inset -4px -4px 8px var(--neo-light);
+  --neo-flat: none;
+
+  --shadow-sm: var(--neo-outset-sm);
+  --shadow-md: var(--neo-outset);
+  --shadow-lg: var(--neo-outset-lg);
+
+  --border: transparent;
+  --ring: #3b82f6;
+  --radius: 0.75rem;
+  --popover: #1a2332;
+  --popover-foreground: #e2e8f0;
+  --destructive: #f87171;
+  --destructive-foreground: #ffffff;
+
+  /* Showcase Banner */
+  --showcase-banner-bg: rgba(245, 158, 11, 0.15);
+  --showcase-banner-text: #fde68ae6;
+
+  /* ─── Badge Color Tokens ─── */
+  --badge-purple-bg: rgba(168, 85, 247, 0.25);
+  --badge-purple-text: #d8b4fe;
+  --badge-purple-dot: #a855f7;
+  --badge-blue-bg: rgba(96, 165, 250, 0.25);
+  --badge-blue-text: #93c5fd;
+  --badge-blue-dot: #60a5fa;
+  --badge-slate-bg: rgba(148, 163, 184, 0.25);
+  --badge-slate-text: #cbd5e1;
+  --badge-slate-dot: #94a3b8;
+  --badge-emerald-bg: rgba(52, 211, 153, 0.25);
+  --badge-emerald-text: #6ee7b7;
+  --badge-emerald-dot: #34d399;
+  --badge-red-bg: rgba(248, 113, 113, 0.25);
+  --badge-red-text: #fca5a5;
+  --badge-red-dot: #f87171;
+  --badge-amber-bg: rgba(251, 191, 36, 0.25);
+  --badge-amber-text: #fde68a;
+  --badge-amber-dot: #fbbf24;
+  --badge-pink-bg: rgba(244, 114, 182, 0.25);
+  --badge-pink-text: #f9a8d4;
+  --badge-pink-dot: #f472b6;
+}
+
+/* ===== dark ===== */
+/* Theme: Dark (Charcoal) */
+.dark {
+  --background: #2d2d32;
+  --foreground: #e4e4e7;
+
+  --card: #2d2d32;
+  --card-foreground: #e4e4e7;
+  --card-border: transparent;
+
+  --sidebar-bg: #262629;
+  --sidebar-foreground: #a1a1aa;
+  --sidebar-active: #60a5fa;
+  --sidebar-active-foreground: #ffffff;
+  --sidebar-border: transparent;
+
+  --header-bg: #2d2d32;
+  --header-foreground: #e4e4e7;
+  --header-border: transparent;
+
+  --primary: #60a5fa;
+  --primary-foreground: #ffffff;
+  --primary-hover: #52525b;
+
+  --secondary: #3a3a3f;
+  --secondary-foreground: #e4e4e7;
+  --secondary-hover: #454549;
+
+  --muted: #35353a;
+  --muted-foreground: #a1a1aa;
+
+  --accent: rgba(96, 165, 250, 0.15);
+  --accent-foreground: #93bbfd;
+
+  --input-bg: #2a2a2f;
+  --input-border: transparent;
+  --input-focus: #60a5fa;
+
+  --table-header-bg: #3a3a3f;
+  --table-header-foreground: #e4e4e7;
+  --table-row-bg: #2d2d32;
+  --table-row-hover: #35353a;
+  --table-border: transparent;
+
+  --success: #4ade80;
+  --success-foreground: #000000;
+  --error: #f87171;
+  --error-foreground: #000000;
+  --warning: #fcd34d;
+  --warning-foreground: #000000;
+  --info: #93c5fd;
+  --info-foreground: #000000;
+
+  /* ─── Neomorphism Shadow Tokens ─── */
+  --neo-light: rgba(60, 60, 67, 0.6);
+  --neo-dark: rgba(15, 15, 18, 0.7);
+  --neo-outset: 6px 6px 12px var(--neo-dark), -6px -6px 12px var(--neo-light);
+  --neo-outset-sm: 3px 3px 6px var(--neo-dark), -3px -3px 6px var(--neo-light);
+  --neo-outset-lg: 10px 10px 20px var(--neo-dark), -10px -10px 20px var(--neo-light);
+  --neo-outset-hover: 8px 8px 16px var(--neo-dark), -8px -8px 16px var(--neo-light);
+  --neo-float: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --neo-inset: inset 3px 3px 6px var(--neo-dark), inset -3px -3px 6px var(--neo-light);
+  --neo-inset-sm: inset 2px 2px 4px var(--neo-dark), inset -2px -2px 4px var(--neo-light);
+  --neo-pressed: inset 4px 4px 8px var(--neo-dark), inset -4px -4px 8px var(--neo-light);
+  --neo-flat: none;
+
+  --shadow-sm: var(--neo-outset-sm);
+  --shadow-md: var(--neo-outset);
+  --shadow-lg: var(--neo-outset-lg);
+
+  --border: transparent;
+  --ring: #a1a1aa;
+  --radius: 0.75rem;
+  --popover: #2d2d32;
+  --popover-foreground: #e4e4e7;
+  --destructive: #f87171;
+  --destructive-foreground: #ffffff;
+
+  /* Showcase Banner */
+  --showcase-banner-bg: rgba(245, 158, 11, 0.15);
+  --showcase-banner-text: #fde68ae6;
+
+  /* ─── Badge Color Tokens ─── */
+  --badge-purple-bg: rgba(168, 85, 247, 0.25);
+  --badge-purple-text: #d8b4fe;
+  --badge-purple-dot: #a855f7;
+  --badge-blue-bg: rgba(96, 165, 250, 0.25);
+  --badge-blue-text: #93c5fd;
+  --badge-blue-dot: #60a5fa;
+  --badge-slate-bg: rgba(148, 163, 184, 0.25);
+  --badge-slate-text: #cbd5e1;
+  --badge-slate-dot: #94a3b8;
+  --badge-emerald-bg: rgba(52, 211, 153, 0.25);
+  --badge-emerald-text: #6ee7b7;
+  --badge-emerald-dot: #34d399;
+  --badge-red-bg: rgba(248, 113, 113, 0.25);
+  --badge-red-text: #fca5a5;
+  --badge-red-dot: #f87171;
+  --badge-amber-bg: rgba(251, 191, 36, 0.25);
+  --badge-amber-text: #fde68a;
+  --badge-amber-dot: #fbbf24;
+  --badge-pink-bg: rgba(244, 114, 182, 0.25);
+  --badge-pink-text: #f9a8d4;
+  --badge-pink-dot: #f472b6;
+}
+
+/* ===== utilities ===== */
+/* ===== NEUMORPHIC UTILITY CLASSES ===== */
+/* All classes add border: none — shadows define edges */
+.neo-outset {
+  box-shadow: var(--neo-outset);
+  border: none;
+}
+.neo-outset-sm {
+  box-shadow: var(--neo-outset-sm);
+  border: none;
+}
+.neo-outset-lg {
+  box-shadow: var(--neo-outset-lg);
+  border: none;
+}
+.neo-outset-hover {
+  box-shadow: var(--neo-outset-hover);
+  border: none;
+}
+.neo-inset {
+  box-shadow: var(--neo-inset);
+  border: none;
+}
+.neo-inset-sm {
+  box-shadow: var(--neo-inset-sm);
+  border: none;
+}
+.neo-pressed {
+  box-shadow: var(--neo-pressed);
+  border: none;
+}
+.neo-flat {
+  box-shadow: var(--neo-flat);
+  border: none;
+}
+.neo-float {
+  box-shadow: var(--neo-float);
+  border: none;
+}
+
+.neo-interactive {
+  box-shadow: var(--neo-outset-sm);
+  border: none;
+  transition: box-shadow 0.2s ease;
+}
+.neo-interactive:hover {
+  box-shadow: var(--neo-outset);
+}
+.neo-interactive:active {
+  box-shadow: var(--neo-pressed);
+}
+
+.neo-focus:focus-visible {
+  box-shadow:
+    0 0 0 3px var(--ring),
+    var(--neo-outset-sm);
+  outline: none;
+}
+.neo-focus-inset:focus-visible {
+  box-shadow:
+    0 0 0 3px var(--ring),
+    var(--neo-inset);
+  outline: none;
+}
+
+/* Focus ring utility */
+.focus-ring {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--primary);
+}

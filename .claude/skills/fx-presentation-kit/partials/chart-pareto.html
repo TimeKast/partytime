@@ -1,0 +1,36 @@
+<!-- chart-pareto — combo barras + línea de % acumulado (eje secundario) + umbral.
+     Recurrente en BI de concentración (ABC, mix de revenue). La DATA (alturas de
+     barras por clase, ruta de la curva acumulada, y-ticks) se calcula por instancia.
+     Barras: .bar (clase A) · .bar.b (clase B) · .bar.c (clase C). Curva acumulada:
+     .cum (+ .cumdot en los vértices). Umbral 80%: .threshold (punteado). Leyenda
+     HTML con .pk-chart-legend (los <i> usan el color de cada clase vía token). -->
+<div class="pk-card">
+  <p class="mck-card-ttl">Concentración (Pareto)</p>
+  <svg class="pk-chart" style="height:158px" viewBox="0 0 320 158" preserveAspectRatio="none" role="img" aria-label="Pareto: barras de valor por ítem y línea de porcentaje acumulado">
+    <line class="grid" x1="16" y1="14" x2="304" y2="14" />
+    <line class="grid" x1="16" y1="42" x2="304" y2="42" />
+    <line class="grid" x1="16" y1="70" x2="304" y2="70" />
+    <text class="tick" x="0" y="17">100</text>
+    <text class="tick" x="2" y="73">60</text>
+    <text class="tick" x="2" y="129">20</text>
+    <!-- barras por clase (altura = valor) -->
+    <rect class="bar" x="20" y="30" width="22" height="100" rx="2" />
+    <rect class="bar" x="48" y="44" width="22" height="86" rx="2" />
+    <rect class="bar" x="76" y="58" width="22" height="72" rx="2" />
+    <rect class="bar b" x="104" y="78" width="22" height="52" rx="2" />
+    <rect class="bar b" x="132" y="92" width="22" height="38" rx="2" />
+    <rect class="bar c" x="160" y="106" width="22" height="24" rx="2" />
+    <rect class="bar c" x="188" y="114" width="22" height="16" rx="2" />
+    <!-- umbral 80% + curva acumulada -->
+    <line class="threshold" x1="16" y1="42" x2="304" y2="42" />
+    <path class="cum" d="M31,120 L59,86 L87,64 L115,52 L143,44 L171,38 L199,33 L227,30 L255,28 L283,27" />
+    <circle class="cumdot" cx="143" cy="44" r="2.5" />
+    <circle class="cumdot" cx="283" cy="27" r="2.5" />
+  </svg>
+  <div class="pk-chart-legend">
+    <span><i style="background:var(--chart-1)"></i>Clase A</span>
+    <span><i style="background:var(--chart-3)"></i>Clase B</span>
+    <span><i class="c" style="background:var(--muted-foreground)"></i>Clase C</span>
+    <span><i style="background:var(--chart-2)"></i>% acumulado</span>
+  </div>
+</div>

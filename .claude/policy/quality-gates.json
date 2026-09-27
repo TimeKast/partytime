@@ -1,0 +1,286 @@
+{
+  "panel_by_risk": {
+    "0": [],
+    "1": [],
+    "2": [
+      "quality-engineer"
+    ],
+    "3": [
+      "quality-engineer"
+    ],
+    "4": [
+      "quality-engineer",
+      "security-auditor",
+      "architect"
+    ]
+  },
+  "rules": [
+    {
+      "when": {
+        "paths": [
+          "src/**"
+        ]
+      },
+      "risk": 2,
+      "require": []
+    },
+    {
+      "when": {
+        "paths": [
+          "src/components/**",
+          "src/app/**/page.tsx"
+        ]
+      },
+      "risk": 2,
+      "require": [
+        "ui-critic"
+      ]
+    },
+    {
+      "when": {
+        "paths": [
+          "src/lib/actions/**",
+          "src/app/api/**"
+        ]
+      },
+      "risk": 3,
+      "require": [
+        "security-auditor"
+      ]
+    },
+    {
+      "when": {
+        "paths": [
+          "src/lib/db/schema/**",
+          "**/migrations/**"
+        ]
+      },
+      "risk": 3,
+      "require": [
+        "security-auditor",
+        "architect"
+      ]
+    },
+    {
+      "when": {
+        "paths": [
+          "src/lib/auth/**",
+          "src/proxy.ts",
+          "src/middleware.ts",
+          "src/config/roles.ts"
+        ]
+      },
+      "risk": 4,
+      "require": [
+        "security-auditor",
+        "architect"
+      ]
+    },
+    {
+      "when": {
+        "paths": [
+          "cli/src/**",
+          "desktop/**"
+        ]
+      },
+      "risk": 2,
+      "require": []
+    },
+    {
+      "when": {
+        "paths": [
+          "scripts/tools/**"
+        ]
+      },
+      "risk": 2,
+      "require": []
+    },
+    {
+      "when": {
+        "paths": [
+          "cli/src/commands/provision.ts",
+          "cli/src/commands/env.ts",
+          "cli/src/commands/invite-admin.ts",
+          "cli/src/lib/preflight.ts",
+          "cli/src/lib/provision-preflight.ts",
+          "cli/src/lib/env-file.ts",
+          "cli/src/lib/env-wizard.ts",
+          "cli/src/lib/neon-api.ts",
+          "scripts/tools/db-query.ts",
+          "scripts/tools/invite-admin.ts",
+          "scripts/tools/neon-branch.ts",
+          "scripts/tools/e2e-runner.ts",
+          "scripts/tools/harden-enum.ts",
+          "scripts/tools/preflight.ts",
+          "scripts/tools/setup-e2e.ts",
+          "scripts/tools/shortio.sh",
+          "scripts/tools/gamma-generate.sh",
+          "cli/src/lib/rail.ts",
+          "cli/src/lib/railway-api.ts",
+          "cli/src/lib/cloudflare-api.ts",
+          "cli/src/lib/vault-*.ts",
+          "cli/src/lib/wrapper-wiring.ts",
+          "cli/src/commands/vault.ts",
+          "scripts/tools/with-vault.mjs",
+          "scripts/tools/lib/rail.sh",
+          "scripts/tools/proposal-asset-upload.sh",
+          "cli/src/lib/backlog-mapping.ts",
+          "cli/src/lib/vercel-env.ts",
+          "cli/src/commands/doctor.ts",
+          "cli/src/commands/status.ts"
+        ]
+      },
+      "risk": 3,
+      "require": [
+        "security-auditor"
+      ]
+    },
+    {
+      "when": {
+        "paths": [
+          "cli/src/commands/update.ts",
+          "cli/src/lib/atomic-swap.ts",
+          "cli/src/lib/lockfile.ts"
+        ]
+      },
+      "risk": 3,
+      "require": [
+        "architect"
+      ]
+    },
+    {
+      "when": {
+        "paths": [
+          ".claude/**"
+        ],
+        "exceptPaths": [
+          ".claude/skills/pj-*/**"
+        ]
+      },
+      "risk": 2,
+      "require": [
+        "fx-factory-reviewer"
+      ]
+    },
+    {
+      "when": {
+        "paths": [
+          ".claude/rules/**",
+          ".claude/policy/**"
+        ]
+      },
+      "risk": 3,
+      "require": [
+        "architect"
+      ]
+    },
+    {
+      "when": {
+        "paths": [
+          ".claude/settings.json"
+        ]
+      },
+      "risk": 4,
+      "require": []
+    },
+    {
+      "when": {
+        "paths": [
+          ".claude/hooks/**",
+          ".husky/**",
+          ".github/workflows/**"
+        ]
+      },
+      "risk": 2,
+      "require": []
+    },
+    {
+      "when": {
+        "signal": "new-dependency"
+      },
+      "risk": 3,
+      "require": [
+        "architect"
+      ]
+    },
+    {
+      "when": {
+        "signal": "no-adr"
+      },
+      "risk": 3,
+      "require": [
+        "architect"
+      ]
+    },
+    {
+      "when": {
+        "signal": "meta-foundation"
+      },
+      "risk": 3,
+      "require": [
+        "architect"
+      ]
+    },
+    {
+      "when": {
+        "signal": "destructive-migration"
+      },
+      "risk": 4,
+      "require": [
+        "security-auditor",
+        "architect"
+      ]
+    },
+    {
+      "when": {
+        "signal": "combined-auth-schema",
+        "pathSets": {
+          "auth": [
+            "src/lib/auth/**",
+            "src/proxy.ts",
+            "src/middleware.ts",
+            "src/config/roles.ts",
+            "src/app/api/auth/**"
+          ],
+          "schema": [
+            "src/lib/db/schema/**",
+            "**/migrations/**"
+          ]
+        }
+      },
+      "risk": 4,
+      "require": [
+        "security-auditor",
+        "architect"
+      ]
+    }
+  ],
+  "review": {
+    "default_mode": "adversarial",
+    "informative": [],
+    "precedence": "workflow-gates-win",
+    "unevidenced_dirties": false,
+    "loop_by_risk": {
+      "0": {
+        "clean_rounds": 1,
+        "severity_floor": "breaks"
+      },
+      "1": {
+        "clean_rounds": 1,
+        "severity_floor": "breaks"
+      },
+      "2": {
+        "clean_rounds": 1,
+        "severity_floor": "wrong"
+      },
+      "3": {
+        "clean_rounds": 2,
+        "severity_floor": "wrong"
+      },
+      "4": {
+        "clean_rounds": 2,
+        "severity_floor": "wrong"
+      }
+    }
+  }
+}

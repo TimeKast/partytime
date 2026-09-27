@@ -1,0 +1,99 @@
+# =====================================================================
+# TimeKast Factory — tarifas de /estimate (DEFAULTS DEL KIT)
+# ---------------------------------------------------------------------
+# Viaja con el cerebro (.claude/): cualquier checkout sabe cotizar sin
+# configuración previa.
+#
+# Override por host (opcional, fuera del repo, gana sobre este archivo
+# campo por campo):
+#   1. ~/.claude/estimate-rates.yml
+#   2. ~/.agent/config/estimate-rates.yml   (ubicación legacy, se sigue leyendo)
+#
+# 🔴 Aquí NO van precedentes de proyectos ni nombres de clientes. Las
+#    anclas históricas (lo cobrado a quién) viven solo en el override del
+#    host, nunca en el kit.
+#
+# El §10 de cada 00b_INTERNAL_ESTIMATE.md es un SNAPSHOT de estos valores
+# (defaults + override) al momento de E0. /estimate refresh lee el §10,
+# no este archivo.
+# =====================================================================
+
+schema: story_points_v1
+version: 3
+last_confirmed: 2026-09-04 # >90 días → E0 pide reconfirmación (no STOP)
+
+pricing:
+  mode: calibrated # interim | calibrated — calibrated = derivado de horas y puntos medidos
+  precio_base_mxn: 0 # el piso NO es sumando de la fórmula; la base queda en 0
+  precio_minimo_proyecto_mxn: 50000 # PISO ÚNICO, aplica en modo solo y modo equipo
+  tarifa_por_punto_mxn: 600 # = tarifa_hora_dirigida_objetivo / densidad (2,000 / 3.3)
+  tarifa_hora_dirigida_objetivo_mxn: 2000 # PISO de la hora dirigida, no objetivo móvil
+  moneda: MXN
+  usd_to_mxn: 18.5
+
+calibration:
+  velocity_pts_semana: 20 # throughput de la Factory, no duración del punto
+  densidad_pts_por_hora_dirigida: 3.93 # SP entregados / hora de sesión de agente (medido, 2 proyectos)
+  # 🔴 "Hora dirigida" = hora de SESIÓN de Claude Code (lo que mide el timelog).
+  #    No incluye probar en navegador, juntas ni llamadas con el cliente.
+  # ⚠️ La tarifa por punto NO baja cuando sube la densidad: el pipeline acelera y
+  #    recalcular hacia abajo regalaría la ganancia de productividad al cliente.
+  costo_factory_mxn_por_hora_dirigida: 1076 # consumo de tokens a precio API por hora dirigida.
+  #    Recalibrar con `npx @timekast/factory usage` (consumo real desde transcripts).
+  token_units_por_punto: 3.0 # solo modo interim — unidad de cómputo, NO horas humanas
+
+factory_cost_model: # referencia del modelo de tokens (modo interim)
+  hour_distribution: { implementation_pct: 70, debugging_pct: 20, docs_pct: 10 }
+  token_consumption_per_hour:
+    implementation: { input: 180000, output: 45000, cached_pct: 60 }
+    debugging: { input: 220000, output: 30000, cached_pct: 40 }
+    docs: { input: 100000, output: 25000, cached_pct: 70 }
+  pricing_claude: # USD por 1M tokens — validar vigencia
+    opus_input_per_1m: 15
+    opus_output_per_1m: 75
+    cache_read_per_1m: 1.50
+    cache_write_per_1m: 18.75
+
+tiers_reference: # etiqueta + sanity-check; nunca fuente del cálculo
+  XS: { dias: 5, pts: '1-62' }
+  S: { dias: 8, pts: '63-100' }
+  M: { dias: 13, pts: '101-162' }
+  L: { dias: 21, pts: '163-262' }
+  XL: { dias: 32, pts: '263-400' }
+  Epico: { dias: 43, pts: '401+' }
+
+cobertura: # bolsa de riesgo finita — score de señales → %
+  bajo: { score: '0-20', pct: 10 } # 10% es PISO, nunca cero
+  medio: { score: '21-40', pct: 20 }
+  alto: { score: '41-60', pct: 30 }
+  muy_alto: { score: '61+', pct: 40 }
+
+infra: # validar contra pricing vigente antes de cerrar
+  vercel_tier_usd_per_month: 20
+  neon_usd_per_month: 19
+  auth_provider: authjs # authjs | neon_auth
+
+support:
+  care_mxn: 6000
+  pro_mxn: 15000 # default recomendado
+  priority_mxn: 27000
+
+policy:
+  rondas_revision_incluidas: 2
+  change_order: todo punto nuevo post-firma se cotiza aparte
+
+compensacion: # puente a la hoja de compensación por roles
+  modo: equipo # equipo | solo — solo = sin vendedor/finder/PM
+  sp_por_dia_activo: 12.5 # curado_dias = SP / 12.5
+  horas_por_dia_activo: 3.0 # un "día" de la hoja NO son 8 h
+  dias_activos_por_dia_habil: 0.27 # solo ~20-31% del calendario tiene trabajo real
+  tarifa_diaria_mxn: 2000
+  pct_vendedor: 10
+  pct_finder: 5
+  margen_objetivo_pct: 45
+  fases_fijas_dias: { brief: 1, discovery: 3, implement: 3, lanzamiento: 3 }
+  proyectos_por_pm: 3
+  revisiones_por_semana: 3
+  carga_po_por_revision_dias: 0.3
+  carga_pm_por_revision_dias: 0.2
+  costo_referencia_xs_equipo_mxn: 84500 # lo que cuesta entregar un XS con equipo completo

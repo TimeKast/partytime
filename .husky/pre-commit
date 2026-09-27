@@ -1,0 +1,189 @@
+#!/usr/bin/env sh
+# ============================================
+# TimeKast Factory — Pre-commit Hook
+# Runs lint-staged before each commit
+#
+# DERIVATIVE-SAFE RULES (this file ships to derivatives via `factory update`
+# and runs against a dev-owned package.json + a frozen src/):
+#   1. A brain-shipped step is invoked BY PATH with an existence guard —
+#      NEVER by a bare pnpm alias (the alias lives in the dev-owned
+#      package.json, which the update does not control).
+#   2. Steps that predate a derivative's package.json use
+#      `pnpm run --if-present` — a missing alias must never abort commits
+#      (stale autogen is acceptable degradation; a blocked repo is not).
+#   3. Project-specific steps live in `.husky/pre-commit.project` (dev-owned,
+#      never shipped nor overwritten — see the extension point at the bottom).
+# ============================================
+
+# Abort on any non-zero exit. Without this, lint-staged failures fall
+# through and the hook still completes the commit. Existing `|| true`
+# guards on optional `git add` calls keep working.
+set -e
+
+# --- Marca de commit-por-pathspec (la lee .husky/post-commit) ---------------
+# `git commit -- <paths>` (GIT.md §3.6.1, el camino multi-agente) corre este hook
+# contra un índice TEMPORAL (`.git/next-index-*.lock`) y, al terminar, escribe en el
+# índice REAL el estado PREVIO al hook. Resultado: todo archivo que este hook reescribe
+# —prettier vía lint-staged, update-board, el autogen de reference— queda reportado como
+# staged-pero-idéntico una vez commiteado, y `git status` declara sucio un árbol que no
+# lo está. Ese falso positivo dispara los propios gates de árbol limpio del kit
+# (`/implement` Phase 0 se niega a arrancar sobre él).
+#
+# Es comportamiento de git, NO de lint-staged: un hook de dos líneas sin lint-staged en
+# ningún lado lo reproduce igual. Por eso la reparación vive en `post-commit` y se activa
+# con la única señal que separa los dos casos de forma determinista — el basename de
+# GIT_INDEX_FILE, que es `index` en un commit normal y `next-index-<pid>.lock` en uno por
+# pathspec. Se reescribe en CADA corrida (incluido el borrado), así que un commit abortado
+# no deja una marca rancia que dispare la reparación en el commit siguiente.
+TK_GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || echo .git)
+TK_IDX="${GIT_INDEX_FILE:-index}"
+case "${TK_IDX##*/}" in
+  index) rm -f "$TK_GIT_DIR/tk-pathspec-commit" 2>/dev/null || true ;;
+  *) : > "$TK_GIT_DIR/tk-pathspec-commit" 2>/dev/null || true ;;
+esac
+
+pnpm lint-staged
+
+# Check if any issue files were DELETED (lint-staged doesn't handle deletions)
+DELETED_ISSUES=$(git diff --cached --name-only --diff-filter=D | grep -E 'project/backlog/.*/issues/.*\.md$' || true)
+
+if [ -n "$DELETED_ISSUES" ]; then
+  echo "📋 Detected deleted issue files, regenerating board..."
+  pnpm run --if-present update-board
+  git add project/backlog/BOARD.md 2>/dev/null || true
+fi
+
+# --- Reference autogen (INVENTORY / CODEBASE / HOOKS / SCHEMA / API) --------
+# A commit that stages none of these generators' INPUTS cannot change any of their outputs,
+# so regenerating would be pure cost (~9s of `tsx` cold starts before a line of work). Gated
+# by PATH, which is rule 1 of the derivative-safe contract at the top of this file, and the
+# degradation it can cause is the one this hook already accepts: stale autogen, never a
+# blocked repo. An epic whose issues live entirely in `scripts/`, `.claude/` or the backlog
+# skips the whole block on every one of its commits.
+#
+# The predicate is the UNION of what the five read — NOT `src/` alone, which silently
+# under-fired on two of them:
+#   · `src/**`             all five
+#   · `package.json`       INVENTORY publishes Dependencies + NPM Scripts straight from it
+#                          (`generate-inventory.ts:128`, `:140`), so `pnpm add` used to leave
+#                          the catalog `SK.md §2.1` tells everyone to trust silently stale
+#   · `lib/` `components/` CODEBASE scans those two roots besides `src/`
+#                          (`generate-codebase.ts:34`). They do not exist in the kit —
+#                          `SK.md §6` forbids them — but a legacy derivative can have them,
+#                          and a brain artifact tolerates the tree it lands on
+#   · the GENERATORS       changing one changes its output with no source edit at all. 3 of
+#                          this repo's ~2000 commits touch one, so buying the repair costs
+#                          ~9s three times in the project's whole history
+#   · the OUTPUTS          staging a hand-edit — or a DELETION — of a generated file makes
+#                          the block run and overwrite it back to the truth. That is the only
+#                          self-healing available here: `--check` would cost the same as
+#                          generating (the work is parsing `src/`, not writing). The dir holds
+#                          nothing but the five outputs, so it never fires on its own — when
+#                          the hook regenerates them it is because a source already fired.
+#                          No loop: the predicate is evaluated once, before any of this runs
+# Deliberately ONE predicate for all five rather than one per generator: over-inclusive fails
+# toward regenerating (the four that did not care are idempotent and cost seconds), while a
+# per-generator gate goes stale the day a generator grows a new input.
+#
+# `--no-renames` is load-bearing: git collapses a rename to its DESTINATION, so moving a file
+# OUT of `src/` (`git mv src/a.ts other/a.ts`) printed only `other/a.ts` and the block never
+# ran. With it, both sides print.
+#
+# The window this leaves open: an input edited but NOT staged in this commit. That is already
+# outside the hook's reach (it only ever saw the staged set), and `/implement` refuses to
+# start on a dirty tree. `pnpm generate:reference` regenerates all five on demand.
+if git diff --cached --name-only --no-renames |
+  grep -qE '^(src|lib|components|project/reference)/|^scripts/tools/generate-|^package\.json$'; then
+  # Auto-regenerate INVENTORY and stage if changed
+  pnpm run --if-present generate:inventory
+  git add project/reference/INVENTORY.md 2>/dev/null || true
+
+  # Auto-regenerate CODEBASE dependency map and stage if changed
+  pnpm run --if-present generate:codebase
+  git add project/reference/CODEBASE.md 2>/dev/null || true
+
+  # Auto-regenerate HOOKS/helpers registry and stage if changed
+  pnpm run --if-present generate:hooks
+  git add project/reference/HOOKS.md 2>/dev/null || true
+
+  # Auto-regenerate SCHEMA (as-built data model) and stage if changed
+  pnpm run --if-present generate:schema
+  git add project/reference/SCHEMA.md 2>/dev/null || true
+
+  # Auto-regenerate API (as-built actions + route handlers) and stage if changed
+  pnpm run --if-present generate:api
+  git add project/reference/API.md 2>/dev/null || true
+fi
+
+# Reconcile the active-skin @import in globals.css from ACTIVE_SKIN (src/config/skins.ts)
+# so switching skins is a single edit (the TS const); the CSS import is generated.
+# By PATH (rule 1): the tool is brain-owned and travels with the update; the pnpm
+# alias is app-owned and may not exist on a derivative. The tool itself no-ops on
+# an un-split src (sk-skins §3).
+# NOT path-gated, unlike the autogen block above: this one runs `node` directly (no `tsx`
+# cold start), so gating it would save nothing measurable while giving up the self-healing
+# that repairs a hand-edited @import on the next commit.
+if [ -f scripts/tools/generate-skin-import.mjs ]; then
+  node scripts/tools/generate-skin-import.mjs
+  git add src/app/globals.css 2>/dev/null || true
+fi
+
+# Project CLAUDE.md + the .claude/rules graph onto the instruction files the OTHER coding
+# agents read (Codex, Cursor, Copilot, Hermes), so "what Claude Code sees is what Codex
+# sees" holds on every commit instead of by hand.
+# By PATH (rule 1): the generator is brain-owned and travels with the update; a pnpm alias
+# would live in the dev-owned package.json.
+# NOT path-gated, like the skin block above and unlike the reference autogen: it runs
+# `node` directly (no `tsx` cold start), so a gate would save nothing measurable — and it
+# would give up the self-healing, since an adapter edited by hand is drift no staged path
+# announces.
+# Tolerant by contract: a repo without CLAUDE.md or without .claude/rules/INDEX.md is a
+# VALID state and gets a clean no-op (exit 0), so a derivative that predates the rules
+# index never sees its commit aborted.
+# The `git add` is what puts the regenerated adapters INTO this commit — without it the
+# hook would rewrite them on disk and the commit would ship the stale ones (it also works
+# under a commit-by-pathspec; the post-commit repair above handles the index residue).
+# ONE `git add` PER OUTPUT, on purpose: `git add a b missing` stages NOTHING (git rejects
+# the whole pathspec), and an output CAN be legitimately absent — a project may opt any of
+# the four out in `.claude/adapters.project.json` (dev-owned, never shipped).
+# Each `git add` is CONDITIONAL ON THE GENERATED MARKER, which is the same ownership unit
+# the generator itself uses: a file the generator refused to touch because it is the
+# project's own (`foreign` — on disk WITHOUT the marker) must not be dragged into this
+# commit by the hook. Staging it would undo, at the git layer, the very guard the generator
+# applied at the file layer. An absent output (opted out, or simply not there) fails the
+# `-f` test and is skipped. `|| true` closes each chain so a false test never aborts the
+# commit under `set -e`.
+if [ -f scripts/tools/generate-agent-adapters.mjs ]; then
+  node scripts/tools/generate-agent-adapters.mjs
+  TK_ADAPTER_MARK='@generated by scripts/tools/generate-agent-adapters.mjs'
+  [ -f AGENTS.md ] && grep -q "$TK_ADAPTER_MARK" AGENTS.md && git add AGENTS.md 2>/dev/null || true
+  [ -f .cursor/rules/timekast.mdc ] && grep -q "$TK_ADAPTER_MARK" .cursor/rules/timekast.mdc && git add .cursor/rules/timekast.mdc 2>/dev/null || true
+  [ -f .github/copilot-instructions.md ] && grep -q "$TK_ADAPTER_MARK" .github/copilot-instructions.md && git add .github/copilot-instructions.md 2>/dev/null || true
+  [ -f .hermes.md ] && grep -q "$TK_ADAPTER_MARK" .hermes.md && git add .hermes.md 2>/dev/null || true
+fi
+
+# Validate skill metadata (frontmatter, descriptions, pair cross-refs)
+# Runs once per commit (not per-file) — exits non-zero on failure to abort commit
+pnpm run --if-present skill:lint
+
+# Validate agent taxonomy (prefix convention + cross-file references)
+# Runs once per commit — exits non-zero on FAIL to abort commit (matches the
+# enforcement claimed in CLAUDE.md §Convenciones de nomenclatura de agents)
+if [ -f .claude/hooks/agent-taxonomy-lint.sh ]; then
+  bash .claude/hooks/agent-taxonomy-lint.sh
+fi
+
+# Guardrail: no stray 'use client' under src/config/ (must stay server-safe so
+# the config is importable from RSC). Escape-hatch documented in the script
+# (per-file marker). Runs once per commit — exits non-zero to abort.
+if [ -f .claude/hooks/config-use-client-lint.sh ]; then
+  bash .claude/hooks/config-use-client-lint.sh
+fi
+
+# --- Project-specific pre-commit steps (dev-owned) ---------------------------
+# Put project hooks in .husky/pre-commit.project — factory update NEVER ships
+# nor overwrites that file (it is not in the kit manifest), so customizations
+# survive every update. Example: CRON-001's reconciler + linter lines.
+if [ -f .husky/pre-commit.project ]; then
+  sh .husky/pre-commit.project
+fi

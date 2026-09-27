@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notificaciones (ajustes) · Presentation Kit</title>
+    <link rel="stylesheet" href="../theme.css" />
+    <link rel="stylesheet" href="../kit.css" />
+    <style>
+      body {
+        padding: 24px;
+        display: flex;
+        justify-content: center;
+      }
+      /* preferences matrix — categoría × canal */
+      .pk-prefs th.ch,
+      .pk-prefs td.ch {
+        text-align: center;
+        width: 56px;
+        white-space: nowrap;
+      }
+      .pk-prefs .ch-head {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        font-size: 0.68rem;
+      }
+      .pk-prefs .ch-head .pk-ico {
+        width: 15px;
+        height: 15px;
+        color: var(--muted-foreground);
+      }
+      .pk-prefs .cat {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .pk-prefs .cat .pk-ico {
+        width: 16px;
+        height: 16px;
+        color: var(--muted-foreground);
+      }
+      .pk-prefs .cat .desc {
+        font-size: 0.7rem;
+        color: var(--muted-foreground);
+      }
+      .pk-prefs td .pk-ico.check {
+        width: 16px;
+        height: 16px;
+        color: var(--brand-primary);
+      }
+      .pk-dev {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 0;
+      }
+      .pk-dev .pk-ico {
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        box-shadow: var(--neo-outset-sm);
+        color: var(--brand-primary);
+        padding: 6px;
+      }
+      .pk-dev .body {
+        flex: 1;
+        min-width: 0;
+      }
+      .pk-dev .body .n {
+        font-size: 0.84rem;
+        font-weight: 600;
+      }
+      .pk-dev .body .s {
+        font-size: 0.72rem;
+        color: var(--muted-foreground);
+      }
+      .pk-sec-ttl {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--muted-foreground);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin: 2px 0 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="pk-device mobile">
+      <div class="pk-app">
+        <div class="pk-main">
+          <header class="pk-header">
+            <span class="pk-ham pk-ico" style="width: 22px; height: 22px"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></span>
+            <span class="pk-ttl">Notificaciones</span>
+            <span class="pk-sp">
+              <span class="pk-ico" style="width: 20px; height: 20px"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg></span>
+            </span>
+          </header>
+
+          <div class="pk-body">
+            <div class="pk-sec-ttl">Preferencias de notificación</div>
+            <div class="pk-table-wrap">
+              <table class="pk-table pk-prefs">
+                <thead>
+                  <tr>
+                    <th>Categoría</th>
+                    <th class="ch"><span class="ch-head"><span class="pk-ico"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg></span>In-App</span></th>
+                    <th class="ch"><span class="ch-head"><span class="pk-ico"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></span>Push</span></th>
+                    <th class="ch"><span class="ch-head"><span class="pk-ico"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"/><rect x="2" y="4" width="20" height="16" rx="2"/></svg></span>Email</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <span class="cat">
+                        <span class="pk-ico"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg></span>
+                        <span>General<span class="desc" style="display: block">Notificaciones de la aplicación</span></span>
+                      </span>
+                    </td>
+                    <td class="ch"><span class="pk-ico check"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></td>
+                    <td class="ch"><span class="pk-switch on"></span></td>
+                    <td class="ch"><span class="pk-switch"></span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="muted" style="font-size: 0.74rem; margin: 4px 2px 0">Las notificaciones In-App están siempre activas.</p>
+
+            <div class="pk-sec-ttl" style="margin-top: 16px">Mis dispositivos</div>
+            <div class="pk-card">
+              <div class="pk-dev">
+                <span class="pk-ico"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg></span>
+                <span class="body">
+                  <span class="n">Chrome · macOS</span>
+                  <span class="s">Este dispositivo</span>
+                </span>
+                <span class="pk-pill green"><span class="dot"></span>Activo</span>
+              </div>
+              <button class="pk-btn ghost block" style="margin-top: 6px">
+                <span class="pk-ico"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></span>
+                Agregar este dispositivo
+              </button>
+            </div>
+          </div>
+
+          <nav class="pk-bottomnav">
+            <span class="pk-bn">
+              <span class="pk-ico"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+              Inicio
+            </span>
+            <span class="pk-bn active">
+              <span class="pk-ico"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg></span>
+              Avisos
+            </span>
+            <span class="pk-bn">
+              <span class="pk-ico"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></span>
+              Ajustes
+            </span>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
