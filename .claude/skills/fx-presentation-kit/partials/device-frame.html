@@ -1,0 +1,29 @@
+<!-- device-frame — cascarón app (sidebar desktop + header + body + bottomnav mobile).
+     Cambiar `.mobile` ↔ `.desktop` en .pk-device alterna el viewport. -->
+<div class="pk-device mobile">
+  <div class="pk-app">
+    <aside class="pk-sidebar">
+      <div class="pk-brand">
+        <!-- brand var-driven: dejar vacíos; --brand-logo-text / --brand-product-name los llenan -->
+        <span class="pk-logo"></span>
+        <span class="pk-brand-name"></span>
+      </div>
+      <div class="pk-si active"><span class="pk-ico" data-icon="layout-dashboard"></span>Panel</div>
+      <!-- más items de nav aquí -->
+    </aside>
+    <div class="pk-main">
+      <header class="pk-header">
+        <span class="pk-ham pk-ico" data-icon="menu"></span>
+        <span class="pk-ttl">Título</span>
+        <span class="pk-sp"><span class="pk-ico" data-icon="bell"></span></span>
+      </header>
+      <div class="pk-body">
+        <!-- contenido de la pantalla -->
+      </div>
+      <nav class="pk-bottomnav">
+        <span class="pk-bn active"><span class="pk-ico" data-icon="house"></span>Inicio</span>
+        <!-- hasta 4 tabs -->
+      </nav>
+    </div>
+  </div>
+</div>

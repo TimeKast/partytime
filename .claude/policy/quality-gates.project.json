@@ -1,0 +1,64 @@
+{
+  "panel_by_risk": { "0": [], "1": [], "2": [], "3": [], "4": [] },
+  "rules": [
+    {
+      "when": {
+        "paths": ["app/**", "lib/**", "types/**"]
+      },
+      "risk": 2,
+      "require": []
+    },
+    {
+      "when": {
+        "paths": ["app/components/**", "app/admin/components/**", "app/[slug]/components/**", "app/**/page.tsx"]
+      },
+      "risk": 2,
+      "require": ["ui-critic"]
+    },
+    {
+      "when": {
+        "paths": ["app/api/**"]
+      },
+      "risk": 3,
+      "require": ["security-auditor"]
+    },
+    {
+      "when": {
+        "paths": ["lib/schema.ts", "drizzle/**"]
+      },
+      "risk": 3,
+      "require": ["security-auditor", "architect"]
+    },
+    {
+      "when": {
+        "paths": [
+          "lib/auth.ts",
+          "lib/auth-utils.ts",
+          "lib/checkin-session.ts",
+          "lib/password-*.ts",
+          "app/api/auth/**",
+          "app/api/checkin/auth/**",
+          "app/api/admin/users/[id]/reset-password/**"
+        ]
+      },
+      "risk": 4,
+      "require": ["security-auditor", "architect"]
+    },
+    {
+      "when": {
+        "paths": [
+          "lib/stripe.ts",
+          "lib/stripe-checkout.ts",
+          "lib/ledger-queries.ts",
+          "lib/event-ledger-migration-contract.ts",
+          "app/api/webhooks/stripe/**",
+          "app/api/rsvp/payment-status/**",
+          "app/api/admin/ledger/**",
+          "app/admin/components/finance/**"
+        ]
+      },
+      "risk": 4,
+      "require": ["security-auditor", "architect"]
+    }
+  ]
+}

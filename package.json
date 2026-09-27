@@ -13,7 +13,35 @@
     "test:db:capacity-semantics": "bash scripts/test-capacity-function-semantics.sh",
     "db:preflight": "node --import tsx scripts/migration-preflight.ts",
     "db:generate": "drizzle-kit generate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "factory:update": "npx @timekast/factory update",
+    "factory:doctor": "npx @timekast/factory doctor",
+    "factory:status": "npx @timekast/factory status",
+    "factory:publish": "npx @timekast/factory publish",
+    "factory:unpublish": "npx @timekast/factory unpublish",
+    "env:push": "npx @timekast/factory env push",
+    "preflight": "tsx scripts/tools/preflight.ts",
+    "invite:admin": "npx @timekast/factory invite-admin",
+    "setup:e2e:vars": "node scripts/tools/with-vault.mjs --vault-env=develop tsx scripts/tools/setup-e2e.ts --publish-vars",
+    "e2e:setup": "playwright install chromium",
+    "evidence:visual": "pnpm test:e2e --project=evidence",
+    "generate:inventory": "tsx scripts/tools/generate-inventory.ts",
+    "generate:codebase": "tsx scripts/tools/generate-codebase.ts",
+    "generate:hooks": "tsx scripts/tools/generate-hooks.ts",
+    "generate:schema": "tsx scripts/tools/generate-schema.ts",
+    "generate:api": "tsx scripts/tools/generate-api.ts",
+    "generate:reference": "tsx scripts/tools/generate-inventory.ts && tsx scripts/tools/generate-codebase.ts && tsx scripts/tools/generate-hooks.ts && tsx scripts/tools/generate-schema.ts && tsx scripts/tools/generate-api.ts",
+    "verify": "node scripts/tools/verify.mjs",
+    "verify:quick": "node scripts/tools/verify.mjs --quick",
+    "dev:next": "NODE_OPTIONS='--max-old-space-size=4096' next dev --turbopack",
+    "typecheck": "tsc --noEmit",
+    "prepare": "husky && git config --unset-all core.hooksPath 2>/dev/null; git config --worktree core.hooksPath .husky/_",
+    "skill:lint": "tsx scripts/tools/skill-lint/index.ts",
+    "update-board": "tsx scripts/tools/update-board.ts",
+    "knip": "knip"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": "eslint --fix"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
@@ -44,9 +72,23 @@
     "drizzle-kit": "^0.31.8",
     "eslint": "^8.57.1",
     "eslint-config-next": "^14.2.5",
+    "husky": "^9.1.7",
+    "knip": "^5.44.2",
+    "lint-staged": "^15.5.0",
+    "fast-glob": "^3.3.3",
+    "prettier": "^3.4.2",
+    "zod": "^3.24.1",
     "tsx": "^4.20.6",
     "typescript": "^5.5.4",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/jest-dom": "~6.9.1",
+    "@testing-library/user-event": "^14.5.2",
+    "@playwright/test": "^1.49.0",
+    "sonner": "^1.7.1",
+    "tailwindcss": "^3.4.17",
+    "next-auth": "^4.24.11"
   },
-  "packageManager": "pnpm@10.24.0"
+  "packageManager": "pnpm@10.24.0",
+  "agentKitVersion": "13.0.1"
 }

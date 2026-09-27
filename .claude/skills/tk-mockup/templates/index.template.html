@@ -1,0 +1,163 @@
+<!doctype html>
+<!--
+  index.template.html — shell B' del mockup (punto de entrada, doble-click).
+  El shell ES el DashboardShell real del producto: UN sidebar (la navegación real, de §2.4 /
+  navigation.ts), header con title + acciones, y el body de cada pantalla se INTERCAMBIA al navegar
+  (modelo SPA). Las pantallas de auth ((public)) van full-screen SIN shell. No hay doble sidebar.
+
+  Reglas de relleno (Phase 3 las llena):
+    - {{PROJECT_NAME}} / {{LOGO_TEXT}}   → marca (project-config.md). Sidebar usa brand var-driven.
+    - {{SIDEBAR_NAV}}    → items del sidebar: `<div class="pk-si" data-nav="slug">{ico}Label</div>` +
+                            `<div class="pk-si group">Sección</div>` para grupos. Iconos inline (lucide.json).
+    - {{BOTTOMNAV}}      → `<span class="pk-bn" data-nav="slug">{ico}Label</span>` (3 primarios + Más).
+    - {{SCREEN_OPTIONS}} → <optgroup label="Sección"><option value="slug">Nombre</option>…</optgroup> (todas).
+    - {{APP_PANELS}}     → bodies (protected) inline: `<section class="mck-screen" data-screen="slug">{state-toggle}{pk-body inner}</section>`.
+    - {{AUTH_PANELS}}    → bodies (public/auth) inline: `<section class="mck-auth-screen" data-screen="slug">{pk-auth …}</section>`.
+    - {{SCREEN_STYLES}}  → estilos per-screen extraídos de los fragmentos (helpers locales).
+    - {{FIRST_SCREEN}}   → slug inicial (ej. dashboard). {{TITLES_JSON}} → mapa slug→título de header.
+  Default theme: si la postura del §0 es midnight/dark, Phase 3 mueve la clase `on` al botón y agrega
+  la clase al <html> + `state.theme`. Default del template = claro.
+-->
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{{PROJECT_NAME}} · Mockup</title>
+    <!-- Favicon (served from the proposals.timekast.mx hub root). -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Open Graph — generic on purpose: the chat preview shows the TimeKast brand,
+         never the mockup's (potentially sensitive) content. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Mockup — TimeKast" />
+    <meta property="og:description" content="Documento preparado por TimeKast." />
+    <meta property="og:image" content="https://proposals.timekast.mx/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="stylesheet" href="assets/theme.css" />
+    <link rel="stylesheet" href="assets/kit.css" />
+    <!--
+      Elevation vocab: this shell's box-shadows resolve against assets/theme.css, which is a copy
+      of the FROZEN fx-presentation-kit snapshot (SKINS-005). That snapshot is autonomous and stays
+      on the legacy `--neo-*` elevation vocab on purpose — it does NOT follow the v11 `--elevation-*`
+      rename of src/. So the `var(--neo-*)` references below are correct for binding to that snapshot;
+      switching them to `var(--elevation-*)` would render empty shadows. See sk-skins / sk-tokens-neomorphism.
+    -->
+    <style>
+      body { margin: 0; height: 100vh; display: flex; flex-direction: column; background: var(--background); color: var(--foreground); }
+      .mck-topbar { display: flex; align-items: center; gap: 12px; padding: 9px 16px; flex-wrap: wrap; box-shadow: 0 3px 8px rgba(136, 150, 171, 0.16); flex: 0 0 auto; z-index: 3; }
+      .mck-topbar .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.85rem; }
+      .mck-topbar .brand .b { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: var(--brand-primary); color: #fff; font-weight: 800; font-size: 0.66rem; box-shadow: var(--neo-outset-sm); }
+      .mck-lbl { font-size: 0.7rem; color: var(--muted-foreground); font-weight: 600; }
+      .mck-select { font: 600 0.8rem 'Geist', sans-serif; color: var(--foreground); background: var(--input-bg); border: none; border-radius: 9px; padding: 7px 10px; box-shadow: var(--neo-inset-sm); cursor: pointer; }
+      .mck-sp { margin-left: auto; }
+      .mck-toggle { display: inline-flex; border-radius: 999px; padding: 3px; box-shadow: var(--neo-inset-sm); background: var(--background); }
+      .mck-toggle button { border: none; background: transparent; padding: 5px 11px; border-radius: 999px; font: 600 0.73rem 'Geist', sans-serif; color: var(--muted-foreground); cursor: pointer; }
+      .mck-toggle button.on { box-shadow: var(--neo-outset-sm); color: var(--brand-primary); }
+      .mck-stage { flex: 1; min-height: 0; padding: 20px; box-shadow: var(--neo-inset); overflow: auto; display: flex; justify-content: center; }
+      .pk-si { cursor: pointer; }
+      .mck-states { display: inline-flex; border-radius: 999px; padding: 3px; box-shadow: var(--neo-inset-sm); background: var(--background); margin-bottom: 12px; }
+      .mck-states button { border: none; background: transparent; padding: 5px 12px; border-radius: 999px; font: 600 0.76rem 'Geist', sans-serif; color: var(--muted-foreground); cursor: pointer; }
+      .mck-states button.on { box-shadow: var(--neo-outset-sm); color: var(--brand-primary); }
+      .mck-screen { display: none; }
+      .mck-screen.on { display: block; }
+      .mck-authhost { display: none; width: 100%; justify-content: center; padding: 8px; }
+      .mck-authhost.on { display: flex; }
+      .mck-auth-screen { display: none; }
+      .mck-auth-screen.on { display: block; }
+      {{SCREEN_STYLES}}
+    </style>
+  </head>
+  <body>
+    <header class="mck-topbar">
+      <div class="brand"><span class="b">{{LOGO_TEXT}}</span>{{PROJECT_NAME}} · Mockup</div>
+      <span class="mck-lbl">Pantalla</span>
+      <select class="mck-select" id="sel">{{SCREEN_OPTIONS}}</select>
+      <span class="mck-sp"></span>
+      <span class="mck-lbl">Tema</span>
+      <div class="mck-toggle" data-toggle="theme">
+        <button class="on" data-theme="">Claro</button><button data-theme="midnight">Midnight</button><button data-theme="dark">Oscuro</button>
+      </div>
+      <span class="mck-lbl">Dispositivo</span>
+      <div class="mck-toggle" data-toggle="device">
+        <button class="on" data-device="mobile">Móvil</button><button data-device="desktop">Escritorio</button>
+      </div>
+    </header>
+
+    <main class="mck-stage">
+      <!-- SHELL persistente (DashboardShell real) — sidebar = nav del producto -->
+      <div class="pk-device mobile" id="device">
+        <div class="pk-app">
+          <aside class="pk-sidebar">
+            <div class="pk-brand"><span class="pk-logo"></span><span class="pk-brand-name"></span></div>
+            {{SIDEBAR_NAV}}
+          </aside>
+          <div class="pk-main">
+            <header class="pk-header">
+              <span class="pk-ham">{{ICON_MENU}}</span>
+              <span class="pk-ttl" id="title">{{FIRST_TITLE}}</span>
+              <span class="pk-sp">{{HEADER_ACTIONS}}</span>
+            </header>
+            <div class="pk-body" id="host">
+              {{APP_PANELS}}
+            </div>
+            <nav class="pk-bottomnav">
+              {{BOTTOMNAV}}
+            </nav>
+          </div>
+        </div>
+      </div>
+      <!-- AUTH full-screen (sin shell) -->
+      <div class="mck-authhost" id="authhost">
+        <div class="pk-device mobile"><div class="pk-app"><div class="pk-main"><div class="pk-body center">{{AUTH_PANELS}}</div></div></div></div>
+      </div>
+    </main>
+
+    <script>
+      const APP = {{APP_SLUGS_JSON}};
+      const TITLES = {{TITLES_JSON}};
+      const device = document.getElementById('device');
+      const authhost = document.getElementById('authhost');
+      const sel = document.getElementById('sel');
+
+      function activate(slug) {
+        const isAuth = !APP.includes(slug);
+        device.style.display = isAuth ? 'none' : '';
+        authhost.classList.toggle('on', isAuth);
+        document.querySelectorAll('.mck-screen').forEach((s) => s.classList.toggle('on', s.dataset.screen === slug));
+        document.querySelectorAll('.mck-auth-screen').forEach((s) => s.classList.toggle('on', s.dataset.screen === slug));
+        document.querySelectorAll('[data-nav]').forEach((n) => n.classList.toggle('active', n.dataset.nav === slug));
+        document.getElementById('title').textContent = TITLES[slug] || slug;
+        if (sel.value !== slug) sel.value = slug;
+      }
+
+      document.querySelectorAll('[data-nav]').forEach((n) => n.addEventListener('click', () => activate(n.dataset.nav)));
+      sel.addEventListener('change', () => activate(sel.value));
+
+      function wire(name, key) {
+        document.querySelector('[data-toggle="' + name + '"]').addEventListener('click', (e) => {
+          const b = e.target.closest('button'); if (!b) return;
+          b.parentElement.querySelectorAll('button').forEach((x) => x.classList.remove('on')); b.classList.add('on');
+          if (key === 'theme') { document.documentElement.classList.remove('midnight', 'dark'); if (b.dataset.theme) document.documentElement.classList.add(b.dataset.theme); }
+          if (key === 'device') {
+            [device, authhost.querySelector('.pk-device')].forEach((d) => {
+              d.classList.toggle('desktop', b.dataset.device === 'desktop');
+              d.classList.toggle('mobile', b.dataset.device === 'mobile');
+            });
+          }
+        });
+      }
+      wire('theme', 'theme'); wire('device', 'device');
+
+      // state toggles por pantalla (contextual)
+      document.querySelectorAll('.mck-states[data-state-for]').forEach((g) => g.addEventListener('click', (e) => {
+        const b = e.target.closest('button'); if (!b) return;
+        g.querySelectorAll('button').forEach((x) => x.classList.remove('on')); b.classList.add('on');
+        const sect = g.closest('.mck-screen, .mck-auth-screen');
+        sect.querySelectorAll('[data-state-panel]').forEach((p) => p.classList.toggle('on', p.dataset.statePanel === b.dataset.state));
+      }));
+
+      activate('{{FIRST_SCREEN}}');
+    </script>
+  </body>
+</html>

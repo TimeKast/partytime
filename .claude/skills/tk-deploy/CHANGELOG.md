@@ -1,0 +1,104 @@
+# tk-deploy — Changelog
+
+> Audit trail for the `/deploy` workflow and its supporting files (skill body, methodology, phase files, templates). Convention: [Keep a Changelog](https://keepachangelog.com).
+>
+> **Scope rule:** `fx-workflow-authoring §11` decides which workflows carry a CHANGELOG — this header only points there (for declarative skills the authority is `fx-skill-author §8`). Body stays ahistorical; evolution lives here.
+
+---
+
+## [Unreleased] — date TBD upon merge
+
+### Fixed
+
+- **Los tags `cli-v*` y `gui-v*` dejaron de nacer fuera de `main`.** El paso viejo (7.5.5 CLI / 7.5.7 launcher) bumpeaba y taggeaba en **Phase 7**, después del merge y del push, sobre la source branch — así el commit del bump nunca entraba al merge y el tag quedaba en `develop`, sin forma de llegar a `main` (mergear `main → develop` está prohibido, `BR-FACTORY-004`). Medido contra el historial: `git merge-base --is-ancestor cli-v1.24.0 73107493` → falso, donde `73107493` era `origin/main` antes de `v11.8.3`. O sea que **npm sirvió `@timekast/factory@1.24.0` desde un commit que `main` no contenía** hasta que el release siguiente lo absorbió; durante esa ventana, auditar "qué código corre la flota" mirando `main` daba una respuesta vieja, y un rewrite de `develop` habría dejado una versión publicada sin hogar en el historial. Importa porque el CLI se ejecuta en cada `update`, `provision` y `add` de cada derivado. El paso se partió en dos: **Phase 3.5** bumpea `cli/`/`desktop/` *antes* del merge (el bump viaja dentro de él) y **Phase 5.4** corta el tag sobre el **merge commit**, junto al `v*` del kit — ancestro de `main` por construcción, sin SHAs que derivar. Corre en `release` **y** en `ship`: publicar el CLI sin bumpear el kit sigue siendo posible (`/deploy ship`), que es la propiedad que el desacople de las tres líneas existe para conservar. Los tarballs nunca estuvieron involucrados: `distribution/profiles.json` excluye `cli/**` y `desktop/**`, así que el defecto era de trazabilidad del artefacto publicado, no de qué recibe la flota.
+- **`cli-publish.yml` y `gui-release.yml` se niegan a publicar un tag que no sea ancestro de `main`.** Segunda línea de defensa, independiente del flujo: cubre también un tag cortado a mano. Usa la API de comparación (`identical`/`behind` = ancestro) en vez de `git merge-base`, así no necesita checkout ni `fetch-depth: 0`. Tres detalles que solo se ven corriendo: **`GH_TOKEN` es obligatorio** (`gh` viene preinstalado en los runners pero sin autenticar — sin él el guard bloquearía el 100% de los publishes culpando a la rama); **`GITHUB_REF_NAME`, no `GITHUB_SHA`**, porque la línea es mixta (`cli-v1.7.0` es un objeto tag anotado, `cli-v1.24.0` un commit) y un SHA de objeto tag da 404 contra `compare`; y el **404 de "No common ancestor" es un rechazo definitivo**, no un error transitorio — sin esa rama el operador leería "reintenta el run" y entraría en un bucle que nunca puede pasar (los 6 tags `v*` legacy prueban que la condición existe en este repo). En `gui-release.yml` el guard es un job propio del que dependen los dos builds, para no quemar un runner de macOS y otro de Windows con un tag mal cortado.
+- **`cli-publish.yml` valida que el tag coincida con `cli/package.json.version`.** `gui-release.yml` lo hacía desde el día uno en sus dos jobs de build; esta línea nunca. Sin la validación, un `cli-v2.0.0` cortado a mano sobre un `package.json` en 1.24.0 publica **1.24.0** bajo un nombre que dice otra cosa, en silencio — npm toma la versión del `package.json`, no del tag.
+- **La advertencia de `HEAD~` en Phase 2.8 era falsa, y ocultaba una pérdida silenciosa.** El skill afirmaba que con `BUMP_COMMITS` vacío `git reset --soft HEAD~` es "sintaxis inválida". No lo es: `HEAD~` resuelve idéntico a `HEAD~1` y el reset **tiene éxito**, retrocediendo un commit cuando debía retroceder dos o tres. En una recovery destructiva eso deja trabajo aplicado a medias sin un solo mensaje de error. Ahora la nota dice lo que realmente pasa y exige un guard explícito (`[ -n … ] && [ … -gt 0 ]`) antes de cualquier reset.
+- **La observación del deploy de producción (7.5.7) ya no confunde "no pude mirar" con "en curso".** La llamada a Vercel iba con `curl -s`: un 401/403/404 devolvía un cuerpo de error sin `deployments`, y el paso lo leía como "ningún deployment registrado → ⏳ en curso". Ahora va con `curl -sf` (el error sale distinto de cero), con `teamId` tomado del `orgId` de `.vercel/project.json` (el token está acotado al equipo), y una respuesta sin la lista de `deployments` cuenta como **no observado**. `⏳ en curso` exige una respuesta válida.
+
+### Changed
+
+- **`VERCEL_TOKEN` se lee de la bóveda, bajo `bash` explícito.** 7.5.7 dejó de tomar el token del entorno: lo lee del rail (`rail-timekast`) con la sesión de la persona mediante `scripts/tools/lib/rail.sh`, y reporta la falla por código (`40`-`45`, arreglo en `fx-secrets-vault §3`). Cada bloque corre en un `bash <<'EOF'` hijo, con `jq` comprobado antes del `source`: el lector es bash y se niega a cargarse desde zsh, que es la shell del agente en macOS — el `source` directo en la shell del agente fallaba siempre ahí, con un código que parecía de la bóveda.
+
+- **`BUMP_COMMITS` cuenta todos los commits del workflow, y nace en Phase 0.4.** Antes se definía en Phase 2.8, que es release-only; con el bump satélite de Phase 3.5 —que corre también en `ship`— las tres recoveries que lo consumen (`CP4 abort`, `push rechazado`, `cancel post-Phase 5`) lo habrían leído vacío. Ahora arranca en `0`, lo incrementan 2.8 (`+2`, o `+1` en as-is) y 3.5 (`+1` por línea), y esas recoveries dejaron de condicionarse a "si release".
+- **`UNPUSHED` se recomputa en Phase 6.** El valor de Phase 1.1 es anterior al bump de 3.5: en `ship` con `UNPUSHED = 0`, el push de la source se saltaba y el bump llegaba a `main` por el merge pero **nunca a la source branch**, así que el ciclo siguiente leía una versión vieja y volvía a bumpear el mismo número.
+- **La detección de las líneas satélite resuelve el último tag con `git ls-remote`, no con `git tag --list`.** El ref local puede estar ausente o stale (misma lección que `SOURCE_PUSHED` en §3.3), y en la línea `gui-v*` el prune con `--cleanup-tag` de `gui-release.yml` deja el namespace local casi todo fantasma: **17 tags locales contra 1 en origin**. Un `git fetch origin --tags` al inicio de Phase 1.1 garantiza que el nombre resuelto en el remoto exista también en local, y evita que el `git diff <tag> HEAD` reviente con `fatal: bad revision`. Los fantasmas locales no se podan a propósito: `--prune-tags` sin `--prune` no hace nada y git no lo reporta, y con `--prune` borraría tags locales legítimos — entre ellos el que una recovery de Phase 6 rechazada deja pendiente de pushear.
+- **`COMMITS_AHEAD === 0` deja de bloquear cuando hay un bump satélite pendiente.** Phase 1 aborta con "no hay commits para mergear" y corre antes de la fase que crea ese commit, así que el caso más común de la línea satélite quedaba sin entrada: tras un `release` donde el corte se respondió "no ahora" (o que corrió headless → skip silencioso), la source y `main` quedan parejas y el `/deploy ship` que publicaría el CLI abortaba. Un re-publish puro caía siempre ahí.
+
+- **Phase 1.6 reshaped: build-gate + T1 sweep, Lighthouse out.** The old gate ran full preflight on `release` (T1 + Lighthouse over the running app); a single Lighthouse category < 75 — non-deterministic on localhost, auditing only the public route — produced NOT-READY and blocked the merge. New shape: `release` always runs `pnpm build` (not skippable — `pnpm verify` does not build, and the full gate was the only build in the release path) followed by `pnpm preflight --t1`; `ship` post-release runs the sweep only; `--skip-preflight` now skips only the sweep. The gate calls the script directly (no `tk-preflight` skill load). Lighthouse and bundle are demoted to advisory (warn-cap) in the script; sweep blockers are audit (high/critical) and migrations (high). Lighthouse remains available via `/preflight` standalone (median aggregation across all lhr reports).
+
+### Fixed
+
+- **El snapshot de Phase 4.1 y su restore en 7.4 dejaron de poder desconectarse.** El nombre del tar llevaba `$$`, el PID del shell — y cada llamada Bash del agente abre un shell nuevo, así que el nombre que escribía 4.1 y el que buscaba 7.4 **nunca coincidían**. El daño no era el archivo huérfano: era que el `if [ -f … ]` de 7.4 daba falso y se saltaba **el restore entero, en silencio**, justo en el caso que el snapshot existe para cubrir — el `checkout main` borró un `.env.local` que ningún branch trackea y nada lo dijo. Mismo patrón que EPIC-01 encontró en el runner: el kit shippeando un mecanismo de protección cuya línea de conexión no funciona, mientras la documentación afirma que protege. **El nombre fijo global tampoco servía, y por poco se shippea:** `concurrency_cap: 1` acota el workflow, no la máquina, así que dos `/deploy` en repos distintos del mismo dev se pisan el archivo y 7.4 extrae el `.env` y el `.vercel/` de otro proyecto dentro de este — observado en vivo el 2026-08-14, dos repos escribiendo el mismo `/tmp/tk-deploy-preserve.tgz` con un minuto de diferencia. El nombre ahora deriva del hash del toplevel del repo, que cumple los dos requisitos a la vez: estable entre shells, aislado entre proyectos. El barrido de restos que acompaña al fix es **scoped al repo propio** por la misma razón — un glob `tk-deploy-preserve-*` le borraría el snapshot a un deploy ajeno en curso. Mismo tratamiento para el archivo de conflictos de 4.3.1.
+- **El restore dejó de fallar callado cuando el tar no se generó.** El `tar -czf` de 4.1 termina en `|| true`, así que un fallo (disco lleno, permisos) se lo tragaba y 7.4 no encontraba nada que extraer — indistinguible de "no había nada que preservar". Ahora, si existe la lista pero no el tar, 7.4 nombra los paths que quedaron sin respaldo para que el usuario verifique a mano. Un restore que no ocurre tiene que decirlo.
+- **El snapshot de Phase 4.1 dejó de empaquetar los regenerables de paquetes anidados.** El filtro anclaba con `^`, así que excluía `node_modules/`, `.next/` y `dist/` solo de la **raíz**: en un repo con paquetes anidados —`cli/`, `desktop/`— los suyos pasaban el filtro y entraban al tar. Medido en el Factory durante el release de v11.7.0: **700 MB** de basura regenerable (635 de `desktop/node_modules`, 65 de `cli/node_modules`, más ambos `dist/`), comprimidos a 252 MB, empaquetados antes del `checkout main` y re-extraídos en Phase 7 — en cada `/deploy`. `(^|/)` en lugar de `^` los saca sin tocar nada más: el snapshot sigue preservando lo que existe para preservar (`.env.local`, `settings.local.json`, `transitions/`), que es su único propósito. No era un riesgo de corrección —nada se perdía— sino desperdicio de reloj y disco.
+
+- **Autogen conflicts no longer reach CP4.** Phase 4.3.1 left `project/reference/*` (INVENTORY/CODEBASE/HOOKS) as "real conflicts" for CP4, but Phase 4.5 regenerates those files from the merged tree right after — the user was asked to resolve conflicts whose resolution gets overwritten anyway. They are now pre-resolved deterministically (`git checkout --theirs` + `git add`; the 4.5 regen is the actual truth). `project/backlog/BOARD.md` (the other autogen) was already covered by the `project/*` DENY-as-deletion case. No autogenerated file should ever trigger CP4.
+- **Phase 3 surfaces its own filtered merge commits.** After several `ship`s without a release, main accumulates `ship:` merge commits that are not in the source branch (BR-FACTORY-004 forbids merging them back); a raw `git log source..main` makes them look like drift. The §3.1 filter already excluded them from CP3, but silently — the pass message now reports how many own workflow commits were filtered, and an explicit anti-pattern forbids ad-hoc unfiltered inspections of main.
+- **Phase routing skipped 1.6 entirely.** CP1 option 1 routed `1.5 → 2 (release) / 3 (ship)` and Phase 1.5.2 pass said "continue to Phase 2" — both bypassing the readiness gate that the flow overview advertised. Transitions now route through 1.6 when active, and 1.6 declares its exits explicitly (pass → Phase 2 on release / Phase 3 on ship). `{NEXT_PHASE_DESC}` values are enumerated in the CP1 template comment so the rendered plan reflects the real routing.
+
+- **Phase 4.1 + 7.4 — preservar paths gitignored del working tree.** El `checkout main` + merge altera el working tree de la source branch; archivos gitignored-pero-presentes (ej: `plan/`, notas local-only) **se perdían del disco** cuando el merge tocaba esos paths (main los tenía tracked) — `checkout {source}` en Phase 7 no los restaura (ya no están tracked). Surfaced en el `/deploy ship` que untrackeó `plan/`. Fix: Phase 4.1 toma un snapshot (`tar`) de top-level paths ignored presentes (excluyendo regenerables: `node_modules`, `.next`, `dist`, `build`, `coverage`, `.turbo`, `.vercel`); Phase 7.4 los re-extrae post-return. Quedan untracked + gitignored.
+- **Phase 4.6 `.agent/` ahora se excluye de main (BR-FACTORY-001).** Antes el skill decía "NO tocar `.agent/` — viaja con la source branch", contradiciendo la regla (`.agent/` no se mergea a main). Surfaced en el primer `/deploy release` real (v6.1.0): el merge metía 10 cambios de `.agent/` a main. Fix (forma final): Phase 4.6 **borra** `.agent/` del merge result (`git rm -rf`) — el cerebro legacy se retiró (borrado de develop) y la copia de main era stale sin valor. Una iteración intermedia restauraba la copia de `origin/main`; quedó superseded cuando se retiró el legacy. Detalle en `methodology/factory-exclusions.md §2-§3, §6`.
+- **Phase 4.6 snippet shell-agnostic.** Removido `shopt -s nullglob` (bash-only → `command not found` en zsh) → guard `[ -e "$d" ] || continue`. `project/*.md` sueltos ahora se quitan por nombre explícito (zsh aborta el glob `project/*.md` si no hay match). Documentado que `git rm` necesita `-r -f` (no `--quiet`/`-rq`, que esta versión de git rechaza; `-f` obligatorio porque los paths están staged por el merge).
+
+### Changed
+
+- **Phase 4.3 reestructurada (Factory) — pre-resolución de conflictos DENY-scoped antes de CP4.** El raw merge `dev_cc → main` disparaba `CONFLICT (modify/delete)` recurrente en `project/backlog/BOARD.md` / `project/planning/project-config.md` (borrados en main por DENY previo, modificados en source) — exactamente los paths que Phase 4.6 excluye igual. CP4 se disparaba por ruido mecánico en cada release del Factory. Surfaced cortando `v9.5.0`. Fix: Phase 4.3.1 (solo `is_factory`) pre-resuelve determinísticamente los conflictos cuyo path cae bajo la denylist de `factory-exclusions.md §2` (`project/*` salvo `reference/` → `git rm`; `.agent/*` → `git rm`, borrado de main igual que `project/*`), con default no-op explícito para paths que SÍ viajan a main (`src/`/`cli/`/`distribution/`/`.claude/`/root → CP4). CP4 (4.3.2) ahora solo dispara por conflictos reales. Denylist documentada como SSOT única en `factory-exclusions.md §7` + anti-pattern de drift en §8.
+- **Phase 7.5.5 — el re-publish del CLI pasa a CI (`cli-publish.yml`).** El publish local (`npm publish` desde el agente) frenaba con `EOTP`: el owner usa 2FA passkey biométrico, no automatizable. Fix: 7.5.5 ya solo bumpea `cli/package.json` + commit + tag `cli-v*` + push; el push del tag dispara la nueva Action `.github/workflows/cli-publish.yml`, que instala el proyecto pnpm **anidado** (`cli/` no está en el workspace raíz), corre `test:unit` (no los integration auto-activados por `CI=true`) y publica a npm (`latest`) vía **Trusted Publishing** (OIDC, sin token/secret; el trusted publisher se registra una vez en npm — más seguro que un automation token y sin expiración). Verificación post-tag headless-safe (replica 7.5.6). Surfaced cortando `v9.5.1`.
+
+### Added
+
+- **Modo `release --as-is`** — taggea la versión ya fijada en `package.json` sin re-bumpear (versiones decididas por política: eras, rebranding, alineación de plataformas — no derivables de Conventional Commits). Surfaced cortando `v9.5.0` (salto `6.4.0 → 9.5.0` pre-bumpeado a mano que `release` no podía reproducir). Phase 2.3 Caso D (orden A → D → B → C); flag explícito canónico + auto-detect interactivo (en headless solo el flag activa el modo). Skip de la escritura de bump en Phase 2.4, `BUMP_COMMITS=1` (solo CHANGELOG) propagado a todas las recoveries (`HEAD~${BUMP_COMMITS}`). Detalle en `methodology/modes.md`.
+- **Phase 7.5.6 — verificación de la cadena dist-release (solo Factory + release).** Documenta y verifica que el tag `v*` disparó `dist-release.yml` (tarballs `tk-*.tgz` + GitHub Release) — la pieza shippable que el SKILL antes no mencionaba (conocimiento tribal del runbook). Best-effort observability: pre-check de `gh`, skip-con-nota si no disponible/auth, degrada a nota en headless, **nunca aborta el release** (el tag ya está pusheado, la Action es re-runnable). No es un CP de la tabla header (verification-STOP inline solo en interactivo).
+- Initial implementation of `tk-deploy` heavy workflow per `fx-workflow-authoring §6` — monolithic SKILL.md (all phases inline, matching `tk-discovery` / `tk-design` convention) + `methodology/*.md` companions + `templates/*.template.md`.
+- Three modes: `ship` (merge to main without bump/CHANGELOG/tag), `release` (auto-bump + CHANGELOG inference + tag), and `release --patch|--minor|--major` (forced bump skipping auto-suggest). See `methodology/modes.md`.
+- Factory detection via `is_factory: true` flag in `project/planning/project-config.md` §1 Identity. When `true`, implies `branching: develop-first` and activates Phase 4.6 selective DENY.
+- Phase 4.6 Factory selective DENY — vacuums `project/*` (preserving `**/.gitkeep` and `project/reference/**`). Snippet in `methodology/factory-exclusions.md`.
+- Phase 4.5 autogen regen — runs `pnpm generate:inventory|hooks|codebase` BEFORE Factory DENY to avoid borrar-luego-regenerar state.
+- Auto-bump algorithm from Conventional Commits (`feat:` → minor, `fix:|perf:` → patch, `!:|BREAKING CHANGE:` → major, others → `none`). Detail in `methodology/conventional-commits.md`.
+- CHANGELOG inference from commits — buckets Breaking/Added/Changed/Fixed; excluded `chore/docs/style/test/ci/build/revert` by default; user edits before CP2.
+- First-release derivado handling — when `!is_factory && version='0.0.0' && mode=release`, Phase 2 asks for target version (default `1.0.0`) and skips auto-suggest; Phase 7 triggers one-way transition (create `develop`, switch).
+- Verify gate — `pnpm verify` runs by default in `release` mode; override with `--skip-verify`.
+- 4 inline + STOP checkpoints (CP1 precheck, CP2 CHANGELOG review, CP3 conditional on unexpected commits in main, CP4 conditional on merge conflicts). No CP for push — relies on harness Bash permission prompt (`feedback_trust_platform`).
+- Source push deferred to Phase 6 — bump+CHANGELOG commits stay local until user authorizes push, enabling clean `git reset --soft HEAD~2` recovery if canceling after CP2.
+- BR-FACTORY-004 hardening — Phase 7 explicitly forbids `git merge main` from source post-release; only `git cherry-pick` if needed.
+
+### Rationale
+
+`/deploy` previously existed only as runbook reference under `.agent/workflows/deploy.md` + `factory_release.md` — not invocable as a skill, dragged anti-patterns (`// turbo`, `BlockedOnUser`, `notify_user`), and split Factory vs derived behavior across two files without a runtime trigger. This implementation consolidates both flows into a single CC-native heavy workflow with explicit Factory detection, auto-bump from Conventional Commits (the repo already enforces them via the pre-commit hook), and a Trust-the-Harness push gate replacing the previous redundant CP5.
+
+### Verification path
+
+```bash
+# Skill detected by CC
+ls .claude/skills/tk-deploy/SKILL.md
+
+# Frontmatter valid
+pnpm skill:lint
+
+# Anti-patterns absent
+grep -rE "(cat |// turbo|notify_user|BlockedOnUser|ShouldAutoProceed)" \
+  .claude/skills/tk-deploy/ | grep -v anti-patterns
+
+# 4 CPs in SKILL.md
+grep -c "🛑 CP" .claude/skills/tk-deploy/SKILL.md
+
+# Thin command ≤45 lines
+wc -l .claude/commands/deploy.md
+```
+
+---
+
+## How to add an entry
+
+When making a change to `SKILL.md`, `methodology/*.md`, `phase-*.md`, `templates/*.md`:
+
+1. Append under `[Unreleased]` if no release scheduled, or create a new `## [vX.Y.Z] — YYYY-MM-DD` section above.
+2. Bucket: **Added** / **Changed** / **Deprecated** / **Removed** / **Fixed** / **Security**.
+3. Describe the behavior delta — what the workflow does now that it didn't before. Generic phrasing (no client names).
+4. Reference the exact section/file modified (e.g., `See SKILL.md §Phase 4.6` or `methodology/modes.md §3`).
+5. If the change is user-visible during `/deploy` runs, document under "Verification path".
+
+---
+
+_TimeKast Factory — tk-deploy CHANGELOG_

@@ -1,0 +1,15 @@
+<!-- chat-thread — hilo de chat (CMP custom típico). Burbuja user inset/derecha,
+     bot outset/izquierda. SQL/tablas internas usan neo-flat. Composer abajo. -->
+<div class="pk-bubble bot">
+  <div class="who">Asistente</div>
+  Aquí va la respuesta del asistente.
+  <div class="pk-sqlbox mono">SELECT * FROM clientes WHERE estado = 'activo';</div>
+</div>
+<div class="pk-bubble user">
+  <div class="who">Tú</div>
+  ¿Cuántos clientes activos hay?
+</div>
+<div class="pk-composer" style="margin-top: 8px">
+  <span class="field">Escribe tu pregunta…</span>
+  <button class="pk-btn primary sm">Enviar</button>
+</div>

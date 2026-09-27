@@ -1,0 +1,902 @@
+/* ============================================================================
+   TimeKast — Presentation Kit · kit.css
+   AUTHORED (hand-maintained). The structural pk-* primitives + embedded Geist +
+   branding layer. Pairs with the GENERATED theme.css (tokens + neo utilities).
+
+   Load order in every screen/mockup:  theme.css  →  kit.css
+   (theme.css defines the --tokens; kit.css consumes them.)
+
+   Layout:
+     1. @font-face   — Geist embebida (woff2 local, offline/headless determinístico)
+     2. Branding     — lo único que cambia por cliente (--brand-*)
+     3. Base         — reset + tipografía + helpers
+     4. pk-* prims   — catálogo emergido del PoC (crece con uso real)
+   ============================================================================ */
+
+/* ===== 1. FONTS — Geist embebida (variable woff2, cubre todos los pesos) ==== */
+@font-face {
+  font-family: 'Geist';
+  src: url('./fonts/Geist-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('./fonts/GeistMono-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ===== 2. BRANDING LAYER — lo único que cambia por cliente ================== */
+/* Un derivado sólo toca estas 3 vars (o las pone inline en el <html>). */
+:root {
+  --brand-primary: var(--primary); /* color de marca; default = azul del kit */
+  --brand-logo-text: 'TK'; /* iniciales del logo provisional */
+  --brand-product-name: 'TimeKast'; /* nombre del producto */
+
+  /* maker layer (TimeKast) — paralela a --brand-* (cliente). En propuestas el
+     logo del maker (TimeKast) co-existe con la marca del cliente. Hoy solo
+     TimeKast (clientes sin logo); co-brand cuando el cliente tenga assets.
+     Los GIFs viven vendorizados en ./brand/ (light = fondo claro, dark = oscuro). */
+  --maker-logo-light: url('./brand/timekast-light.gif'); /* sobre fondo claro */
+  --maker-logo-dark: url('./brand/timekast-dark.gif'); /* sobre fondo oscuro */
+}
+
+/* Brand text via vars: un elemento VACÍO `.pk-logo` / `.pk-auth-logo` / `.pk-brand-name`
+   toma su texto de la capa branding. Así un derivado cambia identidad tocando solo `--brand-*`
+   (SSOT §3.6) — sin texto hardcodeado. `:empty` lo hace backwards-compatible: pantallas con texto
+   literal (ej. la demo del catálogo) no se duplican. */
+.pk-logo:empty::before {
+  content: var(--brand-logo-text);
+}
+.pk-auth-logo:empty::before {
+  content: var(--brand-logo-text);
+}
+.pk-brand-name:empty::before {
+  content: var(--brand-product-name);
+}
+
+/* ===== 3. BASE — reset + tipografía + helpers ============================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.mono {
+  font-family: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+.muted {
+  color: var(--muted-foreground);
+}
+.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* pk-ico — wrapper for inline Lucide SVGs (CSS sizes the box; svg fills it) */
+.pk-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.pk-ico svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ===== 4. PK-* PRIMITIVES ================================================== */
+
+/* --- pk-device: marco del dispositivo (mobile 375 / desktop) --------------- */
+.pk-device {
+  background: var(--background);
+  /* re-root `color` here so a device carrying its own theme class (.midnight/.dark)
+     nested inside a different-themed page uses the device's tokens — otherwise
+     `color` inherits from the outer <body> and the nested theme scope is ignored
+     (dark text over a dark device). */
+  color: var(--foreground);
+  border-radius: 26px;
+  box-shadow: var(--neo-outset-lg);
+  overflow: hidden;
+  transition: width 0.25s ease;
+}
+.pk-device.mobile {
+  width: 375px;
+}
+.pk-device.desktop {
+  width: 940px;
+  max-width: 100%;
+}
+.pk-device .pk-app {
+  display: flex;
+  min-height: 560px;
+}
+
+/* sidebar (solo desktop) */
+.pk-sidebar {
+  width: 196px;
+  background: var(--sidebar-bg);
+  padding: 14px 10px;
+  flex: 0 0 auto;
+  display: none;
+}
+.pk-device.desktop .pk-sidebar {
+  display: block;
+}
+.pk-sidebar .pk-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 14px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.pk-sidebar .pk-brand .pk-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--brand-primary);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.72rem;
+  box-shadow: var(--neo-outset-sm);
+}
+.pk-si {
+  padding: 8px 10px;
+  border-radius: 9px;
+  font-size: 0.82rem;
+  color: var(--sidebar-foreground);
+  margin-bottom: 2px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pk-si.active {
+  box-shadow: var(--neo-inset-sm);
+  color: var(--brand-primary);
+}
+.pk-si.group {
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 12px;
+  font-weight: 700;
+}
+
+/* main column */
+.pk-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pk-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 3px 8px rgba(136, 150, 171, 0.16);
+  flex: 0 0 auto;
+}
+.pk-header .pk-ham {
+  font-size: 1.1rem;
+  color: var(--muted-foreground);
+  display: inline-flex;
+}
+.pk-device.desktop .pk-header .pk-ham {
+  display: none;
+}
+.pk-header .pk-ttl {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.pk-header .pk-sp {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--muted-foreground);
+}
+.pk-header .pk-ico {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+}
+.pk-body {
+  padding: 14px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* bottom nav (solo mobile) */
+.pk-bottomnav {
+  display: flex;
+  justify-content: space-around;
+  padding: 9px 6px;
+  box-shadow: 0 -3px 8px rgba(136, 150, 171, 0.16);
+  font-size: 0.7rem;
+  color: var(--muted-foreground);
+  flex: 0 0 auto;
+}
+.pk-device.desktop .pk-bottomnav {
+  display: none;
+}
+.pk-bn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.pk-bn .pk-ico {
+  width: 20px;
+  height: 20px;
+}
+.pk-bn.active {
+  color: var(--brand-primary);
+  font-weight: 700;
+}
+
+/* --- pk-card -------------------------------------------------------------- */
+.pk-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--neo-outset);
+  border: none; /* shadows define edges — resetea el borde UA si la card es un <button> */
+}
+.pk-card-sm {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: var(--neo-outset-sm);
+  border: none;
+}
+/* card/kpi sobre un <button> (CTA clickeable): hereda tipografía Y color (si no, el
+   <button> usa el ButtonText negro del UA y rompe el contraste en temas oscuros), sin borde UA */
+button.pk-card,
+button.pk-card-sm,
+button.pk-kpi {
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+/* --- pk-btn -------------------------------------------------------------- */
+.pk-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+}
+.pk-btn.primary {
+  background: var(--brand-primary);
+  color: #fff;
+  box-shadow: var(--neo-outset-sm);
+}
+.pk-btn.ghost {
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: var(--neo-outset-sm);
+}
+.pk-btn.block {
+  width: 100%;
+}
+.pk-btn.sm {
+  padding: 5px 10px;
+  font-size: 0.76rem;
+}
+.pk-btn.icon {
+  padding: 6px 8px;
+}
+.pk-btn .pk-ico {
+  width: 16px;
+  height: 16px;
+}
+
+/* --- pk-pill (Badge) ----------------------------------------------------- */
+.pk-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.pk-pill .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.pk-pill.blue {
+  background: var(--badge-blue-bg);
+  color: var(--badge-blue-text);
+}
+.pk-pill.blue .dot {
+  background: var(--badge-blue-dot);
+}
+.pk-pill.green {
+  background: var(--badge-emerald-bg);
+  color: var(--badge-emerald-text);
+}
+.pk-pill.green .dot {
+  background: var(--badge-emerald-dot);
+}
+.pk-pill.red {
+  background: var(--badge-red-bg);
+  color: var(--badge-red-text);
+}
+.pk-pill.red .dot {
+  background: var(--badge-red-dot);
+}
+.pk-pill.amber {
+  background: var(--badge-amber-bg);
+  color: var(--badge-amber-text);
+}
+.pk-pill.amber .dot {
+  background: var(--badge-amber-dot);
+}
+.pk-pill.slate {
+  background: var(--badge-slate-bg);
+  color: var(--badge-slate-text);
+}
+.pk-pill.slate .dot {
+  background: var(--badge-slate-dot);
+}
+
+/* --- pk-table (DataTable) ------------------------------------------------ */
+.pk-table-wrap {
+  border-radius: 10px;
+  box-shadow: var(--neo-inset-sm);
+  overflow-x: auto;
+}
+table.pk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+table.pk-table th {
+  background: var(--table-header-bg);
+  color: var(--table-header-foreground);
+  text-align: left;
+  padding: 8px 10px;
+  font-weight: 700;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+table.pk-table td {
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+table.pk-table tr:nth-child(even) td {
+  background: var(--table-row-hover);
+}
+table.pk-table tr.subtotal td {
+  font-weight: 700;
+  color: var(--brand-primary);
+}
+
+/* --- pk-kpi ------------------------------------------------------------- */
+.pk-kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.pk-kpi {
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: var(--neo-outset-sm);
+  background: var(--card);
+}
+.pk-kpi .k-label {
+  font-size: 0.72rem;
+  color: var(--muted-foreground);
+  font-weight: 600;
+}
+.pk-kpi .k-val {
+  font-size: 1.3rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+/* delta vs. periodo previo (↑ mejor / ↓ peor) — StatCard con tendencia */
+.pk-kpi .k-delta {
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.pk-kpi .k-delta .pk-ico {
+  width: 12px;
+  height: 12px;
+}
+.pk-kpi .k-delta.up {
+  color: var(--success);
+}
+.pk-kpi .k-delta.down {
+  color: var(--error);
+}
+
+/* --- pk-hbar: horizontal bar breakdown (ranking/share por categoría) -------
+   Complementa pk-chart (barras verticales). Cada fila: label + track + valor.
+   El % del fill va inline por instancia (style="width:NN%"). */
+.pk-hbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 7px 0;
+  font-size: 0.76rem;
+}
+.pk-hbar .lbl {
+  width: 96px;
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+}
+.pk-hbar .track {
+  flex: 1;
+  height: 14px;
+  border-radius: 7px;
+  box-shadow: var(--neo-inset-sm);
+  overflow: hidden;
+}
+.pk-hbar .fill {
+  height: 100%;
+  background: var(--chart-1);
+  border-radius: 7px;
+}
+.pk-hbar .val {
+  width: 44px;
+  flex: 0 0 auto;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- pk-chart: static SVG chart layer (line / area / bar / pareto) --------
+   La DATA (coordenadas del path / alturas de barra / % acumulado) se calcula
+   por instancia y va inline en el SVG; estas clases dan el canvas, grid, ejes,
+   series (paleta por tokens, color-blind safe), leyenda y labels reusables.
+   Ver partials/chart-{line,bar,pareto}.html para la estructura a componer. */
+:root {
+  /* paleta de series — orden estable, derivada de tokens semánticos */
+  --chart-1: var(--brand-primary);
+  --chart-2: var(--success);
+  --chart-3: var(--warning);
+  --chart-4: var(--muted-foreground);
+}
+.pk-chart {
+  width: 100%;
+  display: block;
+} /* el <svg>; height vía inline style + viewBox preserveAspectRatio="none" */
+.pk-chart .grid {
+  stroke: var(--border);
+  stroke-width: 1;
+  opacity: 0.5;
+}
+.pk-chart .axis {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.pk-chart .tick {
+  font-size: 7px;
+  fill: var(--muted-foreground);
+}
+/* líneas/áreas por serie (s1..s4) */
+.pk-chart .line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.pk-chart .s1 {
+  stroke: var(--chart-1);
+}
+.pk-chart .s2 {
+  stroke: var(--chart-2);
+}
+.pk-chart .s3 {
+  stroke: var(--chart-3);
+}
+.pk-chart .s4 {
+  stroke: var(--chart-4);
+}
+.pk-chart .area {
+  stroke: none;
+}
+.pk-chart .area.s1 {
+  fill: color-mix(in srgb, var(--chart-1) 16%, transparent);
+}
+.pk-chart .area.s2 {
+  fill: color-mix(in srgb, var(--chart-2) 16%, transparent);
+}
+.pk-chart .dot.s1 {
+  fill: var(--chart-1);
+}
+.pk-chart .dot.s2 {
+  fill: var(--chart-2);
+}
+.pk-chart .dot.s3 {
+  fill: var(--chart-3);
+}
+/* barras (SVG rects) — base + variantes de clase (Pareto A/B/C) */
+.pk-chart .bar {
+  fill: var(--chart-1);
+}
+.pk-chart .bar.b {
+  fill: var(--chart-3);
+}
+.pk-chart .bar.c {
+  fill: var(--muted-foreground);
+  opacity: 0.55;
+}
+/* Pareto: línea acumulada (eje 2ndario) + umbral punteado */
+.pk-chart .cum {
+  fill: none;
+  stroke: var(--chart-2);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.pk-chart .cumdot {
+  fill: var(--chart-2);
+}
+.pk-chart .threshold {
+  stroke: var(--error);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.7;
+}
+/* labels del eje X (fila HTML bajo el SVG) */
+.pk-chart-x {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.62rem;
+  color: var(--muted-foreground);
+  margin-top: 4px;
+}
+/* .inset: alinea los labels X con el inicio del plot cuando hay y-ticks a la izquierda */
+.pk-chart-x.inset {
+  padding-left: 18px;
+}
+/* leyenda (HTML) */
+.pk-chart-legend {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.7rem;
+  color: var(--muted-foreground);
+  margin-top: 8px;
+}
+.pk-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.pk-chart-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+/* .c: el swatch de "clase C" iguala la opacidad atenuada de .bar.c */
+.pk-chart-legend i.c {
+  opacity: 0.55;
+}
+
+/* --- pk-search / pk-chip (filterbar) ------------------------------------ */
+.pk-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 11px;
+  box-shadow: var(--neo-inset);
+  color: var(--muted-foreground);
+  font-size: 0.82rem;
+}
+.pk-search .pk-ico {
+  width: 16px;
+  height: 16px;
+}
+.pk-chip-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.pk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  box-shadow: var(--neo-outset-sm);
+  cursor: pointer;
+}
+
+/* --- pk-bubble (chat) --------------------------------------------------- */
+.pk-bubble {
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 0.86rem;
+  max-width: 86%;
+}
+.pk-bubble .who {
+  font-size: 0.7rem;
+  color: var(--muted-foreground);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.pk-bubble.user {
+  box-shadow: var(--neo-inset);
+  background: var(--secondary);
+  margin-left: auto;
+}
+.pk-bubble.bot {
+  box-shadow: var(--neo-outset);
+  background: var(--card);
+  margin-right: auto;
+}
+.pk-bubble .meta {
+  font-size: 0.72rem;
+  color: var(--muted-foreground);
+  margin: 8px 0 6px;
+}
+
+/* --- pk-sqlbox --------------------------------------------------------- */
+.pk-sqlbox {
+  box-shadow: var(--neo-inset);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.74rem;
+  color: var(--foreground);
+  background: var(--input-bg);
+  overflow-x: auto;
+  white-space: pre;
+  margin: 6px 0;
+}
+
+/* --- pk-composer ------------------------------------------------------- */
+.pk-composer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 12px;
+  box-shadow: var(--neo-inset);
+}
+.pk-composer .field {
+  flex: 1;
+  color: var(--muted-foreground);
+  font-size: 0.84rem;
+  padding: 4px 8px;
+}
+
+/* --- pk-empty (EmptyState) --------------------------------------------- */
+.pk-empty {
+  text-align: center;
+  padding: 32px 18px;
+  color: var(--muted-foreground);
+}
+.pk-empty .pk-ico {
+  width: 32px;
+  height: 32px;
+  margin: 0 auto 8px;
+  color: var(--muted-foreground);
+}
+.pk-empty .t {
+  font-weight: 600;
+  color: var(--foreground);
+  margin-bottom: 4px;
+  font-size: 0.92rem;
+}
+
+/* --- pk-sk (skeleton / loading) ---------------------------------------- */
+.pk-sk {
+  border-radius: 10px;
+  box-shadow: var(--neo-inset-sm);
+  background: linear-gradient(
+    90deg,
+    var(--muted) 0%,
+    var(--secondary-hover) 50%,
+    var(--muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: pk-shimmer 1.3s linear infinite;
+}
+@keyframes pk-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pk-sk {
+    animation: none;
+  }
+}
+
+/* --- pk-state (toggleable screen states) ------------------------------- */
+.pk-state {
+  display: none;
+}
+.pk-state.on {
+  display: block;
+}
+
+/* --- pk-fresh (freshness dot) ------------------------------------------ */
+.pk-fresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: var(--muted-foreground);
+}
+.pk-fresh .d {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+}
+.pk-fresh.warn .d {
+  background: var(--warning);
+}
+
+/* --- pk-switch (StatusToggle / on-off, static) ------------------------- */
+.pk-switch {
+  display: inline-block;
+  width: 34px;
+  height: 19px;
+  border-radius: 999px;
+  box-shadow: var(--neo-inset-sm);
+  background: var(--input-bg);
+  position: relative;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.pk-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  box-shadow: var(--neo-outset-sm);
+  background: var(--muted-foreground);
+  transition:
+    left 0.15s ease,
+    background 0.15s ease;
+}
+.pk-switch.on {
+  background: color-mix(in srgb, var(--brand-primary) 22%, transparent);
+}
+.pk-switch.on::after {
+  left: 17px;
+  background: var(--brand-primary);
+}
+
+/* --- forms (FormField / Input) ----------------------------------------- */
+.pk-field {
+  margin-bottom: 14px;
+}
+.pk-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+.pk-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  box-shadow: var(--neo-inset);
+  background: var(--input-bg);
+  border: none;
+  font-family: inherit;
+  font-size: 0.88rem;
+  color: var(--foreground);
+}
+.pk-input::placeholder {
+  color: var(--muted-foreground);
+}
+.pk-input-wrap {
+  position: relative;
+}
+.pk-input-wrap .pk-ico {
+  position: absolute;
+  right: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: var(--muted-foreground);
+}
+.pk-link {
+  color: var(--primary);
+  font-size: 0.82rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.pk-error {
+  box-shadow: var(--neo-inset-sm);
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  color: var(--error);
+  border-radius: 11px;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  margin-bottom: 14px;
+}
+
+/* --- pk-auth (centered card screens: login / reset / invite / error) ---- */
+.pk-body.center {
+  justify-content: center;
+  align-items: center;
+}
+.pk-auth {
+  width: 100%;
+  max-width: 340px;
+  margin: 0 auto;
+}
+.pk-auth-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: var(--brand-primary);
+  color: #fff;
+  font-weight: 800;
+  font-size: 1rem;
+  box-shadow: var(--neo-outset);
+  margin: 0 auto 14px;
+}
+.pk-auth h2 {
+  text-align: center;
+  margin: 0 0 4px;
+  font-size: 1.2rem;
+  letter-spacing: -0.01em;
+}
+.pk-auth .pk-sub {
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: 0.85rem;
+  margin: 0 0 18px;
+}

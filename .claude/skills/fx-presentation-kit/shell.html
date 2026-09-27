@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Presentation Kit · Shell</title>
+    <link rel="stylesheet" href="./theme.css" />
+    <link rel="stylesheet" href="./kit.css" />
+    <style>
+      /* ===== Preview chrome (NO es parte del producto — solo el harness) ===== */
+      .pk-page {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px 18px 64px;
+      }
+      .pk-page-head {
+        margin-bottom: 14px;
+      }
+      .pk-eyebrow {
+        color: var(--brand-primary);
+        font-weight: 700;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .pk-page-head h1 {
+        margin: 4px 0 2px;
+        font-size: 1.25rem;
+        letter-spacing: -0.01em;
+      }
+      .pk-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+      .pk-toolbar .lbl {
+        font-size: 0.76rem;
+        color: var(--muted-foreground);
+        font-weight: 600;
+      }
+      .pk-toggle {
+        display: inline-flex;
+        border-radius: 999px;
+        padding: 3px;
+        box-shadow: var(--neo-inset-sm);
+        background: var(--background);
+      }
+      .pk-toggle button {
+        border: none;
+        background: transparent;
+        padding: 6px 13px;
+        border-radius: 999px;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: var(--muted-foreground);
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .pk-toggle button.on {
+        box-shadow: var(--neo-outset-sm);
+        color: var(--brand-primary);
+        background: var(--background);
+      }
+      .pk-stage {
+        display: flex;
+        justify-content: center;
+        padding: 22px;
+        border-radius: var(--radius);
+        box-shadow: var(--neo-inset);
+        background: var(--input-bg);
+        overflow-x: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="pk-page">
+      <div class="pk-page-head">
+        <div class="pk-eyebrow">Presentation Kit</div>
+        <h1>Shell — device frame + toggles</h1>
+        <p class="muted" style="font-size: 0.85rem; margin: 4px 0 0">
+          Cascarón de referencia: marco de dispositivo, conmutadores de tema y de estado. Las
+          pantallas se componen dentro de <code>.pk-device</code>.
+        </p>
+      </div>
+
+      <div class="pk-toolbar">
+        <span class="lbl">Dispositivo</span>
+        <div class="pk-toggle" data-toggle="device">
+          <button class="on" data-device="mobile">Móvil</button>
+          <button data-device="desktop">Escritorio</button>
+        </div>
+        <span class="lbl">Tema</span>
+        <div class="pk-toggle" data-toggle="theme">
+          <button class="on" data-theme="">Claro</button>
+          <button data-theme="midnight">Midnight</button>
+          <button data-theme="dark">Oscuro</button>
+        </div>
+        <span class="lbl">Estado</span>
+        <div class="pk-toggle" data-toggle="state">
+          <button class="on" data-state="data">Con datos</button>
+          <button data-state="empty">Vacío</button>
+          <button data-state="loading">Cargando</button>
+        </div>
+      </div>
+
+      <div class="pk-stage">
+        <div class="pk-device mobile">
+          <div class="pk-app">
+            <!-- Sidebar (desktop only) -->
+            <aside class="pk-sidebar">
+              <div class="pk-brand">
+                <span class="pk-logo">TK</span>
+                <span>TimeKast</span>
+              </div>
+              <div class="pk-si active">
+                <span class="pk-ico" style="width: 16px; height: 16px"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></span>
+                Panel
+              </div>
+              <div class="pk-si">
+                <span class="pk-ico" style="width: 16px; height: 16px"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg></span>
+                Usuarios
+              </div>
+              <div class="pk-si group">Cuenta</div>
+              <div class="pk-si">
+                <span class="pk-ico" style="width: 16px; height: 16px"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></span>
+                Ajustes
+              </div>
+            </aside>
+
+            <!-- Main column -->
+            <div class="pk-main">
+              <header class="pk-header">
+                <span class="pk-ham pk-ico" style="width: 22px; height: 22px"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg></span>
+                <span class="pk-ttl">Panel</span>
+                <span class="pk-sp">
+                  <span class="pk-ico" style="width: 20px; height: 20px"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg></span>
+                  <span class="pk-ico" style="width: 20px; height: 20px"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                </span>
+              </header>
+
+              <div class="pk-body">
+                <!-- STATE: data -->
+                <div class="pk-state on" data-state-panel="data">
+                  <div class="pk-fresh" style="margin-bottom: 10px">
+                    <span class="d"></span> Actualizado hace 2 min
+                  </div>
+                  <div class="pk-kpi-grid" style="margin-bottom: 12px">
+                    <div class="pk-kpi">
+                      <div class="k-label">Usuarios activos</div>
+                      <div class="k-val">1,284</div>
+                    </div>
+                    <div class="pk-kpi">
+                      <div class="k-label">Ingresos del mes</div>
+                      <div class="k-val">$48,920</div>
+                    </div>
+                  </div>
+                  <div class="pk-table-wrap">
+                    <table class="pk-table">
+                      <thead>
+                        <tr>
+                          <th>Cliente</th>
+                          <th>Plan</th>
+                          <th class="num">Monto</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>Acme S.A.</td>
+                          <td><span class="pk-pill blue"><span class="dot"></span>Pro</span></td>
+                          <td class="num">$1,200</td>
+                        </tr>
+                        <tr>
+                          <td>Globex</td>
+                          <td><span class="pk-pill green"><span class="dot"></span>Activo</span></td>
+                          <td class="num">$980</td>
+                        </tr>
+                        <tr>
+                          <td>Initech</td>
+                          <td><span class="pk-pill amber"><span class="dot"></span>Trial</span></td>
+                          <td class="num">$0</td>
+                        </tr>
+                        <tr class="subtotal">
+                          <td>Total</td>
+                          <td></td>
+                          <td class="num">$2,180</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <!-- STATE: empty -->
+                <div class="pk-state" data-state-panel="empty">
+                  <div class="pk-empty">
+                    <span class="pk-ico"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>
+                    <div class="t">Sin resultados para los filtros aplicados</div>
+                    <div>Ajusta los filtros o crea un registro nuevo.</div>
+                  </div>
+                </div>
+
+                <!-- STATE: loading -->
+                <div class="pk-state" data-state-panel="loading">
+                  <div class="pk-kpi-grid" style="margin-bottom: 12px">
+                    <div class="pk-sk" style="height: 64px"></div>
+                    <div class="pk-sk" style="height: 64px"></div>
+                  </div>
+                  <div class="pk-sk" style="height: 38px; margin-bottom: 8px"></div>
+                  <div class="pk-sk" style="height: 38px; margin-bottom: 8px"></div>
+                  <div class="pk-sk" style="height: 38px"></div>
+                </div>
+              </div>
+
+              <!-- Bottom nav (mobile only) -->
+              <nav class="pk-bottomnav">
+                <span class="pk-bn active">
+                  <span class="pk-ico"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+                  Inicio
+                </span>
+                <span class="pk-bn">
+                  <span class="pk-ico"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg></span>
+                  Usuarios
+                </span>
+                <span class="pk-bn">
+                  <span class="pk-ico"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></span>
+                  Ajustes
+                </span>
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ===== Toggle harness (preview-only) =====
+      const device = document.querySelector('.pk-device');
+
+      function wireToggle(name, apply) {
+        const group = document.querySelector(`[data-toggle="${name}"]`);
+        group.addEventListener('click', (e) => {
+          const btn = e.target.closest('button');
+          if (!btn) return;
+          group.querySelectorAll('button').forEach((b) => b.classList.remove('on'));
+          btn.classList.add('on');
+          apply(btn);
+        });
+      }
+
+      wireToggle('device', (btn) => {
+        device.classList.toggle('desktop', btn.dataset.device === 'desktop');
+        device.classList.toggle('mobile', btn.dataset.device === 'mobile');
+      });
+
+      wireToggle('theme', (btn) => {
+        document.documentElement.classList.remove('midnight', 'dark');
+        if (btn.dataset.theme) document.documentElement.classList.add(btn.dataset.theme);
+      });
+
+      wireToggle('state', (btn) => {
+        const target = btn.dataset.state;
+        document.querySelectorAll('[data-state-panel]').forEach((panel) => {
+          panel.classList.toggle('on', panel.dataset.statePanel === target);
+        });
+      });
+    </script>
+  </body>
+</html>

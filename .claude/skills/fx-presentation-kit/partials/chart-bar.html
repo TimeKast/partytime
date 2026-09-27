@@ -1,0 +1,19 @@
+<!-- chart-bar — barras verticales por categoría (SVG rects sobre canvas pk-chart).
+     La DATA (alturas/posiciones de cada <rect>, y-ticks) se calcula por instancia.
+     Barra base = .bar (s1/--chart-1). Para destacar categorías usa .bar.b / .bar.c
+     (ej. Pareto A/B/C) o varias series con .s2/.s3. Labels del eje X bajo el SVG. -->
+<div class="pk-card">
+  <p class="mck-card-ttl">Título del gráfico de barras</p>
+  <svg class="pk-chart" style="height:140px" viewBox="0 0 320 140" preserveAspectRatio="none" role="img" aria-label="Descripción de las barras">
+    <line class="grid" x1="0" y1="28" x2="320" y2="28" />
+    <line class="grid" x1="0" y1="70" x2="320" y2="70" />
+    <line class="grid" x1="0" y1="112" x2="320" y2="112" />
+    <!-- cada rect: x = posición, y = 130 - altura, height = altura, width = ancho de barra -->
+    <rect class="bar" x="14" y="40" width="40" height="90" rx="3" />
+    <rect class="bar" x="70" y="62" width="40" height="68" rx="3" />
+    <rect class="bar" x="126" y="30" width="40" height="100" rx="3" />
+    <rect class="bar" x="182" y="78" width="40" height="52" rx="3" />
+    <rect class="bar" x="238" y="96" width="40" height="34" rx="3" />
+  </svg>
+  <div class="pk-chart-x"><span>Ene</span><span>Feb</span><span>Mar</span><span>Abr</span><span>May</span></div>
+</div>

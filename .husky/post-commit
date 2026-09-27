@@ -1,0 +1,46 @@
+#!/usr/bin/env sh
+# ============================================
+# TimeKast Factory — Post-commit Hook
+# Repara el residuo de índice que deja un commit por pathspec.
+#
+# El PORQUÉ completo está en el bloque de marca al inicio de .husky/pre-commit.
+# Resumen: `git commit -- <paths>` deja en el índice real el estado previo al hook,
+# así que cada archivo que el pre-commit reformateó aparece staged-pero-idéntico y
+# `git status` miente. Sin esto, seguir `GIT.md §3.6.1` deja el repo en un estado
+# que los gates de árbol limpio del propio kit rechazan.
+#
+# DERIVATIVE-SAFE: shell puro, sin alias de package.json, sin dependencias. Nunca
+# aborta nada — git ignora el exit code de post-commit, y aquí igual salimos 0.
+# ============================================
+
+TK_GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || echo .git)
+TK_MARKER="$TK_GIT_DIR/tk-pathspec-commit"
+
+# Sin marca -> el commit fue normal -> no hay nada que reparar. Salida barata: es el
+# caso de la enorme mayoría de los commits.
+[ -f "$TK_MARKER" ] || exit 0
+rm -f "$TK_MARKER" 2>/dev/null || true
+
+# Doble acotación, y las dos importan:
+#   1. SOLO los archivos que ESTE commit registró — no todo lo que haya en el índice.
+#   2. SOLO donde el índice es el que sobra: difiere de HEAD mientras el worktree
+#      coincide con HEAD. Es la firma exacta de la patología, y no hay nada que perder
+#      porque el contenido del worktree ya quedó commiteado.
+# Lo que otro agente haya dejado staged tiene worktree != HEAD (o no está en este
+# commit) y se salta en los dos filtros — su trabajo nunca se toca.
+#
+# El worktree se compara contra HEAD por HASH del contenido, no con `git diff HEAD`:
+# un archivo que el pre-commit CREÓ durante el commit (los adapters de otros agentes,
+# por ejemplo) nunca estuvo en el índice real, y `git diff HEAD` lo reporta como
+# borrado aunque el worktree sea idéntico a HEAD — el filtro lo saltaba y `git status`
+# quedaba con el archivo "borrado" staged y el mismo archivo sin trackear.
+git show --pretty=format: --name-only HEAD | while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  git diff --cached --quiet -- "$f" && continue   # índice == HEAD: nada que reparar
+  [ -f "$f" ] || continue                         # sin archivo en el worktree: no es la patología
+  head_blob=$(git rev-parse -q --verify "HEAD:$f" 2>/dev/null) || continue
+  [ "$(git hash-object -- "$f")" = "$head_blob" ] || continue   # worktree != HEAD
+  git restore --staged -- "$f" 2>/dev/null || true
+done
+
+exit 0
