@@ -102,6 +102,17 @@ jobs:
       - name: Unit Tests
         run: pnpm test
 
+      # Project-owned step (not part of the kit's default pipeline): this repo predates
+      # the kit and its own ci.yml (preserved at ci.project.yml for reference) always ran
+      # a production build as a real regression check — build runs WITHOUT RESEND_API_KEY
+      # on purpose, verifying the A8-01 fix (lib/resend.ts no longer throws at module load
+      # when the key is absent). The kit's default ci.yml has no build step; this one is
+      # added here rather than left only in ci.project.yml so it isn't a second, duplicate
+      # "CI"-named workflow (which would share this workflow's concurrency group and
+      # cancel it — see git history for the discarded ci.project.yml as a second workflow).
+      - name: Build
+        run: pnpm build
+
       # Dead-code / unused-dependency detection. Non-blocking for this first
       # iteration (continue-on-error) — surfaces findings without gating the
       # pipeline while the existing knip backlog is still being cleaned up.
