@@ -45,10 +45,17 @@ concurrency:
 jobs:
   validate:
     name: Lint, TypeCheck, Test
-    # The org's self-hosted pool (TimeKast/gh-runner-pool). A repo outside the runner
-    # group changes this one line back to `ubuntu-latest`; nothing else in the file
-    # differs. Migration guide: .claude/docs/retrofits/self-hosted-e2e-pool.md
-    runs-on: [self-hosted, linux, x64]
+    # `partytime` is a PUBLIC repo (`gh api repos/TimeKast/partytime` → visibility: public).
+    # The org's self-hosted pool (TimeKast/gh-runner-pool, runner group `e2e-pool`) has
+    # `allows_public_repositories: false` by design (a public repo's PRs — including from
+    # forks — would otherwise run arbitrary code on the org's self-hosted infra). Confirmed
+    # empirically: the kit's default `[self-hosted, linux, x64]` left this job queued
+    # indefinitely with 0 runners picking it up, while the identical line works for private
+    # derivatives (e.g. yalavi) with the exact same runner labels.
+    # Migration guide: .claude/docs/retrofits/self-hosted-e2e-pool.md §1 — "Solo un repo
+    # público ... se queda en hosted". If this repo is ever made private, switch back to
+    # `[self-hosted, linux, x64]` (the `cache:` ternary below already handles both cases).
+    runs-on: ubuntu-latest
     # Cost guard: GitHub's default job timeout is 6 HOURS, all of it billable. A single
     # hung job (stuck install, deadlocked test) would burn 360 minutes — a large slice of
     # a monthly allowance. This suite runs in single digits; 15 min is generous headroom.
