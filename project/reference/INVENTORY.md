@@ -11,24 +11,24 @@
 
 | Package                   | Version |
 | ------------------------- | ------- |
-| @neondatabase/serverless  | 1.0.2   |
+| @neondatabase/serverless  | 1.1.0   |
 | @types/bcryptjs           | 2.4.6   |
-| @vercel/blob              | 2.0.1   |
+| @vercel/blob              | 2.8.0   |
 | @vercel/functions         | 2.2.13  |
 | bcryptjs                  | 2.4.3   |
-| drizzle-orm               | 0.45.1  |
-| firebase-admin            | 12.0.0  |
-| framer-motion             | 11.3.28 |
-| image-size                | 2.0.2   |
-| jspdf                     | 3.0.3   |
-| jspdf-autotable           | 5.0.2   |
-| next                      | 14.2.5  |
+| drizzle-orm               | 0.45.3  |
+| firebase-admin            | 12.7.0  |
+| framer-motion             | 11.18.2 |
+| image-size                | 2.0.4   |
+| jspdf                     | 3.0.4   |
+| jspdf-autotable           | 5.0.8   |
+| next                      | 14.2.35 |
 | react                     | 18.3.1  |
 | react-dom                 | 18.3.1  |
-| react-international-phone | 4.6.0   |
-| resend                    | 6.4.1   |
+| react-international-phone | 4.8.0   |
+| resend                    | 6.30.0  |
 | sharp                     | 0.34.5  |
-| stripe                    | 22.5.0  |
+| stripe                    | 22.6.2  |
 | xlsx                      | 0.18.5  |
 
 ---
