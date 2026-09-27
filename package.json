@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/tools/with-vault.mjs next dev",
     "build": "node scripts/tools/with-vault.mjs next build",
     "start": "node scripts/tools/with-vault.mjs next start",
     "lint": "next lint",

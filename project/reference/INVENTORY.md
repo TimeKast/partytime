@@ -37,7 +37,7 @@
 
 | Command                           | Script                                               |
 | --------------------------------- | ---------------------------------------------------- |
-| `pnpm dev`                        | `next dev`                                           |
+| `pnpm dev`                        | `node scripts/tools/with-vault.mjs next dev`         |
 | `pnpm build`                      | `node scripts/tools/with-vault.mjs next build`       |
 | `pnpm start`                      | `node scripts/tools/with-vault.mjs next start`       |
 | `pnpm lint`                       | `next lint`                                          |
