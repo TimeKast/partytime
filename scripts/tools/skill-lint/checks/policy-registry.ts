@@ -4,6 +4,7 @@ import { join } from 'path';
 import fg from 'fast-glob';
 import { z } from 'zod';
 
+import { PRUNE_TIERS_PATH, validatePruneTiers } from '../../lib/prune-tiers.mjs';
 import type { Check, Finding, LintContext, Severity, Skill } from '../types';
 
 /**
@@ -41,6 +42,10 @@ import type { Check, Finding, LintContext, Severity, Skill } from '../types';
  *     resolve to nothing in a derivative or at the Factory itself.
  *   - Either file absent → no finding (the kit registry lands via POL-001; the
  *     override is optional by design — most derivatives never declare one).
+ *   - `.claude/policy/prune-tiers.json` (what a pruned repo shares, `factory prune`) — its
+ *     form is validated by the same reader the pre-commit guard uses
+ *     (`scripts/tools/lib/prune-tiers.mjs`), so lint and guard can never disagree on what a
+ *     valid tier is. Kit file → always an error; absent → no finding.
  *
  * The file is read + `JSON.parse`d — no dynamic `import()` (static analysis,
  * per `kb-ssot-registries §2`; the registry is pure JSON, nothing to execute).
@@ -539,6 +544,27 @@ function reviewOverrideFindings(
   return findings;
 }
 
+/** Form of the prune tiers registry — kit-shipped, so a defect is always an error. */
+function pruneTiersFindings(subjectName: string, ctx: LintContext): Finding[] {
+  const absPath = join(ctx.repoRoot, PRUNE_TIERS_PATH);
+  if (!existsSync(absPath)) return [];
+  let data: unknown;
+  try {
+    data = JSON.parse(readFileSync(absPath, 'utf-8'));
+  } catch (err) {
+    data = err instanceof Error ? err : new Error(String(err));
+  }
+  const errors =
+    data instanceof Error ? [`not valid JSON — ${data.message}`] : validatePruneTiers(data);
+  return errors.map((message) => ({
+    skill: subjectName,
+    check: CHECK_NAME,
+    severity: 'error',
+    message: `${PRUNE_TIERS_PATH}: ${message}`,
+    hint: 'Expected shape: tiers.<name>{description?, restrict[], share[]} — see the $comment in the file.',
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // Check
 // ---------------------------------------------------------------------------
@@ -571,6 +597,8 @@ export const policyRegistryCheck: Check = (subject, ctx): Finding[] => {
   if (override.registry) {
     findings.push(...deadGlobFindings(subject.name, ctx, override.registry));
   }
+
+  findings.push(...pruneTiersFindings(subject.name, ctx));
 
   return findings;
 };

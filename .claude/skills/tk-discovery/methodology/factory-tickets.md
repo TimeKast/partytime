@@ -7,7 +7,7 @@
 
 ## §13 — Factory-Ticket Pattern → se mudó a la skill `fx-factory-tickets`
 
-**La convención canónica de factory-tickets** —qué es un ticket, tipos y naming, shape, campos por tipo, `Estado`, higiene de contenido y trigger rules— vive en [`.claude/skills/fx-factory-tickets/SKILL.md`](../../fx-factory-tickets/SKILL.md). Es una primitiva del kit, no del Discovery: se carga por ruteo semántico desde cualquier workflow, sin haber corrido `/discovery`.
+**La convención canónica de factory-tickets** —qué es un ticket, tipos y naming, shape, campos por tipo, ciclo de vida, higiene de contenido y trigger rules— vive en [`.claude/skills/fx-factory-tickets/SKILL.md`](../../fx-factory-tickets/SKILL.md). Es una primitiva del kit, no del Discovery: se carga por ruteo semántico desde cualquier workflow, sin haber corrido `/discovery`.
 
 Lo que queda abajo es **solo la mecánica local** de cómo `/discovery` maneja un ticket dentro de una corrida — ininteligible fuera de este workflow, y por eso no viaja a la skill.
 

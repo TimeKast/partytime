@@ -27,7 +27,7 @@
 
 import { execFileSync } from 'node:child_process';
 
-import { BUILD_SOURCE_DIRS, BUILD_SOURCE_FILES, readExtraBuildInputs } from '../e2e-runner';
+import { BUILD_SOURCE_DIRS, BUILD_SOURCE_FILES, readExtraBuildInputs } from '../e2e/build-inputs';
 import type { CodeSeal } from './manifest';
 
 /** What one `git` invocation produced. `code` is the exit status, `null` when it never ran. */

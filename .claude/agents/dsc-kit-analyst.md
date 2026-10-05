@@ -119,7 +119,7 @@ Cuando encuentras en `src/` un componente/feature que NO está en `sk-features-i
 | `## Why it failed / why it's a gap` | 1-2 líneas: el leverage analysis tuvo que hacer fallback porque esto no está documentado en skills |
 | `## Suggested Factory improvement`  | La checklist de acciones de abajo                                                                 |
 | `## Context snippet (optional)`  | El grep/read snippet que demuestra que la feature existe                                             |
-| **Los demás campos del encabezado** | `**Project:**`, `**Date:**`, `**Estado:** abierto` y `**GitHub issue:** —` van **tal cual** del shape canónico — no se omiten. El último nace con el guion largo a propósito: es el hueco que `factory ticket push` estampa con la URL del issue |
+| **Los demás campos del encabezado** | `**Project:**` y `**Date:**` van **tal cual** del shape canónico — no se omiten. No hay campo de estado: el archivo es un borrador que `factory ticket push` entrega y borra (`fx-factory-tickets §6`) |
 
 **Campos opcionales de este tipo** (`fx-factory-tickets §4.1`) — van en el bloque de encabezado, después de `Trigger context`:
 

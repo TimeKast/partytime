@@ -40,6 +40,8 @@
 ✅ Bash queda para EXEC (`git`/`pnpm`/`node`/`gh`) y pipelines reales multi-paso
    (`grep -c … | sort`, `find … | xargs …` siguen siendo Bash válido)
 ❌ PROHIBIDO: Bash de inspección simple (`grep`/`ls`/`find`/`cat`) cuando una tool dedicada resuelve en un call
+ℹ️  Runtime sin `Grep`/`Glob` (hay entornos de Claude Code que no las exponen) → Bash de SOLO lectura
+   es la vía válida para inspeccionar; §1.4 sigue aplicando
 ```
 
 #### 1.4 No `cd x && …`

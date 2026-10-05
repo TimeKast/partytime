@@ -266,7 +266,7 @@ STOP al cierre. User responde gaps + confirma/ajusta. El bootstrap validado pasa
 #### 1.2.1 Media-type classification pre-pass
 
 - Por cada file del source: detect extension + magic bytes heuristic
-- Agrupar por strategy [methodology/intake.md §2.1](methodology/intake.md): Tier 1 (structured text / transcript / visual / tabular `.csv`) / Tier 1-fallback (texto plano legible sin strategy dedicada — `.yml`/`.sh`/`.toml`… → extrae como Reference, NO drift) / Tier 2 (`.docx`/`.pdf`/`.xlsx`/unknown-no-texto → drift ticket)
+- Agrupar por strategy [methodology/intake.md §2.1](methodology/intake.md): Tier 1 (structured text / transcript / visual / tabular `.csv` / `.pdf` con capa de texto) / Tier 1-fallback (texto plano legible sin strategy dedicada — `.yml`/`.sh`/`.toml`… → extrae como Reference, NO drift) / Tier 2 (`.docx`/`.pdf` scan/`.xlsx`/unknown-no-texto → drift ticket)
 
 #### 1.2.2 Batch planning (determinístico + adaptive single-source)
 
@@ -1199,7 +1199,7 @@ ADRs identificados: {N}
    - §8.1 Stakeholders + §8.2 Team members OBLIGATORIOS
    - §10 incluye `BR-PROJECT-001` hardcoded
    - §14 Delivery Model **sin currency** (eso es `/proposal`)
-   - Pipeline Status: Discovery ✅, Design/Backlog/Code ⬜ (per `PIPELINE_CURRENT_TRUTH §1` cadena real — proposal y docs api/data-model son on-demand off primary path, NO listar en tabla)
+   - Pipeline Status: Discovery ✅, Design/Backlog/Code ⬜ (per `CORE.md §3` cadena real — proposal y docs api/data-model son on-demand off primary path, NO listar en tabla)
    - **🔴 Authorization Model Lock keyword scan (HARD FAIL):** scan `project/planning/05_RBAC_MATRIX.md §"Authorization Model Lock"` keyword-by-field per `methodology/rbac-matrix.md §7`. Fields scoped:
      - `Canonical roles` / `Scope model` / `Role derivation rules` → fail si contiene `tentative`, `hypothesis`, `?`, `unclear`, `TBD` (case-insensitive). `Canonical roles` adicionalmente fail en `3 vs 4`, `deprecated`.
      - `Forbidden states` → **whitelist** — NO scan keywords; "deprecated role cannot access X" es legítimo aquí.
@@ -1233,7 +1233,7 @@ ADRs identificados: {N}
    fi
    ```
 
-6. **Retention policy:** durables consumed by downstream phases (`/design`, `/backlog`, `/implement`) live in `project/planning/` + `project/planning/decisions/`. Factory-tickets are durable too but belong to ANOTHER lifecycle — they live in `project/factory/`, are consumed by `factory ticket push` rather than by any downstream phase, and travel in their own commit (`GIT.md §3.5.1`). Audit-only artifacts live in `project/discovery-artifacts/_audit/` (preserved for retroactive audit but not loaded by downstream agents).
+6. **Retention policy:** durables consumed by downstream phases (`/design`, `/backlog`, `/implement`) live in `project/planning/` + `project/planning/decisions/`. Factory-tickets belong to ANOTHER lifecycle — they live in `project/factory/` as drafts, are consumed by `factory ticket push` (which delivers them as GitHub issues and deletes the file) rather than by any downstream phase, and travel in their own commit (`GIT.md §3.5.1`). Audit-only artifacts live in `project/discovery-artifacts/_audit/` (preserved for retroactive audit but not loaded by downstream agents).
 
 7. **Factory-tickets surface:** si hay `intake-drift` / `sk-drift` / `workflow-drift` candidates en `project/factory/` → mostrar resumen al user ("📩 N tickets en `project/factory/*.md`"). Workflow-drift candidates requieren confirmation explícita del user antes de emitir.
 
@@ -1268,7 +1268,7 @@ ADRs identificados: {N}
 | `project/planning/14_DOMAIN_REGISTRY_LOCKS.md`       | **Durable** — registries de dominio (reports/cron/roles/navigation/movement-types/KPIs) locked o partial. Producer: Phase 6.3 step 4.                            |
 | `project/planning/15_IMPLEMENTATION_PACKETS/FT-*.md` | **Durable** — per-FT self-contained handoff packets (one file per Tier S/M/L FT). Source-of-truth hierarchy: 03_DEEP_DIVE > 12 > 16. Producer: Phase 6.3 step 6. |
 | `project/planning/decisions/ADR-*.md`                | **Durable** — ADRs flagged at Phase 4c sub-ronda time (change_cost=high), drafted inline (`architect`), consumed by `/design`                                                   |
-| `project/factory/*.md`                               | **Durable** — factory-tickets. `{type}` es un slug kebab-case libre; `intake-drift`, `sk-drift` y `workflow-drift` son los tres que los **agentes emiten solos** (`fx-factory-tickets §3`)                    |
+| `project/factory/*.md`                               | **Borrador hasta `factory ticket push`** (que lo entrega como issue y lo borra) — factory-tickets. `{type}` es un slug kebab-case libre; `intake-drift`, `sk-drift` y `workflow-drift` son los tres que los **agentes emiten solos** (`fx-factory-tickets §3`)                    |
 
 ### Audit-only — archived at Phase 8 close (preserved for retroactive audit, NOT loaded by downstream agents)
 

@@ -381,6 +381,10 @@ const roleOptions = useMemo(() => {
 
 **Optimistic delete** — only for idempotent, low-risk actions (delete, toggle): snapshot `rows`, filter locally, call the action, `router.refresh()` on success, restore the snapshot + `toast.error` on failure. **Never optimistic** for money movement, irreversible writes or **security actions** (unlink an access method, remove a passkey, reset MFA): those stay server-first — spinner while the action runs, state from the server response. The kit's `AccessMethodsList` / `PasskeysList` are the live examples.
 
+### 7.5 Vista Tarjetas / Tabla
+
+Si la entidad tiene identidad propia por fila (clientes, proyectos) y el diseño pide tarjetas, no compongas una vista aparte: `DataTable` con `view` + `renderCard`, y el switch con `useCollectionView` + `CollectionViewToggle` → [`sk-ui` §1.1 Card view](../sk-ui/SKILL.md). Mismos filtros, búsqueda y paginación en las dos vistas. Las listas administrativas densas (usuarios, auditoría) se quedan en tabla.
+
 ## 8. Cómo crear CRUD nuevo — checklist
 
 Orden recomendado. Cada paso tiene su skill pair como SSOT.

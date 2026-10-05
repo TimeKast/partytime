@@ -152,6 +152,27 @@ if (typeof Element !== 'undefined') {
   Element.prototype.scrollIntoView ??= () => {};
 }
 
+/**
+ * WEB STORAGE UNDER NODE ≥ 25 — jsdom's, never Node's.
+ *
+ * Node 25+ ships its own `localStorage` / `sessionStorage` globals. Without
+ * `--localstorage-file` they have no backing store and read as `undefined`, and since the
+ * global already exists Vitest does not replace it with jsdom's: every test that touches
+ * storage dies with `Cannot read properties of undefined (reading 'removeItem')`. Vitest
+ * exposes the jsdom instance as `globalThis.jsdom`, so its window's storage is put back.
+ * On a Node without the native globals this is a no-op in effect (same objects).
+ */
+const jsdomWindow = (globalThis as { jsdom?: { window: Window } }).jsdom?.window;
+if (jsdomWindow) {
+  for (const key of ['localStorage', 'sessionStorage'] as const) {
+    Object.defineProperty(globalThis, key, {
+      value: jsdomWindow[key],
+      configurable: true,
+      writable: true,
+    });
+  }
+}
+
 if (typeof globalThis !== 'undefined' && !('ResizeObserver' in globalThis)) {
   class ResizeObserverStub {
     observe() {}

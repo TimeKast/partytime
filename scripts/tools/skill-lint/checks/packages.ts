@@ -1,4 +1,4 @@
-import type { Check, Finding } from '../types';
+import type { Check, Finding, Severity } from '../types';
 import { extractCodeBlocks } from '../body-utils';
 
 const IMPORT_FROM_RE = /(?:import|export)\s+(?:[^'"]+?\s+from\s+)?['"]([^'"\n]+)['"]/g;
@@ -72,8 +72,14 @@ function packageNameOf(spec: string): string | null {
  * references like "use `nuqs` for URL state" are intentionally ignored because
  * they're often comparative ("nuqs is a lighter alternative to …") rather than
  * prescriptive.
+ *
+ * In a derivative (`ctx.isDerivative`) it degrades to warning: the kit-owned
+ * skills cite the kit's own stack (e.g. `@testing-library/*` in
+ * `sk-testing-nextjs`), and a derivative that dropped one of those packages
+ * cannot fix a read-only skill. Strict ERROR stays at origin.
  */
 export const packagesCheck: Check = (skill, ctx): Finding[] => {
+  const severity: Severity = ctx.isDerivative ? 'warning' : 'error';
   const findings: Finding[] = [];
   const codeLangs = new Set(['ts', 'tsx', 'js', 'jsx', 'typescript', 'javascript']);
   const blocks = extractCodeBlocks(skill.body);
@@ -106,7 +112,7 @@ export const packagesCheck: Check = (skill, ctx): Finding[] => {
         findings.push({
           skill: skill.name,
           check: 'packages',
-          severity: 'error',
+          severity,
           message: `Imported package \`${pkg}\` is not declared in package.json`,
           line: block.startLine + i,
           hint: `Either add it as a dependency, or mark the code block as "not installed / example only".`,

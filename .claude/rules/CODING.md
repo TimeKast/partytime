@@ -67,8 +67,9 @@ trigger: always_on
 ## 5. 🔴 NUNCA hardcodear valores
 
 ```
-❌ PROHIBIDO: Valores mágicos en código (URLs, colores, tamaños, textos)
+❌ PROHIBIDO: Valores mágicos en código (URLs, colores, tamaños)
 ✅ OBLIGATORIO: Usar constantes, config files, o CSS variables
+ℹ️  Textos de UI: viven en el componente; a una constante solo si se repiten
 ```
 
 ---

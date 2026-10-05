@@ -331,6 +331,16 @@ function getDependencies() {
 }
 
 /**
+ * Make free text safe inside one Markdown table cell: a `|` would split the row (GFM reads it
+ * as a cell boundary even inside a code span) and a newline would end it. Only `\|` is
+ * unescaped inside a code span, so no other character is touched. Apply AFTER truncating,
+ * so the cut never lands between the backslash and the pipe.
+ */
+export function tableCell(text: string): string {
+  return text.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+}
+
+/**
  * Get npm scripts from package.json
  */
 function getScripts() {
@@ -421,7 +431,7 @@ ${DOC_HEADER_NOTE}
     md += `|---------|--------|\n`;
 
     for (const { name, command } of scripts) {
-      md += `| \`pnpm ${name}\` | \`${command}\` |\n`;
+      md += `| \`pnpm ${tableCell(name)}\` | \`${tableCell(String(command))}\` |\n`;
     }
 
     md += '\n---\n\n';

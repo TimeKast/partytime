@@ -90,5 +90,5 @@
     "zod": "^3.25.76"
   },
   "packageManager": "pnpm@10.24.0",
-  "agentKitVersion": "13.0.1"
+  "agentKitVersion": "13.5.0"
 }

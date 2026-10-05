@@ -1,7 +1,7 @@
 ---
 name: sk-db
 description: Kit-shipped DB helpers for the TimeKast Starter Kit — mandatory `auditFields`, optional `softDeleteFields` + `notDeleted()`, dual-ID via `getNextHumanId` (PG sequences + 23505 retry), pagination utils (`parsePaginationParams`/`buildPaginationSQL`/`createCachedCount`), `canHardDeleteUser`, migration workflow (`db:generate` → `db:migrate`), and `pnpm db:query` runner. Invoke when defining schema, writing mutations, or inspecting DB in kit projects.
-last-verified: 2026-09-22
+last-verified: 2026-09-28
 user-invocable: false
 ---
 
@@ -399,20 +399,25 @@ export async function listUsers(searchParams: Record<string, string | string[] |
 
 ## 6. Hard-delete eligibility — `canHardDeleteUser`
 
-If an admin needs to permanently delete a user, first verify no downstream audit references exist:
+If an admin needs to permanently delete a user, first verify no downstream audit references exist. The helper is `server-only` and performs no auth — it never lives in (or is re-exported from) a `'use server'` module, where every export becomes a client-callable action. Call it inside an authenticated action (`withAuth`, as below); client components reach it through the authenticated wrapper `checkCanHardDelete` (`@/lib/actions/admin/user-admin`):
 
 ```ts
-import { canHardDeleteUser } from '@/lib/db/helpers/can-hard-delete';
+import { canHardDeleteUser, HARD_DELETE_BLOCKED_REASON } from '@/lib/db/helpers/can-hard-delete';
 import { ActionError } from '@/lib/actions/types';
 
 const result = await canHardDeleteUser(userId);
 if (!result.canDelete) {
-  throw new ActionError(result.reason ?? 'No se puede eliminar: tiene registros asociados');
+  throw new ActionError(result.reason ?? HARD_DELETE_BLOCKED_REASON);
 }
 await db.delete(users).where(eq(users.id, userId));
 ```
 
-The helper counts rows where the target user appears in `createdBy` / `modifiedBy` / `deletedBy` and refuses the hard delete when >0. For other entities, mirror the pattern — a custom helper per table, not a generic scan.
+The helper refuses when either kind of reference exists:
+
+- **Audit columns of `users`** (`createdBy` / `modifiedBy` / `deletedBy`) — plain uuids with no foreign key, so the helper checks them by name.
+- **Every foreign key to `users` that would block the `DELETE`** (`ON DELETE NO ACTION` / `RESTRICT`) — read from `pg_constraint` at call time, never listed. A table the project adds with a blocking foreign key to `users` is covered with no change to the helper; one that cascades or sets null never blocks. On `users` itself the user's own row is excluded.
+
+The refusal carries `HARD_DELETE_BLOCKED_REASON` (plain, not itemized). `hardDeleteUser` also maps a `23503` raised by the `DELETE` itself (a reference written after the check) to that same reason via `readPgError` + `PG_FOREIGN_KEY_VIOLATION` (`@/lib/db/helpers/errors`), never a generic error.
 
 ---
 
@@ -436,7 +441,7 @@ pnpm db:query --json "SELECT …"  # JSON output (for pipes)
 ### Rules (per SK.md §1.1 + §1.2 + §1.4)
 
 - 🛑 `pnpm db:push` requires explicit consent (SK.md §1.1). Prefer generate → migrate (reversible). If unavoidable, show `--dry-run` output and wait for approval.
-- 🛑 Snapshots + `meta/_journal.json` are the diff engine's state — never hand-edit (SK.md §1.2). DDL comes from schema TS → `pnpm db:generate` → review → `pnpm db:migrate`; rewriting generated DDL by hand drifts structure from the snapshot (TS stops being SSOT). Augmenting a generated `.sql` **pre-apply** with DML (backfill/seed/guards) is safe — it never touches the snapshot (exactly what `db:harden-enum` does, §1.1). A `--custom` data-only migration is also safe: drizzle-kit writes the empty `.sql` + journal + snapshot itself; you fill the SQL by hand, never `meta/`.
+- 🛑 Snapshots + `meta/_journal.json` are the diff engine's state — never hand-edit (SK.md §1.2). DDL comes from schema TS → `pnpm db:generate` → review → `pnpm db:migrate`; rewriting generated DDL by hand drifts structure from the snapshot (TS stops being SSOT). Augmenting a generated `.sql` **pre-apply** with DML (backfill/seed/guards) is safe — it never touches the snapshot (exactly what `db:harden-enum` does, §1.1). A `--custom` data-only migration is also safe: drizzle-kit writes the empty `.sql` + journal + snapshot itself; you fill the SQL by hand, never `meta/`. A `--custom` migration may also carry `CREATE FUNCTION` / `CREATE TRIGGER` — objects drizzle does not model, so there is no diff to drift. Policies and roles are modeled (`pgPolicy` / `pgRole`) → schema TS, never hand SQL.
 - 🛑 For any read-only DB polling/inspection always use `pnpm db:query` (SK.md §1.4). The runner:
   - Blocks writes (`INSERT`/`UPDATE`/`DELETE`/`DROP`/`ALTER`/`TRUNCATE`/`CREATE`/`GRANT`/`REVOKE`)
   - Loads `.env.local` via the kit pattern

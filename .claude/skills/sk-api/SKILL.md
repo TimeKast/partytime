@@ -1,7 +1,7 @@
 ---
 name: sk-api
 description: Kit-shipped server action helpers and route handler conventions for the TimeKast Starter Kit — `withAuth` / `withSelf` wrappers from `@/lib/actions/helpers`, `ActionResult` / `ActionError` types, inline `Response.json` + `@/lib/logger` convention (no central `handleApiError`), humanId retry-on-23505, async `params`. Invoke when writing server actions or `app/api/*/route.ts` in kit projects.
-last-verified: 2026-09-22
+last-verified: 2026-09-28
 user-invocable: false
 ---
 
@@ -350,32 +350,35 @@ Reference: [`sk-crud-scaffold`](../sk-crud-scaffold/SKILL.md) for the full scaff
 
 ## 6. Read-only / listing actions — manual pattern
 
-Read actions that only need auth + a permission check (no mutation, no input) skip the wrapper and call `auth()` + `requirePermission()` directly:
+Read actions that only need auth + a permission check (no mutation, no input) skip the wrapper and call `auth()` through `requireActionSession` + `requirePermission()` directly:
 
 ```ts
 'use server';
 
 import { auth } from '@/lib/auth';
 import { requirePermission } from '@/lib/auth/permissions';
+import { requireActionSession } from '@/lib/auth/route-session';
 import { redirect } from 'next/navigation';
 
 export async function getUsers(): Promise<UserListItem[]> {
-  const session = await auth();
-  if (!session?.user?.id) redirect('/login');
+  const guard = requireActionSession(await auth());
+  if (!guard.ok) redirect(guard.reason === 'pending_mfa' ? '/2fa' : '/login');
 
-  requirePermission(session.user.role, 'users', 'list');
+  requirePermission(guard.session.user.role, 'users', 'list');
 
   return await db.select({…}).from(users).orderBy(asc(users.createdAt));
 }
 ```
 
 > `requirePermission` **throws** when denied — do not wrap in try/catch here; the server-side redirect/error boundary takes over. Use `hasPermission` for non-throwing checks.
+>
+> `requireActionSession` refuses both a missing user and a `pendingMfa` session (password proven, second factor still owed) — a hand-written `!session?.user?.id` forgets the second. It returns the reason so each getter maps it to its own contract (redirect, empty result, `{ reason }`). Detail → [`sk-security §2`](../sk-security/SKILL.md).
 
 ---
 
 ## 7. Delete-with-dependencies — `canHardDeleteUser`
 
-Soft delete is safe-by-default. Hard delete requires an eligibility check via the typed helper — do NOT invent an ad-hoc `hasMovements`:
+Soft delete is safe-by-default. Hard delete requires an eligibility check via the typed helper — do NOT invent an ad-hoc `hasMovements`. The helper is `server-only` and performs no auth: call it inside an authenticated action (as below); a client component reaches it through the authenticated wrapper `checkCanHardDelete` (`@/lib/actions/admin/user-admin`), never directly:
 
 ```ts
 import { canHardDeleteUser } from '@/lib/db/helpers/can-hard-delete';
@@ -439,7 +442,8 @@ Reference implementation: `src/lib/actions/admin/user-admin.ts → createUser`.
 
 ```ts
 // src/app/api/push/subscribe/route.ts
-import { auth } from '@/lib/auth';
+import { auth } from '@/lib/auth/auth';
+import { requireRouteSession } from '@/lib/auth/route-session';
 import { logger } from '@/lib/logger';
 import { subscribePush } from '@/lib/notifications/push';
 import { z } from 'zod';
@@ -450,10 +454,9 @@ const subscribeSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const guard = requireRouteSession(await auth());
+  if (guard instanceof Response) return guard; // 401 no user · 403 pendingMfa
+  const { session } = guard;
 
   try {
     const body = await req.json();
@@ -489,9 +492,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ userId:
 
 > Next.js 16+: `params` is a Promise — `await` before parsing. Same for `searchParams` in Server Components.
 
+### Session — every private route checks its own, never relies on the Edge
+
+A route handler that reads the session goes through `requireRouteSession(await auth())` (`@/lib/auth/route-session`) as its first statement: 401 without a user (a revoked session included — the Node `auth()` returns `null` for it), 403 for a `pendingMfa` session. Never rely on the Edge gate for this: `/api/auth/*` and the anonymous routes are public there, the matcher can change, and a handler that trusts it runs its side effect for whoever reaches it. A development relaxation may skip a role check, never the session. `tests/unit/auth/route-session-guard.test.ts` fails when a route under `src/app/api` calls `auth()` without the guard. A private response that carries user data sets `Cache-Control: private` (the avatar route is the reference). Detail → [`sk-security §2`](../sk-security/SKILL.md).
+
 ### Public endpoint (no auth)
 
-Invite validation, health, NextAuth callbacks — no `auth()` call. Still validate input with Zod/`safeParse` and wrap in try/catch.
+Invite validation and acceptance, one-click unsubscribe, CSP reports, liveness (`/api/health/live`), NextAuth callbacks — no `auth()` call. An anonymous route is reachable only if it is listed in `publicPaths` (`auth.config.ts`) with its reason; otherwise the Edge answers 401. It keeps its own gate (a signed token, a signature, a rate-limit bucket). Still validate input with Zod/`safeParse` and wrap in try/catch.
 
 ### Error shape convention (kit-canonical)
 
@@ -503,9 +510,9 @@ Common codes seen in the repo: `Unauthorized`, `invalid_request`, `invalid_token
 
 Status codes: the kit answers **`400`** both for a body that cannot be parsed and for one that fails Zod — with `details.fieldErrors` in the second case (`/api/auth/register`, documented in `sk-security §6.5`, is the reference). Don't introduce `422` in a new route for the Zod case: clients read the code, and one convention beats a more precise one. Always pass `{ status: NNN }` — a `Response.json({ error })` without status is a `200` with an error inside.
 
-**CSRF on custom mutating routes.** Server Actions get same-site CSRF for free (same-origin `fetch` + same-site cookies); a hand-written `POST`/`PUT`/`DELETE` under `app/api/**` does not. Every mutating route a browser can reach applies two cheap checks before touching the body: require a JSON `Content-Type` (else `415`), and compare the `Origin` header against the app's expected origin (else `403`). `src/app/api/auth/passkey/_shared.ts` is the reference implementation — copy its guards, don't reinvent them.
+**CSRF on custom mutating routes.** Server Actions get same-site CSRF for free (same-origin `fetch` + same-site cookies); a hand-written `POST`/`PUT`/`DELETE` under `app/api/**` does not. Every mutating route a browser can reach applies two cheap checks before touching the body: require a JSON `Content-Type` — the exact media type `application/json` (parameters aside), never a substring match, which `text/plain; x=application/json` would pass (else `415`) — and compare the `Origin` header against the app's expected origin (else `403`). `src/app/api/auth/passkey/_shared.ts` is the reference implementation — copy its guards, don't reinvent them.
 
-> Reference files: `src/app/api/health/route.ts` (200/503 degraded), `src/app/api/invites/accept/route.ts` (validated POST), `src/app/api/push/subscribe/route.ts` (auth + Zod).
+> Reference files: `src/app/api/health/route.ts` (session guard + 200/503 degraded), `src/app/api/invites/accept/route.ts` (validated POST), `src/app/api/push/subscribe/route.ts` (auth + Zod).
 
 ---
 
@@ -543,6 +550,8 @@ export async function POST(request: Request) {
 | `return { error: '…' }` from inside the handler                                                    | `throw new ActionError('…')` — returning makes the error the `data` payload              |
 | `createdBy` / `modifiedBy` from input payload                                                      | From the `userId` the wrapper injects                                                    |
 | Inventing a new `hasMovements` per table                                                           | `canHardDeleteUser` (or analogous typed helper from `sk-db`)                             |
+| Route handler checking `session?.user?.id` by hand, or trusting the Edge                           | `requireRouteSession(await auth())` — also refuses `pendingMfa`                          |
+| Exporting a domain function that trusts its arguments from a `'use server'` file                   | `server-only` module; expose only an authenticated wrapper as the action                 |
 | Throwing `Error('unauthorized')` inside an action                                                  | Let `withAuth` return the standard message — don't bypass                                |
 | Mixing actions and helpers in one `'use server'` file                                              | Helpers go in a non-`'use server'` file like `actions/types.ts`                          |
 | `console.log` for observability                                                                    | `@/lib/logger` (structured)                                                              |
@@ -564,7 +573,7 @@ export async function POST(request: Request) {
 
 **Server Action (read):**
 
-- [ ] `await auth()` + `redirect('/login')` or `ActionError` on missing session
+- [ ] `requireActionSession(await auth())` → redirect / error return on refusal (no user or `pendingMfa`)
 - [ ] `requirePermission(role, resource, action)` called (or documented why skipped)
 
 **Route Handler:**
@@ -572,7 +581,8 @@ export async function POST(request: Request) {
 - [ ] `safeParse` for body AND params (`await params` in Next.js 16+)
 - [ ] Explicit status code on every response
 - [ ] Errors logged via `@/lib/logger`, not `console`
-- [ ] `auth()` check when the endpoint is private
+- [ ] Private endpoint: `requireRouteSession(await auth())` first — never rely on the Edge gate
+- [ ] Anonymous endpoint: listed in `publicPaths` with its reason, and gated by its own token / signature / rate limit
 - [ ] Response shape: `{ error, message, details? }` on failure
 
 **Webhook (if/when added):**

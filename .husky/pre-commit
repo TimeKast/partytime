@@ -42,6 +42,15 @@ case "${TK_IDX##*/}" in
   *) : > "$TK_GIT_DIR/tk-pathspec-commit" 2>/dev/null || true ;;
 esac
 
+# --- Prune guard (only in a repo shared with collaborators — `factory prune`) --------
+# Refuses a commit that puts back a path the tier keeps local to the members (a workflow, an
+# agent, a kit doc). Patterns come from .claude/policy/prune-tiers.json, never from .gitignore.
+# Off unless .timekast/prune.json exists, so a repo that was never pruned commits as before.
+# Runs before lint-staged so a refused commit fails fast. By PATH with a guard (rule 1).
+if [ -f .timekast/prune.json ] && [ -f scripts/tools/prune-guard.mjs ]; then
+  node scripts/tools/prune-guard.mjs
+fi
+
 pnpm lint-staged
 
 # Check if any issue files were DELETED (lint-staged doesn't handle deletions)
@@ -123,9 +132,12 @@ fi
 # NOT path-gated, unlike the autogen block above: this one runs `node` directly (no `tsx`
 # cold start), so gating it would save nothing measurable while giving up the self-healing
 # that repairs a hand-edited @import on the next commit.
+# `--stage` puts ONLY the @import line into the index, and only when it is out of sync —
+# never `git add src/app/globals.css`: that staged the whole file on every commit, so any
+# unrelated WIP in globals.css (another agent on a shared checkout) rode into the commit,
+# even a `git commit -- <paths>` that never named it (GIT.md §3.6.1).
 if [ -f scripts/tools/generate-skin-import.mjs ]; then
-  node scripts/tools/generate-skin-import.mjs
-  git add src/app/globals.css 2>/dev/null || true
+  node scripts/tools/generate-skin-import.mjs --stage
 fi
 
 # Project CLAUDE.md + the .claude/rules graph onto the instruction files the OTHER coding
@@ -163,8 +175,12 @@ if [ -f scripts/tools/generate-agent-adapters.mjs ]; then
 fi
 
 # Validate skill metadata (frontmatter, descriptions, pair cross-refs)
-# Runs once per commit (not per-file) — exits non-zero on failure to abort commit
-pnpm run --if-present skill:lint
+# Runs once per commit (not per-file) — exits non-zero on failure to abort commit.
+# Guarded on the linter itself: in a pruned repo it stays local to the members, so a
+# collaborator's fork has the `skill:lint` alias (dev-owned package.json) but not the tool.
+if [ -f scripts/tools/skill-lint/index.ts ]; then
+  pnpm run --if-present skill:lint
+fi
 
 # Validate agent taxonomy (prefix convention + cross-file references)
 # Runs once per commit — exits non-zero on FAIL to abort commit (matches the

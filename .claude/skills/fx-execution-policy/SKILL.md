@@ -292,7 +292,7 @@ Un cambio está **saneado** cuando cumple las tres condiciones a la vez — cada
 
 1. **K rondas limpias sobre el piso** — `clean_rounds` rondas consecutivas de revisión sin ningún hallazgo dentro de frontera con severidad en o por encima de `severity_floor`, con K y el piso leídos de `loop_by_risk` del nivel de riesgo del cambio (§4.4).
 2. **Sin ítems fuera de frontera pendientes de registrar** — todo hallazgo fuera de la frontera del epic quedó escrito en el QC delta. Registrado, no resuelto: lo de afuera no bloquea el cierre ni ensucia rondas, pero tampoco puede quedar sin destino escrito.
-3. **Verificación mecánica en verde** — el pipeline mecánico del workflow que cierra (verify / build / e2e, según su escalera) pasó después del último fix aplicado.
+3. **Verificación mecánica en verde** — el pipeline mecánico del workflow que cierra (verify / build / e2e, según su escalera) pasó después del último fix aplicado. «Después del último fix» se cumple con **la última corrida de cada compuerta**, no con una por ronda: un workflow puede diferir su compuerta cara al cierre de un tramo de revisión (así lo hace `tk-implement §4.7.5` con el e2e), siempre que esa corrida sea posterior al último fix y se presente antes de la decisión que la consume.
 
 «Saneado» es el estado que la regla de convergencia produce; la regla misma — la re-entrada de hallazgos al triage y la parada por K rondas limpias — vive en [`tk-implement §4.7.8`](../tk-implement/SKILL.md), que consume `loop_by_risk` de este registry.
 

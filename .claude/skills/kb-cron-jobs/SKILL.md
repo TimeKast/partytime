@@ -366,10 +366,29 @@ The anti-pattern observed in an audited derivative: an admin endpoint hardcoding
 ## 13. Other deploy targets (when you migrate off Vercel)
 
 - **Render** — `render.yaml` jobs. Generate from the registry.
-- **Railway** — cron triggers in `railway.toml`. Generate from the registry.
+- **Railway** — see §13.1: a web service there is a persistent process, so the provisional pattern is an in-process scheduler, not an outside trigger.
 - **Self-hosted** — BullMQ / Inngest / `node-cron`. Registry → schedule registration on boot.
 
-The registry shape is portable; only the generator changes. The runtime patterns (CRON_SECRET-equivalent auth, run-tracking DB, `runWithRetry`, `cleanupStaleLogs`, watchdog, manual-invocation route, on/off toggles, idempotency) carry over unchanged. Numeric constants — `maxDuration` ceiling, retention days — become target-specific.
+The registry shape is portable; only the generator changes. The runtime patterns (run-tracking DB, `runWithRetry`, `cleanupStaleLogs`, watchdog, manual-invocation route, on/off toggles, idempotency) carry over unchanged; `CRON_SECRET`-equivalent auth applies only where an outside trigger calls an endpoint. Numeric constants — `maxDuration` ceiling, retention days — become target-specific.
+
+### 13.1 Railway — in-process scheduler (🟡 PROVISIONAL, single replica only)
+
+> **Status: provisional, not canonical.** This is the pattern that runs today in the kit's Railway derivatives. It is documented so a new project does not reinvent it, and it may be replaced before it is canonized. The kit ships **no** scheduler code in `src/`: the derivative writes it.
+
+**Why not Railway's native cron.** It starts a *separate* service that must exit, runs at most every 5 minutes and in UTC. It fits a batch script, not jobs that live inside the web app and share its code and connections.
+
+**The shape:**
+
+- **Registry stays the SSOT** (`src/config/cron-jobs.ts`, §3). Each job declares its slot (local hour, optional weekday/day of month) and an optional env gate. No `vercel.json` is generated.
+- **Started once per process from `instrumentation.ts`** (Node runtime only), behind a guard that is ON only on the persistent deployment (e.g. `RAILWAY_ENVIRONMENT_NAME` set) and OFF by an env flag (`CRON_SCHEDULER=off`) in `next dev`, tests and the E2E server. Keep the instance on `globalThis` under a `Symbol.for(...)` key so a re-import never starts a second one.
+- **A 60 s tick compares the clock IN MEMORY** and touches the database only when a job is due — Neon suspends when idle, and a query per minute keeps it awake and billing. Anything whose due time lives in the DB (e.g. per-user scheduled items) is loaded once at boot into an in-memory "next due", and the actions that create or change one notify the scheduler.
+- **Each job runs through the same run-tracking + retry path** as the Vercel route (§6–§7), so the admin panel (§12) and the manual "run now" (§9) do not change.
+- **Idempotency is mandatory, not optional (§10):** a restart inside a job's hour can fire it twice. Claim work atomically in the DB (`UPDATE … WHERE status = 'pending' RETURNING`), keep cleanups idempotent.
+- **Work that a deploy can cut mid-run** uses a lease in its own row (`modified_at` renewed while working, reclaimed after it expires) plus an attempt counter with a cap, so an item that kills the process cannot loop forever. The next process picks it up at boot.
+
+🔴 **Single replica only.** Nothing coordinates two processes: with 2+ replicas every job fires once per replica. Before scaling the service, the pattern needs cross-instance exclusion (a lease row per job slot claimed with an atomic `UPDATE`). A session-level `pg_try_advisory_lock` is not a substitute over a serverless/pooled driver: the lock lives on a connection the pool may hand to someone else or close.
+
+**When to prefer something else:** a job that must run while the web service is down or redeploying, sub-minute precision, or more than one replica → a dedicated worker service or a queue (BullMQ / Inngest), not this.
 
 ---
 

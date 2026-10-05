@@ -27,6 +27,7 @@ Este directorio es uno de tres buckets de documentación. Cada uno tiene audienc
 | [getting-started.md](./getting-started.md)                     | Setup completo del kit (dev onboarding al stack, no al proyecto)                                          |
 | [distribution.md](./distribution.md)                           | El CLI `@timekast/factory` — instalar/actualizar el cerebro en un repo (perfiles, lockfile, versión dual) |
 | [troubleshooting.md](./troubleshooting.md)                     | FAQ del stack (OAuth redirects, session secrets, errores comunes)                                         |
+| [working-with-collaborators.md](./working-with-collaborators.md) | Socios en un repo compartido con colaboradores externos sin la metodología (`/prune`, `/integrate`)     |
 | [CHANGELOG.md](./CHANGELOG.md)                                 | Changelog de la **Factory** (no del proyecto derivado)                                                    |
 | [design-system-neomorphism.md](./design-system-neomorphism.md) | Narrativa del DS shipped por el kit (Neomorphism 2.0). Pair con skill `sk-tokens-neomorphism`             |
 | [retrofits/](./retrofits/)                                     | Runbooks para aplicar a mano lo que `factory update` **no** puede traer (ver abajo)                       |

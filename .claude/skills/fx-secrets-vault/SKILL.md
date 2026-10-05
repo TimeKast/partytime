@@ -1,8 +1,8 @@
 ---
 name: fx-secrets-vault
-description: Factory-internal guide to the org secrets vault (self-hosted Infisical at secrets.timekast.com) — per-person login, the rail-timekast tokens and how to test each one, how a project lives in the vault (provision, local wrapper, sync to deploys, adopting an older repo) and repos deployed once per client. Invoke when a token looks dead or missing, when onboarding someone, or when creating, adopting or splitting per-client vault projects. CLI flags → fx-factory-cli.
+description: Factory-internal admin guide to the org secrets vault (self-hosted Infisical at secrets.timekast.com) — the rail-timekast tokens and how to test each one, how a project is set up in the vault (provision, folder layout, syncs to deploys, adopting an older repo) and repos deployed once per client. Invoke when a rail token looks dead or missing, when granting vault access, or when creating, adopting or splitting vault projects. First login and daily local work → sk-vault; CLI flags → fx-factory-cli.
 family: factory-internal
-last-verified: 2026-09-25
+last-verified: 2026-10-01
 user-invocable: false
 ---
 
@@ -76,34 +76,14 @@ llega al secret de GitHub Actions del repo por el sync de esa carpeta (§7), su 
 
 ### Primera vez en una máquina
 
-1. Acepta la invitación que llega por correo a la organización `TimeKast` y crea tu cuenta desde ese enlace.
-2. Instala el CLI y entra **con el dominio**:
-
-```bash
-brew install infisical
-infisical login --domain=https://secrets.timekast.com
-```
-
-🔴 **El `--domain` no es opcional.** Sin él, el CLI apunta a `app.infisical.com` —la nube de pago de
-Infisical— y el login **crea una cuenta ahí**, que no es la nuestra. Los síntomas después confunden:
-"run infisical init", `connection refused`, o proyectos que "no existen". El CLI recuerda el dominio
-del último login en `~/.infisical/infisical-config.json` y ese recuerdo le gana a
-`INFISICAL_API_URL`: si alguna vez entraste a otro lado, vuelve a hacer login con el `--domain`.
-
-Comprobación de que la sesión está viva y en la instancia correcta:
-
-```bash
-INFISICAL_DOMAIN=https://secrets.timekast.com infisical user get token --domain=https://secrets.timekast.com --plain </dev/null >/dev/null 2>&1
-echo $?   # 0 → sesión viva · distinto de 0 → sin sesión
-```
-
-Se lee el **código de salida**, nunca la salida: sin sesión, `infisical` escribe su aviso de login en
-stdout y sale con 1, así que contar bytes daría "viva" en falso. El dominio vive en
-`.claude/policy/vault.json` (`jq -r .domain .claude/policy/vault.json`); ése es el que usan los lectores
-del kit (el CLI, desde una copia embebida: ver abajo).
-
-3. Pide acceso al proyecto `rail-timekast` a un admin de la bóveda. **El acceso es por proyecto**: estar
-   en la organización no da acceso a ninguno, y un member no se agrega solo.
+1. La cuenta, el CLI, el login con `--domain` y la comprobación de la sesión →
+   [`sk-vault §2`](../sk-vault/SKILL.md). Es lo mismo para quien administra y para quien solo trabaja en
+   el código. El CLI recuerda el dominio del último login en `~/.infisical/infisical-config.json` y ese
+   recuerdo le gana a `INFISICAL_API_URL`; los lectores del kit usan el dominio de
+   `.claude/policy/vault.json` (el CLI, desde una copia embebida: ver abajo).
+2. Quien opera la metodología pide además acceso al proyecto `rail-timekast` a un admin de la bóveda.
+   **El acceso es por proyecto**: estar en la organización no da acceso a ninguno, y un member no se
+   agrega solo. Quien solo trabaja en el código de un repo necesita el proyecto de ese repo, nunca el rail.
 
 La sesión caduca. Si un comando dice que no hay sesión, es `infisical login` otra vez, no un token muerto.
 Una clave ausente que nombra un lector del kit es otra falla (tabla de abajo): la sesión está bien y la
@@ -610,33 +590,19 @@ o con `infisical secrets set` no pasa por él: ahí, la carpeta correcta depende
 
 ### En local
 
-No hay `.env.local`. Los scripts del kit (`pnpm dev`, `build`, `analyze`, `test:e2e`, `db:*`…) corren a
-través de un wrapper que lee el vínculo de `.timekast/provision.json` e inyecta el entorno `local` con tu
-sesión. Cada corrida lee valores frescos: una rotación en la bóveda aplica en el siguiente comando, sin
-pasos. `scripts/tools/invite-admin.ts` tampoco carga `.env.local` en un repo con bóveda: recibe el
-entorno del destino que le inyecta `factory invite-admin`.
+El trabajo diario —el wrapper `scripts/tools/with-vault.mjs`, `TK_ENV_OVERRIDE`, ver las claves del
+entorno, qué significa cada aviso y por qué un `.env.local` estorba— vive en
+[`sk-vault §3-§4`](../sk-vault/SKILL.md). Aquí queda lo que solo importa a quien administra:
 
-| Para | Cómo |
-| --- | --- |
-| Consultar producción | `pnpm db:query:main` — lee `DATABASE_URL` del entorno `main` |
-| Pisar valores en una corrida | `TK_ENV_OVERRIDE=<archivo> pnpm dev` — las claves de ese archivo ganan **sólo** en esa corrida, y el wrapper imprime los **nombres** que pisó. Sin la variable, la bóveda manda |
-| Ver qué claves tiene tu entorno | `INFISICAL_DOMAIN=https://secrets.timekast.com infisical secrets --domain=https://secrets.timekast.com --projectId=<id> --env=local` (muestra valores: no lo corras donde quede registro) |
-
-El wrapper es `scripts/tools/with-vault.mjs`, y los scripts del `package.json` pasan por él:
-
-- **El entorno lo declara el script:** `local` por default; `setup:e2e*` declaran `develop` y `db:query:main`
-  declara `main`, con el flag `--vault-env=<entorno>` en su valor, que gana sobre `TK_VAULT_ENV`. `main`
-  sólo se acepta para `db:query:main`: otro script que lo pida se rechaza antes de tocar la bóveda.
-- **Lee con `infisical export`** cada carpeta a memoria (para `main` junta `main:/` y `main:/ci`, y gana la
-  cadena directa de `/ci`) y lanza el comando con esos valores. Nada va a disco ni a la salida.
-- **Pasa de largo** —corre el comando tal cual, sin llamar a `infisical`— en Vercel, CI o Railway
-  (`VERCEL`, `CI`, `RAILWAY_ENVIRONMENT`), con `TK_VAULT=off`, en un repo sin bloque `vault`, y en una
-  **llamada anidada**: el wrapper marca a su hijo con `TK_VAULT_INJECTED=<entorno>`, así que el
+- **Producción:** `pnpm db:query:main` lee `DATABASE_URL` del entorno `main`. `main` sólo se acepta para
+  `db:query:main` (con `--vault-env=main` en su valor); otro script que lo pida se rechaza antes de tocar
+  la bóveda. Para `main` el wrapper junta `main:/` y `main:/ci`, y gana la cadena directa de `/ci`.
+- **Llamadas anidadas:** el wrapper marca a su hijo con `TK_VAULT_INJECTED=<entorno>`, así que el
   `pnpm db:migrate` que el runner de E2E lanza contra su branch efímera no se pisa. `db:query:main` exige
   esa marca en `main`; sin ella no conecta, en vez de consultar develop creyendo que es producción.
-
-🔴 Un `.env.local` en un repo adoptado **no se lee a propósito del wrapper, pero Next.js sí lo carga**:
-sus claves sueltas se colarían sin que nadie lo pidiera. Por eso la adopción lo retira (§8).
+- `scripts/tools/invite-admin.ts` no carga `.env.local` en un repo con bóveda: recibe el entorno del
+  destino que le inyecta `factory invite-admin`.
+- La adopción retira el `.env.local` de un repo (§8) porque Next.js lo cargaría aunque el wrapper no lo lea.
 
 ### Deploys y CI
 
@@ -748,6 +714,7 @@ principal, y los demás despliegues se operan con `factory vault deploys`.
 
 | Si vas a… | Usa en su lugar… |
 | --- | --- |
+| Entrar a la bóveda por primera vez o trabajar en local en un repo con bóveda | [`sk-vault`](../sk-vault/SKILL.md) |
 | Flags y troubleshooting de `factory provision`, `factory vault adopt`, `factory vault deploys`, `factory env push` | [`fx-factory-cli`](../fx-factory-cli/SKILL.md) |
 | Aprovisionar la infraestructura de un derivado de punta a punta | `/provision` ([`tk-provision`](../tk-provision/SKILL.md)) |
 | Entender la sincronización con el backlog central | [`fx-backlog-central`](../fx-backlog-central/SKILL.md) |

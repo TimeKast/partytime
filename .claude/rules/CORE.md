@@ -67,8 +67,6 @@ Discovery → Design → Backlog → Code
 
 **On-demand workflows:** `/proposal`, `/mockup`.
 
-> Detalle visión actualizada → `project/planning/PIPELINE_CURRENT_TRUTH.md` (Factory meta-doc).
-
 ---
 
 ## 4. Regla de Oro
