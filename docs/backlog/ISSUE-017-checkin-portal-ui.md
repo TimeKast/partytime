@@ -42,7 +42,7 @@ Portal mobile-first para recepción/seguridad. Dos pantallas en
 - Filtros rápidos: Todos / Falta por llegar / Ya llegaron.
 - Sesión expirada (401 en cualquier fetch) → volver al gate con mensaje.
 - Estética: seguir el design system del proyecto (revisar
-  `plan/5.0_Design_System.md` y `plan/5.1_UX_UI.md`); es una herramienta de
+  skills `tk-design` y `kb-visual-direction` en `.claude/skills/`); es una herramienta de
   trabajo — priorizar contraste alto y velocidad sobre ornamento.
 
 ## Acceptance criteria
