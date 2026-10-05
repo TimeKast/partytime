@@ -7,6 +7,7 @@ import { existsSync, renameSync } from 'fs'
 import { join } from 'path'
 import { validateAndApplyEventUpdate } from '@/lib/event-api-contract'
 import { buildPublicEventDto } from '@/lib/public-event'
+import { toAdminEventDto } from '@/lib/admin-event-dto'
 
 export const dynamic = 'force-dynamic'
 
@@ -156,7 +157,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
         return NextResponse.json({
             success: true,
-            event: result.event,
+            // Same allowlist as GET/POST /api/events: the updated row carries
+            // server-only columns (checkinPasswordHash) that must never reach
+            // the browser. Whoever got here can manage the event.
+            event: toAdminEventDto({ ...result.event, accessRole: 'manager' }),
             ...(result.newSlug && {
                 slugChanged: true,
                 updatedRsvps: result.updatedRsvps,

@@ -5,44 +5,15 @@ import { validateSession } from '@/lib/auth-utils'
 import { getUserEventAssignments } from '@/lib/user-queries'
 import type { Event } from '@/lib/schema'
 import { parseCreateEventRequest } from '@/lib/event-api-contract'
+import { toAdminEventDto, type EventAccessRole, type EventWithAccessRole } from '@/lib/admin-event-dto'
 
 export const dynamic = 'force-dynamic'
 
 // Mock storage for demo mode
 const mockEvents: Event[] = []
 
-type EventAccessRole = 'manager' | 'viewer'
-type EventWithAccessRole = Event & { accessRole?: EventAccessRole }
-
 function eventAccessRole(value: string): EventAccessRole | undefined {
     return value === 'manager' || value === 'viewer' ? value : undefined
-}
-
-/**
- * Explicit allowlist for the authenticated event picker/list. Database Event
- * rows contain server-only fields (most importantly checkinPasswordHash), so
- * returning a spread of the Drizzle row would make every new schema column
- * public to the browser by default. Keep this DTO intentionally small: these
- * are the fields the current admin UI consumes plus a hash-free check-in
- * readiness summary.
- */
-function toAdminEventDto(event: EventWithAccessRole) {
-    return {
-        id: event.id,
-        slug: event.slug,
-        title: event.title,
-        subtitle: event.subtitle ?? '',
-        date: event.date ?? '',
-        time: event.time ?? '',
-        location: event.location ?? '',
-        isActive: event.isActive ?? false,
-        ...(event.accessRole ? { accessRole: event.accessRole } : {}),
-        checkin: {
-            enabled: event.checkinEnabled,
-            hasPassword: !!event.checkinPasswordHash,
-            updatedAt: event.checkinPasswordUpdatedAt,
-        },
-    }
 }
 
 /**
