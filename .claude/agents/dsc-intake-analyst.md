@@ -45,9 +45,9 @@ Para cada file en `file_paths`:
 
 ### 2. Classify tier
 
-- **Tier 1** (structured text / transcript / visual / tabular `.csv`) → apply strategy §2.1 → extract per §10 schema
+- **Tier 1** (structured text / transcript / visual / tabular `.csv` / `.pdf` con capa de texto) → apply strategy §2.1 → extract per §10 schema
 - **Tier 1-fallback** (extensión sin match en Tier 1 **pero** texto plano legible — ej. `.yml`/`.yaml`/`.sh`/`.toml`/`.env.example`) → extraer best-effort con el detector de texto estructurado, clasificar el file como **Reference** por defecto (nunca SoT; **Context** solo si es background sin señal arquitectónica), marcar `Tier 1-fallback` en §10. **NO** ticket, **NO** `[OQ]`. Regla completa: `intake.md §2.1` → "Tier 1-fallback".
-- **Tier 2** (`.docx` / `.pdf` / `.xlsx` / `unknown-no-texto`) → emit `intake-drift` ticket + `[MEDIA-PENDING-STRATEGY]` en report → **continue pipeline** (no bloquea). El field correspondiente queda `[OQ]` en el brief downstream.
+- **Tier 2** (`.docx` / `.pdf` scan — sin capa de texto / `.xlsx` / `unknown-no-texto`) → emit `intake-drift` ticket + `[MEDIA-PENDING-STRATEGY]` en report → **continue pipeline** (no bloquea). El field correspondiente queda `[OQ]` en el brief downstream.
 
 ### 3. Apply Tier 1 (o fallback) strategy
 

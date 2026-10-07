@@ -27,7 +27,8 @@
 ✅ DDL: src/lib/db/schema/*.ts → pnpm db:generate → revisar SQL → pnpm db:migrate. DDL generado no deseado → ajustar el schema TS, NO el SQL
 ✅ PERMITIDO (DML): augmentar pre-apply y aditivamente un .sql generado con data migration (INSERT/UPDATE/backfill) o guards — no afecta snapshot ni SSOT (los datos nunca vivieron en el schema TS)
 ✅ PERMITIDO (custom net-new): pnpm db:generate --custom genera una migration de solo-datos — drizzle-kit crea el .sql vacío (lo llenas con DML) Y escribe journal + snapshot por su cuenta. El snapshot lo escribe el tool, no tú → sigue siendo seguro
-ℹ️  Heurística: cambia la ESTRUCTURA (tipo/columna/tabla) → schema TS + db:generate, nunca a mano en el .sql. Solo mueve/valida DATOS (backfill/seed/guard) → augmentar pre-apply. Un guard lleva SELECT + RAISE, nunca DDL nuevo
+✅ PERMITIDO (custom, objetos que drizzle NO modela): en una migration `--custom` también va `CREATE FUNCTION` / `CREATE TRIGGER` (p. ej. hacer una tabla append-only). No existen en el schema TS, así que no hay diff que desincronizar. NO aplica a políticas ni roles: drizzle sí los modela (`pgPolicy`/`pgRole`) → van en el schema TS
+ℹ️  Heurística: cambia la ESTRUCTURA (tipo/columna/tabla) → schema TS + db:generate, nunca a mano en el .sql. Solo mueve/valida DATOS (backfill/seed/guard) → augmentar pre-apply. Un guard lleva SELECT + RAISE, nunca DDL de tabla/columna/tipo
 ℹ️  Una migration ya aplicada en otro entorno NUNCA se edita: crear una nueva que corrija
 ```
 
@@ -60,7 +61,7 @@
 > De dónde sale cada cadena depende del repo:
 >
 > - **Con bóveda** (bloque `vault` en `.timekast/provision.json`): no hay `.env.local` ni
->   `DATABASE_URL_MAIN`; las cadenas llegan por el wrapper → `fx-secrets-vault §7`.
+>   `DATABASE_URL_MAIN`; las cadenas llegan por el wrapper → `sk-vault`.
 > - **Sin bóveda** (`--no-vault`, o un repo que nació antes de la bóveda y no la adoptó):
 >   `factory provision` escribe un `.env.local` (gitignored) con `DATABASE_URL` (develop) y
 >   `DATABASE_URL_MAIN` (main, que `db:query:main` lee con `--main`).
@@ -349,7 +350,7 @@ El kit es TypeScript-first. Estas reglas aplican a todo proyecto derivado (mismo
 >
 > **Distinción de vectores** (modelo de permisos, `CC.md §6`): el daño viene del **overwrite sin diff** (`vercel pull/link`), NO de un Edit revisable. Por eso `vercel pull/link/env pull` → **DENY** (hard-block en `settings.json`), mientras que editar `.env.local` con Edit/Write → **ASK** (gate: ves el diff y apruebas, p.ej. agregar una env var nueva).
 >
-> **En un repo con bóveda el DENY es el mismo, por otra razón:** no hay `.env.local` que perder, pero uno que traiga `vercel env pull` lo cargaría Next.js y sus claves se colarían sobre las de la bóveda (`fx-secrets-vault §7`).
+> **En un repo con bóveda el DENY es el mismo, por otra razón:** no hay `.env.local` que perder, pero uno que traiga `vercel env pull` lo cargaría Next.js y sus claves se colarían sobre las de la bóveda (`sk-vault §3`).
 
 ```
 ❌ DENY (hard-block): vercel link / vercel link --yes / vercel link <project>

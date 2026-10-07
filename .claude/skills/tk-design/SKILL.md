@@ -851,7 +851,7 @@ Con N ≥ 1 propuestas, el orquestador las presenta y pregunta **cuáles emitir*
 
 Por cada propuesta elegida:
 
-- Escribir `project/factory/ui-extension-{YYYY-MM-DD}-{project-slug}-{NNN}.md` con el **shape canónico** de [`fx-factory-tickets §4`](../fx-factory-tickets/SKILL.md) — fuente única, no un shape propio. `{NNN}` incremental dentro de tipo+fecha+proyecto (slot ocupado → incrementa). Nace `**Estado:** abierto` + `**GitHub issue:** —`; `**Source agent:**` = el orquestador de `/design`; `**Trigger context:**` = los SCR que usan la variante.
+- Escribir `project/factory/ui-extension-{YYYY-MM-DD}-{project-slug}-{NNN}.md` con el **shape canónico** de [`fx-factory-tickets §4`](../fx-factory-tickets/SKILL.md) — fuente única, no un shape propio. `{NNN}` incremental dentro de tipo+fecha+proyecto (slot ocupado → incrementa). Es un borrador hasta `factory ticket push` (que lo entrega y lo borra); `**Source agent:**` = el orquestador de `/design`; `**Trigger context:**` = los SCR que usan la variante.
 - **Qué llena cada sección** ya está escrito en [`methodology/component-extension-policy.md §2.3`](methodology/component-extension-policy.md) — se reúsa, no se redefine aquí.
 - Anotar en la línea de esa propuesta en §1.2 el path del ticket emitido. Las no elegidas quedan listadas sin anotación (y pueden emitirse en un run posterior).
 

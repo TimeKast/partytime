@@ -152,15 +152,15 @@ omitir.
    `docs(factory): …` (los tickets). El CP-commit sigue siendo UNO: la opción elegida
    (nada / commit / commit + push) aplica a los dos por igual.
 ✅ Skip normal: sin tickets emitidos no hay segundo commit.
-✅ La URL que `factory ticket push` estampa después (`fx-factory-tickets §6.2`) vuelve a
-   viajar en un `docs(factory): …` — misma clase de cambio, mismo scope.
+✅ El borrado que deja `factory ticket push` al entregar el ticket (`fx-factory-tickets §6`)
+   viaja en otro `docs(factory): …` — misma clase de cambio, mismo scope.
 ```
 
 **Por qué aparte y no junto.** Un factory-ticket **no es un entregable del run**: lo consume
 `factory ticket push` para abrir un issue en el Factory, no la fase siguiente del pipeline. Su
-ciclo de vida es otro — nace en un run, se entrega días después, y `Estado` lo mantiene el
-equipo mucho más allá. Mezclarlo con los docs vuelve irrastreable un `git log` por el canal, y
-deja sin dueño el commit del estampado posterior, que ya no pertenece a ningún run.
+ciclo de vida es otro — nace en un run, se entrega días después y, entregado, se borra: su
+estado vive en el issue. Mezclarlo con los docs vuelve irrastreable un `git log` por el canal, y
+deja sin dueño el commit del borrado posterior, que ya no pertenece a ningún run.
 
 > **Se lee distinto según dónde corra, y conviene saberlo:** en el **Factory**,
 > `project/factory/` nunca llega a `main` (BR-FACTORY-001 lo excluye del merge selectivo). En
@@ -232,7 +232,7 @@ deja sin dueño el commit del estampado posterior, que ya no pertenece a ningún
 1. **Override explícito primero.** Si `project/planning/project-config.md` declara `branching: develop-first` o `branching: main-first` en la sección `## 1. Identity`, esa preferencia manda — la auto-detección se salta.
 2. **Auto-detección (fallback).** Si no hay override, leer `version` de `package.json`:
    - `"0.0.0"` → Pre-release (main-first)
-   - `"X.Y.Z"` (X ≥ 1) → Post-release (develop-first)
+   - Cualquier otra (`"1.2.0"`, y también `"0.2.0"`) → Post-release (develop-first) — la misma regla que aplica `/deploy`
 
 > El override permite a un proyecto en v0.0.0 ya adoptar develop-first (convención de equipo), y a un proyecto post-release declarar un modo explícito si `/deploy` no fue la vía del primer release.
 

@@ -15,7 +15,7 @@
 - [Freeze map](methodology/freeze-map.md) — 5 buckets schema (Firm/Open/Contradictions/Recommendations/Post-MVP), confidence tags inline, anti-drift rules, quantitative completeness gate, HIGH findings classification del Phase 7 Challenge Pass.
 - [Deep dive](methodology/deep-dive.md) — 11 sections schema del brief, 8-fields per-feature schema, S/M/L tier semantics + classification rules.
 - [Kit leverage](methodology/kit-leverage.md) — `dsc-kit-analyst` output schema, coverage aggregation, drift surfacing, trigger rule (`sk_active`).
-- [Factory tickets](methodology/factory-tickets.md) — puntero a la convención canónica de factory-tickets (shape, tipos, naming, `Estado`, trigger rules), que vive en la skill `fx-factory-tickets`; aquí quedan solo las pipeline rules locales del run (`/discovery`) + bibliografía interna.
+- [Factory tickets](methodology/factory-tickets.md) — puntero a la convención canónica de factory-tickets (shape, tipos, naming, ciclo de vida, trigger rules), que vive en la skill `fx-factory-tickets`; aquí quedan solo las pipeline rules locales del run (`/discovery`) + bibliografía interna.
 
 **v10 (canonical artifacts numerados + tracking issues + readiness gate):**
 

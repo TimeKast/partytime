@@ -21,7 +21,7 @@ Routing semántico (`CC.md §1.1`). Triggers típicos:
 
 - "auditemos la UI", "corre `ui-critic`", un reporte suyo que dice **DS4 `no demostrado`**
 - "agrega la pantalla X a las capturas", "¿por qué el manifest no trae contraste?"
-- `/implement` Phase 4.4 y 4.7.5 — el orquestador produce evidencia antes de spawnear a `ui-critic`
+- `/implement` Phase 4.4 y 4.7.5 (una vez por tramo del fix-loop, no por ronda) — el orquestador produce evidencia antes de spawnear a `ui-critic`
 - Enganchar el harness en un proyecto que nació antes que él (§8)
 - Edición de `scripts/tools/visual-evidence/**`, `tests/e2e/visual.evidence.spec.ts` o del proyecto `evidence` de `playwright.config.ts`
 

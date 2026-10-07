@@ -171,6 +171,7 @@ What did break was **a precondition that had been true by accident**, and it is 
 | `E2E_PORT`         | Pins the port for this run. Wins over everything, and is never moved — see §1.4.        |
 | `CI`               | Set by CI providers → always compiles, never reuses a build (§1.3), and gets the wider server-startup ceiling (§1.4). |
 | `E2E_ALLOW_REMOTE_HOST` | Run even though the `baseURL` host of `playwright.config` does not resolve to this machine. Without it that run is **refused**, before the branch and the build (§2). With it the runner prints the finding as a banner and proceeds. |
+| `E2E_SERVER_LOGS`  | `1` keeps the server's output after it is ready — its stdout and the `warn`-level log lines otherwise hidden. Off by default (the noise would bury Playwright's report); for investigating a flaky run. A server that **dies mid-run** is reported with or without it: `❌ The E2E server died mid-run (code …, signal …)`. Without that line, the symptom is only specs timing out against an empty port. |
 
 ```
 # one spec, base phase only — the invocation that `--help` exists to make discoverable
@@ -847,7 +848,7 @@ test.describe('RBAC Route Access', () => {
       for (const route of blocked) {
         test(`should redirect ${role} away from ${route.label}`, async ({ page }) => {
           await page.goto(route.path);
-          await page.waitForURL(/dashboard/, { timeout: 10_000 }); // redirect, not 403
+          await page.waitForURL(/\/error\?error=AccessDenied/, { timeout: 10_000 }); // redirect, not 403
           expect(page.url()).not.toContain(route.path);
         });
       }
@@ -863,7 +864,7 @@ test.describe('RBAC Route Access', () => {
 | Decision                                       | Why                                           |
 | ---------------------------------------------- | --------------------------------------------- |
 | `TESTABLE_ROLES` excludes super_admin          | Always bypasses ACL; tested as separate smoke |
-| Proxy `authorized()` redirects to `/dashboard` | UX: better than 403                           |
+| Proxy `authorized()` redirects to `/error?error=AccessDenied` | UX: better than 403; never `/dashboard` (a restricted `/dashboard` would loop) |
 | `test.skip` when ACL empty                     | SK ships with empty ACL — no flakes           |
 | `ROUTE_ACL` is SSOT                            | Add a route → tests expand automatically      |
 

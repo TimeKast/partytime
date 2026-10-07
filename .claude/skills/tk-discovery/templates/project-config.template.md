@@ -66,7 +66,7 @@ deadline: '{{YYYY-MM-DD o TBD}}'
 | Backlog   | `project/backlog/`                       | ⬜ Pendiente |
 | Code      | `src/`                                   | ⬜ Pendiente |
 
-<!-- Cadena real per PIPELINE_CURRENT_TRUTH §1. Cada workflow actualiza su fila al cerrar. -->
+<!-- Cadena real per CORE.md §3. Cada workflow actualiza su fila al cerrar. -->
 <!-- On-demand off primary path (NO listar aquí): /proposal (post-backlog cotización), /docs api · /docs data-model (autogen post-implement). -->
 <!-- Fila Design — valor `🟡 Parcial (seed)`: lo escribe `/design add <plan>` (day-2) cuando generó el 16_DESIGN.md desde un seed mínimo (sitemap + Screen Map del código real, sin visual direction completa). NO renombrar la fila `Design` (el matcher de Phase 9 de tk-design usa el nombre exacto); solo cambia el valor de la celda Estado. Insert defensivo: si la fila `Design` ya existe, solo se actualiza su valor — no se crea fila nueva. -->
 
@@ -289,7 +289,7 @@ _{{nombre_proyecto}} — Project Config ({{YYYY-MM-DD}})_
 | Sección                    | Fuente Brief                                                             |
 | -------------------------- | ------------------------------------------------------------------------ |
 | §1 Identity                | §1 Nombre + §2.1 Stakeholder principal + §8 Deadline                     |
-| §2 Pipeline Status         | Discovery ✅, Design/Backlog/Code ⬜ (per `PIPELINE_CURRENT_TRUTH §1`)   |
+| §2 Pipeline Status         | Discovery ✅, Design/Backlog/Code ⬜ (per `CORE.md §3`)                  |
 | §3 Problem Statement       | §1.2 Problem Statement (3-5 líneas, condensar)                           |
 | §4 Stack Summary           | §8 Stack (tech solo, sin versiones)                                      |
 | §5 Infrastructure          | §5 Infra + §8 Services (consolidar en 1 tabla)                           |

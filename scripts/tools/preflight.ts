@@ -198,6 +198,15 @@ export const ACCEPTED_ADVISORIES: readonly AcceptedAdvisory[] = [
     closesWhen:
       'nodemailer >= 9.1.0 — mismo bloqueo que GHSA-p6gq-j5cr-w38f: queda fuera del peer de @auth/core (`^7.0.7 || ^8.0.5`). Se retira cuando NextAuth admita v9.',
   },
+  {
+    ghsa: 'GHSA-v53p-9fqp-m79j',
+    module: 'nodemailer',
+    severity: 'high',
+    reason:
+      'DoS por backtracking cuadrático en el fallback de texto libre de `addressparser`: hace falta un encabezado de dirección fabricado. El kit no le entrega ninguno: `EmailPayload.to` es un solo destinatario que viene de la base o de un input que `z.email()` ya validó (el magic link incluido: pasa por `sendEmail`), `from` sale de `EMAIL_FROM` (configuración, no input) y `replyTo` de `SUPPORT_EMAIL`. Además `nodemailer` solo entra con `EMAIL_PROVIDER=smtp`; `factory provision` configura Resend.',
+    closesWhen:
+      'nodemailer >= 10.0.6 — mismo bloqueo que GHSA-p6gq-j5cr-w38f, ahora en v10: queda fuera del peer de @auth/core (`^7.0.7 || ^8.0.5`). Se retira cuando NextAuth admita v10.',
+  },
 ];
 
 /** Los advisories del JSON de `pnpm audit`, con su ID — el metadata agregado no los distingue. */

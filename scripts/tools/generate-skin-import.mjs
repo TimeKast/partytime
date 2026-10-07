@@ -10,6 +10,17 @@
  * Usage:
  *   pnpm generate:skin           # rewrite the @import to match ACTIVE_SKIN
  *   pnpm generate:skin --check   # exit 1 if out of sync (CI), don't write
+ *   node …/generate-skin-import.mjs --stage   # also reconcile the STAGED copy (pre-commit hook)
+ *
+ * Why `--stage` and never `git add src/app/globals.css` (GIT.md §3.6.1): the hook used to
+ * stage the whole file after every run, so any unrelated, in-progress edit to globals.css
+ * (another agent on a shared checkout, the developer's own WIP) rode into whatever commit
+ * was being made — even a `git commit -- <paths>` that never named it. `--stage` applies the
+ * same one-line rewrite to the blob already in the index and writes it back with
+ * `git update-index`, so the only thing it can ever stage is the @import line itself, and
+ * only when that line is actually out of sync. Git runs the hook against the index the
+ * commit will use (the temporary one of a pathspec commit included), and the child `git`
+ * calls inherit it through GIT_INDEX_FILE.
  *
  * Why a generator and not a 2nd hand-edit: CSS can't read TS, so the `@import`
  * (build-time CSS) can't derive `ACTIVE_SKIN` (runtime TS) on its own.
@@ -25,15 +36,18 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { execFileSync } from 'child_process';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SKINS_CONFIG = join(ROOT, 'src/config/skins.ts');
-const GLOBALS = join(ROOT, 'src/app/globals.css');
+const GLOBALS_REL = 'src/app/globals.css';
+const GLOBALS = join(ROOT, GLOBALS_REL);
 const SENTINEL = '@skin-import';
 
 const check = process.argv.includes('--check');
+const stage = process.argv.includes('--stage');
 
 function fail(msg) {
   console.error(`✖ generate:skin — ${msg}`);
@@ -88,17 +102,62 @@ const current = lines[i + 1];
 
 if (current.trim() === want) {
   if (!check) console.log(`✓ generate:skin — @import already on '${skin}'`);
-  process.exit(0);
+} else {
+  if (check) {
+    fail(
+      `globals.css @import is out of sync with ACTIVE_SKIN='${skin}'.\n` +
+        `  expected: ${want}\n  found:    ${current.trim()}\n` +
+        `  → run \`pnpm generate:skin\``
+    );
+  }
+  lines[i + 1] = want;
+  writeFileSync(GLOBALS, lines.join('\n'));
+  console.log(`✓ generate:skin — set globals.css @import to '${skin}'`);
 }
 
-if (check) {
-  fail(
-    `globals.css @import is out of sync with ACTIVE_SKIN='${skin}'.\n` +
-      `  expected: ${want}\n  found:    ${current.trim()}\n` +
-      `  → run \`pnpm generate:skin\``
-  );
-}
+if (stage && !check) stageImportLine(skin, want);
 
-lines[i + 1] = want;
-writeFileSync(GLOBALS, lines.join('\n'));
-console.log(`✓ generate:skin — set globals.css @import to '${skin}'`);
+/**
+ * Apply the same one-line rewrite to the STAGED copy of globals.css (see `--stage` in the
+ * header). Never stages anything else: the rest of the index blob is kept byte for byte,
+ * and a globals.css that is untracked, conflicted or has no sentinel in the index is left
+ * alone — a whole-file `git add` is exactly what this replaces.
+ */
+function stageImportLine(skinName, importLine) {
+  const git = (args, input) =>
+    execFileSync('git', args, {
+      cwd: ROOT,
+      input,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  let entry;
+  try {
+    entry = git(['ls-files', '--stage', '--', GLOBALS_REL]).trim();
+  } catch {
+    return; // not a git work tree (e.g. an exported copy) — nothing to stage
+  }
+  if (!entry) {
+    console.log(`✓ generate:skin — ${GLOBALS_REL} is not tracked; nothing staged`);
+    return;
+  }
+  const match = entry.match(/^(\d+) ([0-9a-f]+) (\d)\t/);
+  if (!match || match[3] !== '0') {
+    console.log(`✓ generate:skin — ${GLOBALS_REL} is mid-merge in the index; nothing staged`);
+    return;
+  }
+  const [, mode, sha] = match;
+  const staged = git(['cat-file', 'blob', sha]).split('\n');
+  const at = staged.findIndex((l) => l.includes(SENTINEL));
+  if (at === -1 || at + 1 >= staged.length) {
+    console.log(
+      `✓ generate:skin — staged ${GLOBALS_REL} has no "${SENTINEL}" block; nothing staged`
+    );
+    return;
+  }
+  if (staged[at + 1].trim() === importLine) return; // the index already carries this skin
+  staged[at + 1] = importLine;
+  const newSha = git(['hash-object', '-w', '--stdin', '--no-filters'], staged.join('\n')).trim();
+  git(['update-index', '--cacheinfo', `${mode},${newSha},${GLOBALS_REL}`]);
+  console.log(`✓ generate:skin — staged only the @import line ('${skinName}') of ${GLOBALS_REL}`);
+}

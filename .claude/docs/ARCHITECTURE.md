@@ -48,7 +48,7 @@ Los pares canónicos `kb-*`/`sk-*` que nacieron en KIT-018 se retiraron en 2026-
 
 **On-demand workflows** (off primary path): `/proposal`, `/docs api`, `/docs data-model`, `/audit`, `/evolve`, `/retro`.
 
-Cada fase genera artifacts canónicos numerados que son SSOT para la siguiente. Tabla canónica + paths exactos viven en `CORE.md §3`. Visión operativa detallada → [`project/planning/PIPELINE_CURRENT_TRUTH.md`](../../project/planning/PIPELINE_CURRENT_TRUTH.md) (Factory meta-doc).
+Cada fase genera artifacts canónicos numerados que son SSOT para la siguiente. Tabla canónica + paths exactos viven en `CORE.md §3`.
 
 > Regla: upstream decide, downstream ejecuta.
 

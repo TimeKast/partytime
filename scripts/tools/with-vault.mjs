@@ -232,7 +232,7 @@ export function readVaultDomain(rootDir) {
   const fail = () =>
     new WrapperError(
       `falta \`${VAULT_POLICY_PATH}\`, o está ilegible o incompleto. En un proyecto derivado ` +
-        'recupéralo con `factory update` (fx-secrets-vault §3, "Recuperar vault.json").'
+        'recupéralo con `factory update` o del repo con `git checkout` (sk-vault §4).'
     );
   if (!existsSync(file)) throw fail();
   let parsed;
@@ -462,7 +462,7 @@ function resolveEnvironment(parentEnv, rootDir, declaredEnv) {
   if (existsSync(path.join(rootDir, '.env.local'))) {
     note(
       'hay un `.env.local` en este repo: no lo leo, pero Next.js sí lo carga y sus claves sueltas ' +
-        'se cuelan. Retíralo (fx-secrets-vault §7).'
+        'se cuelan. Retíralo (sk-vault §3).'
     );
   }
   return { env: merged.env, injected: requested };

@@ -1,7 +1,7 @@
 ---
 name: sk-notifications
 description: Kit-shipped notification infrastructure: the `notify()` server dispatcher, the visibility-aware polling endpoint, the `useNotifications` hook, the bell/panel/settings/push-devices components, per-device push subscriptions, and the categories × channels config in `src/config/notifications.ts`. Invoke when dispatching notifications from server actions or wiring the bell, panel and settings page in-app.
-last-verified: 2026-09-22
+last-verified: 2026-09-28
 user-invocable: false
 ---
 
@@ -63,7 +63,9 @@ await notify({
 **Ubicación:** `src/app/api/notifications/poll/route.ts` → `GET /api/notifications/poll`.
 
 - **Runtime:** serverless default (no `runtime = 'nodejs'`). Sin `runtime = 'edge'` para mantener acceso a `db` Drizzle Node bindings.
-- **Auth:** `auth()` de NextAuth — `401` si no hay session.
+- **Auth — la ruta se protege sola, porque corre FUERA del proxy del Edge.** `requireRouteSession(await auth())` (`401` sin sesión, `403` bajo `pendingMfa`) y, además, `403` si `session.mustChangePassword` (hay una contraseña temporal pendiente de cambiar: la regla de esa sesión es "nada hasta reemplazarla", la misma que aplica el Edge al resto).
+- **Por qué está fuera del matcher de `src/proxy.ts`.** El wrapper del Edge de next-auth vuelve a enviar la cookie de sesión de la petición como `Set-Cookie` en **cada** respuesta que pasa por el proxy. El provider consulta esta ruta cada 30 s, así que una consulta que salió antes de `POST /api/auth/password` puede volver después y escribir encima la cookie vieja (con el epoch anterior al cambio): el usuario que acaba de cambiar su contraseña queda fuera. Es la única petición que la app dispara sola con un temporizador. No se pierde nada: la ruta aplica los guards del Edge, solo lee las notificaciones del propio usuario (no hay ACL de rol que agregar) y lo único que falta es el `x-correlation-id`, que una lectura no necesita. Si cambias el path de la ruta, cambia también el matcher ([`sk-security §2`](../sk-security/SKILL.md)). Cualquier otra ruta que la app consulte sola con un temporizador tiene el mismo problema, y la salida es la misma: fuera del matcher, con todos sus guards dentro.
+- 🔴 **Disponible desde kit `v13.1.0`, y NO llega por `factory update`** (`src/` nace congelado, BR-FACTORY-006). Si `grep -n "api/notifications/poll" src/proxy.ts` no da salida, tu ruta sigue dentro del proxy → [`factor-and-session-hardening.md`](../../docs/retrofits/factor-and-session-hardening.md), paso 13.
 - **Query:** `Promise.all([items, unreadCount])` — `select` de los 20 más recientes (`PAGE_SIZE`, alineado con `NotificationPanel.MAX_ITEMS`; el dropdown muestra ~6 above-the-fold y scrollea el resto) + `count(*)` con `read = false`.
 - **`dynamic = 'force-dynamic'`** para evitar caching estático.
 

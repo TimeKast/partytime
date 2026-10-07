@@ -80,7 +80,9 @@ interface DataTableProps<T extends object> {
   title?: string;
   description?: string;
   actions?: React.ReactNode;
-  onRowClick?: (row: T) => void;
+  onRowClick?: (row: T) => void; // table view only
+  view?: 'table' | 'cards'; // Default: 'table'
+  renderCard?: (row: T) => React.ReactNode; // required for view="cards"
   className?: string;
 }
 ```
@@ -106,6 +108,30 @@ interface DataTableProps<T extends object> {
 ```
 
 Use individual components (`Table` + `useTableState`) when you need external filter bars or server-side pagination.
+
+#### Card view — "Tarjetas / Tabla"
+
+For collections where each row has its own identity (clients, projects, agents), `DataTable` can render the page as a grid of cards (1 → 2 → 3 columns from 375px). **Search, sort order and pagination are the same in both views** — only the rendering of the page changes. Admin lists that are dense and comparative (users, audit log) stay a table: don't add the switch just because it exists.
+
+```tsx
+import { CollectionViewToggle } from '@/components/common/CollectionViewToggle';
+import { useCollectionView } from '@/lib/hooks/useCollectionView';
+
+const { view, setView } = useCollectionView({ storageKey: 'clientes', defaultView: 'cards' });
+
+<CollectionViewToggle value={view} onChange={setView} />
+<DataTable
+  data={clients}
+  columns={columns}
+  keyExtractor={(c) => c.id}
+  view={view}
+  renderCard={(c) => <ClientCard client={c} />}
+/>
+```
+
+- **View resolution** (`useCollectionView`): `?vista=tarjetas|tabla` in the URL → the viewer's last choice on that screen (`localStorage`, per `storageKey`) → `defaultView`. Choosing writes both, the URL with `router.replace`. It reads `useSearchParams`, so a statically rendered route wraps the screen in `<Suspense>`; protected pages render per request and need nothing.
+- **The card owns its interaction:** `onRowClick` applies to table rows only. Compact card: the name as a stretched link to the detail, ≤4 signals (status, one or two key fields), no nested cards.
+- `view="cards"` without `renderCard` falls back to the table.
 
 ### 1.2 `Table` (low-level renderer)
 
@@ -780,6 +806,8 @@ interface TabsListProps {
 }
 ```
 
+**Tabs vs `ToggleGroup`:** each tab owns a different panel of content → `Tabs`. The options change how the SAME content is shown (a view or mode: "Tarjetas / Tabla", "Día / Semana") → `ToggleGroup` (§5.7).
+
 ### 5.4 `EmptyState`
 
 ```ts
@@ -818,6 +846,29 @@ interface CheckboxProps {
 ```
 
 Radix-based (`@radix-ui/react-checkbox`) — accessible by default (`role="checkbox"`, `aria-checked`). Styled with the kit's elevation tokens (`surface-inset` unchecked, `surface-raised-sm` checked).
+
+### 5.7 `ToggleGroup` — segmented control (pick one of N)
+
+```ts
+import { ToggleGroup, type ToggleGroupOption } from '@/components/common/ToggleGroup';
+
+interface ToggleGroupOption<T extends string = string> {
+  value: T;
+  label: string; // short — the group must survive 375px
+  icon?: LucideIcon; // decorative; the label is the accessible name
+  disabled?: boolean;
+}
+
+interface ToggleGroupProps<T extends string = string> {
+  options: ToggleGroupOption<T>[]; // 2+; with fewer it renders nothing
+  value: T; // controlled
+  onChange: (value: T) => void; // never fired for the already-active option
+  label: string; // accessible name of the radiogroup — required
+  className?: string;
+}
+```
+
+WAI-ARIA radio group: one tab stop (roving tabindex), arrow keys move the selection and skip disabled options, 44px touch height below `sm`, colors from skin tokens. A value outside the list checks nothing. For a boolean on/off setting use `Switch`; for the "Tarjetas / Tabla" preset use `CollectionViewToggle` (§1.1).
 
 ---
 

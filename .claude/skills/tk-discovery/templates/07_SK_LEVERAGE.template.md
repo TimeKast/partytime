@@ -58,6 +58,7 @@
 
 <!-- Features/components encontrados en `src/` del target pero NO documentados en `sk-*` skills.
      Genera uno ticket per gap a `project/factory/sk-drift-{YYYY-MM-DD}-{project-slug}-{NNN}.md`
+     (borrador: `factory ticket push` lo entrega como issue y lo borra; después, la referencia viva es el issue)
      Si el análisis no hace fallback a src/ (porque todo resolvió en skills), count = 0. Mencionarlo explícito. -->
 
 **Drift tickets emitted:** {{count}}

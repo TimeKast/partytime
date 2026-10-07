@@ -1,7 +1,7 @@
 ---
 name: sk-email
-description: Kit-shipped email infrastructure for the TimeKast Starter Kit — the `sendEmail()` dispatcher with a Resend/SMTP provider abstraction selected via `EMAIL_PROVIDER`, plus the transactional template set (magic-link, password-reset, verify-email, invites, notification) and inline-branded layout helpers. Use when sending transactional email through the kit or adding a new template — never instantiate Resend/nodemailer directly.
-last-verified: 2026-09-22
+description: Kit-shipped email infrastructure for the TimeKast Starter Kit — the `sendEmail()` dispatcher with a Resend/SMTP provider abstraction selected via `EMAIL_PROVIDER`, plus the transactional template set (magic-link, password-reset, verify-email, invites, notification, security alerts) and the layout and HTML-escaping helpers. Use when sending transactional email through the kit or adding a new template — never instantiate Resend/nodemailer directly.
+last-verified: 2026-09-28
 user-invocable: false
 ---
 
@@ -151,6 +151,8 @@ RESEND_API_KEY="re_xxx"
 EMAIL_FROM="noreply@yourdomain.com"
 ```
 
+**Nombre del remitente.** Si el proyecto tiene `src/lib/email/sender.ts`, `getResendConfig()` y `getSmtpConfig()` anteponen `NEXT_PUBLIC_APP_NAME` a un `EMAIL_FROM` sin nombre (`"Mi App" <noreply@…>`), al enviar: renombrar la app y hacer deploy basta. Un `EMAIL_FROM` que ya trae nombre gana. Sin ese archivo (proyectos anteriores), el nombre se pone escribiéndolo en `EMAIL_FROM`.
+
 **Features compartidas entre providers** (ambos `resend.ts` y `smtp.ts` las aplican):
 
 - Headers transaccionales: `Auto-Submitted: auto-generated`, `X-Auto-Response-Suppress: All`.
@@ -165,24 +167,49 @@ EMAIL_FROM="noreply@yourdomain.com"
 
 ---
 
-## 3. Templates shipped (9 en `src/lib/email/templates/`)
+## 3. Templates shipped (`src/lib/email/templates/`)
 
-Cada template exporta **dos funciones**: `xxxEmail(params)` → HTML y `xxxEmailText(params)` → plain-text fallback. Todas usan `emailLayout()` como shell.
+Cada template exporta **dos funciones**: `xxxEmail(params)` → HTML y `xxxEmailText(params)` → plain-text fallback. Todas usan `emailLayout()` como shell. Los parámetros de abajo son los reales de cada archivo — ante la duda, el archivo manda.
 
-| Template                 | Export HTML                  | Export text                     | Params principales                                     | Flow del kit que lo consume                       |
-| ------------------------ | ---------------------------- | ------------------------------- | ------------------------------------------------------ | ------------------------------------------------- |
-| `layout.ts`              | `emailLayout(content, opts)` | `generateTextFallback(html)`    | `content`, `{ preheader?, branding? }`                 | Shell HTML base — todos lo usan                   |
-| `magic-link.ts`          | `magicLinkEmail`             | `magicLinkEmailText`            | `{ url, host }`                                        | NextAuth magic link sign-in                       |
-| `password-reset.ts`      | `passwordResetEmail`         | `passwordResetEmailText`        | `{ url, userName? }`                                   | `/forgot-password` flow                           |
-| `password-reset-confirm` | `passwordResetConfirmEmail`  | `passwordResetConfirmEmailText` | `{ userName? }`                                        | Confirmación post-reset                           |
-| `password-changed.ts`    | `passwordChangedEmail`       | `passwordChangedEmailText`      | `{ userName?, changedAt? }`                            | Security alert on password change                 |
-| `verify-email.ts`        | `verifyEmail`                | `verifyEmailText`               | `{ url, userName? }`                                   | Email verification                                |
-| `login-alert.ts`         | `loginAlertEmail`            | `loginAlertEmailText`           | `{ userName?, ip?, userAgent?, timestamp? }`           | Nuevo sign-in desde device desconocido            |
-| `invite-user.ts`         | `inviteUserEmail`            | `inviteUserEmailText`           | `{ url, inviterName?, organizationName?, expiresIn? }` | Invite system (`src/lib/invites/`)                |
-| `invite-accepted.ts`     | `inviteAcceptedEmail`        | `inviteAcceptedEmailText`       | `{ inviteeName, inviteeEmail }`                        | Notifica al inviter                               |
-| `notification.ts`        | `notificationEmail`          | `notificationEmailText`         | `NotificationEmailParams`                              | Canal `email` de `notify()` (sk-notifications §1) |
+| Template                          | Export HTML                      | Params                                                                  | Quién lo envía en el kit                                   |
+| --------------------------------- | -------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `layout.ts`                       | `emailLayout(content, opts)`     | `content`, `{ preheader?, branding? }`                                  | Shell HTML base — todos lo usan                            |
+| `magic-link.ts`                   | `magicLinkEmail`                 | `{ url, host }`                                                         | NextAuth magic link (`auth.ts`)                            |
+| `password-reset.ts`               | `passwordResetEmail`             | `{ url, userName? }`                                                    | `/forgot-password` (`password-reset.ts`)                   |
+| `password-reset-confirm.ts`       | `passwordResetConfirmEmail`      | `{ userName?, changedAt }`                                              | Ninguno (el reset envía `password-changed`)                |
+| `password-changed.ts`             | `passwordChangedEmail`           | `{ userName?, changedAt, ipAddress?, userAgent? }`                      | Cada cambio y reset de contraseña (`security-alerts.ts`)   |
+| `verify-email.ts`                 | `verifyEmail`                    | `{ url, userName?, expiresIn? }`                                        | Verificación de correo y cambio de correo                  |
+| `login-alert.ts`                  | `loginAlertEmail`                | `{ userName?, loginAt, ipAddress?, userAgent?, suspiciousUrl? }`        | Ninguno (disponible para un aviso de login)                |
+| `mfa-failures-alert.ts`           | `mfaFailuresAlertEmail`          | `{ userName?, attemptedAt, ipAddress?, userAgent? }`                    | Código incorrecto en `/2fa`, máx. 1 por hora (`security-alerts.ts`) |
+| `mfa-factor-removed-alert.ts`     | `mfaFactorRemovedAlertEmail`     | `{ userName?, factorLabel, recoveryCodesCleared, changedAt, ipAddress?, userAgent? }` | `disableTotp` / `removePasskey` (`security-alerts.ts`) |
+| `email-change-alert.ts`           | `emailChangeAlertEmail`          | `{ userName?, newEmail, changedAt, byAdmin? }`                          | Cambio de correo (al correo VIEJO)                         |
+| `access-method-unlinked-alert.ts` | `accessMethodUnlinkedAlertEmail` | `{ userName?, methodLabel, changedAt }`                                 | Admin desvincula un método (`user-admin.ts`)               |
+| `credentials-wiped.ts`            | `credentialsWipedEmail`          | `{ userName?, provider }`                                               | `auth.ts` (credenciales borradas al vincular)              |
+| `step-up-code.ts`                 | `stepUpCodeEmail`                | `{ code, userName?, expiresIn? }`                                       | Código de step-up por correo (`email-otp.ts`)              |
+| `registration-collision.ts`       | `registrationCollisionEmail`     | `{ userName? }`                                                         | Registro con un correo ya existente (`/api/auth/register`) |
+| `invite-user.ts`                  | `inviteUserEmail`                | `{ url, inviterName?, organizationName?, expiresIn? }`                  | `/api/invites/send`                                        |
+| `invite-accepted.ts`              | `inviteAcceptedEmail`            | `{ userName?, organizationName? }`                                      | Ninguno                                                    |
+| `notification.ts`                 | `notificationEmail`              | `NotificationEmailParams`                                               | Canal `email` de `notify()` (sk-notifications §1)          |
+
+`security-details.ts` no es un template: son los helpers de §3.1.
 
 > Todos se importan desde el barrel: `import { passwordResetEmail } from '@/lib/email'`.
+
+### 3.1 Escape de HTML y datos de la petición
+
+> 🔴 **Disponible desde kit `v13.1.0`, y NO llega por `factory update`.** `escapeHtml` (y su uso en cada plantilla), `security-details.ts`, `security-alerts.ts` y las dos plantillas `mfa-*` viven en `src/`, congelado en el derivado (BR-FACTORY-006). Verifica antes de apoyarte en ellos (`grep -n "escapeHtml" src/lib/email/templates/layout.ts`); si no están, tus correos de seguridad interpolan sin escapar y el retrofit es [`factor-and-session-hardening.md`](../../docs/retrofits/factor-and-session-hardening.md).
+
+🔴 **Todo template escapa lo que interpola — todos, no solo los de seguridad** (invitaciones, notificaciones, reset, verificación, códigos). Estos correos salen del dominio de la app, firmados con DKIM: lo que se interpola sin escapar (un nombre, un correo, un header de la petición) es HTML que, para el buzón, escribió el remitente — un `<a href>` metido en un User-Agent se vuelve un enlace de phishing dentro de una alerta legítima. Regla:
+
+- **`escapeHtml(value)`** (`./layout`) en todo valor interpolado al HTML (nombres, correos, títulos y cuerpos de notificación, códigos): texto y atributos entre comillas. Cubre `&`, `<`, `>`, `"` y `'`. La versión de texto plano (`xxxEmailText`) no lo necesita.
+- **Datos de la petición**, nunca crudos (`./security-details`): `safeIpAddress(ip)` devuelve la IP solo si parsea como IPv4/IPv6 (`net.isIP`) y `undefined` si no — un valor fabricado no tiene lectura verdadera, así que no se "limpia", se omite; `describeUserAgent(ua)` reduce el User-Agent a una familia de navegador y sistema de una allowlist ("Chrome en macOS"), o `UNKNOWN_BROWSER_LABEL`. El template sigue escapando lo que devuelven: defensa en profundidad.
+
+**Contrato del remitente de alertas de seguridad** (`@/lib/auth/security-alerts.ts`: `sendPasswordChangedAlert`, `sendMfaFactorRemovedAlert`, `scheduleMfaFailureAlert`):
+
+- se envía solo si `isEmailReady()`, y **después** de que la operación que describe hizo commit;
+- **nunca lanza**: una caída del proveedor o un bug del template no puede convertir un cambio de contraseña en un 500 ni hacer que `/2fa` responda distinto;
+- la IP y el User-Agent los pasa quien tiene la petición (`readAlertRequestMeta()` en una server action);
+- la alerta de `/2fa` corre en `after()` y se deduplica con un `UPDATE` condicional sobre `users.last_mfa_alert_at` (una por hora); sin correo configurado ni siquiera toma la ventana, para no silenciar la primera alerta cuando se configure.
 
 **Layout helpers:**
 
@@ -190,6 +217,7 @@ Cada template exporta **dos funciones**: `xxxEmail(params)` → HTML y `xxxEmail
 - `emailButton({ url, text, branding? })` — bulletproof CTA (funciona en Outlook).
 - `defaultBranding` — object con colores base (primary, button, success, error). Overrideables vía `branding` param.
 - `generateTextFallback(html)` → string — strip de HTML a text plano para el campo `text`.
+- `escapeHtml(value)` — escape de todo valor interpolado (§3.1).
 
 ---
 
@@ -204,7 +232,7 @@ Cada template exporta **dos funciones**: `xxxEmail(params)` → HTML y `xxxEmail
    import { emailLayout, emailButton, defaultBranding } from './layout';
    ```
 
-3. **Wrappear** el contenido en `emailLayout(content, { preheader: '...' })` — el shell se encarga de header/footer/dark-mode.
+3. **Wrappear** el contenido en `emailLayout(content, { preheader: '...' })` — el shell se encarga de header/footer/dark-mode. **Escapa** con `escapeHtml` todo valor que interpoles (§3.1).
 4. **Registrar el re-export** en `src/lib/email/index.ts` (al final, en la sección `Re-exports`) — así queda accesible vía `@/lib/email`.
 5. **Consumir** desde server-side (server action, API route, lib/ helper):
 
@@ -236,7 +264,7 @@ Cada template exporta **dos funciones**: `xxxEmail(params)` → HTML y `xxxEmail
 | Variable                | Requerida                       | Propósito                                                                                        |
 | ----------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------ |
 | `EMAIL_PROVIDER`        | — (default `none`)              | `'resend' \| 'smtp' \| 'none'` — selecciona backend                                              |
-| `EMAIL_FROM`            | ✅ (si provider ≠ `none`)       | Email de remitente canónico (ej: `noreply@yourdomain.com`)                                       |
+| `EMAIL_FROM`            | ✅ (si provider ≠ `none`)       | Email de remitente canónico (ej: `noreply@yourdomain.com`, o `Mi App <noreply@yourdomain.com>` con nombre) |
 | `RESEND_API_KEY`        | ✅ (si `EMAIL_PROVIDER=resend`) | API key de Resend                                                                                |
 | `EMAIL_SERVER_HOST`     | ✅ (si `EMAIL_PROVIDER=smtp`)   | SMTP host                                                                                        |
 | `EMAIL_SERVER_PORT`     | ✅ (si `EMAIL_PROVIDER=smtp`)   | SMTP port (587 / 465)                                                                            |
@@ -261,7 +289,7 @@ Cross-ref (NO re-documentar — apuntar al SSOT):
 | Password reset request        | `src/lib/auth/password-reset.ts`                 | `passwordResetEmail`  |
 | Magic link sign-in            | `src/lib/auth/auth.ts` (NextAuth email provider) | `magicLinkEmail`      |
 | Email verification            | `src/lib/auth/auth.ts`                           | `verifyEmail`         |
-| Login alert (security)        | `src/lib/auth/auth.ts` callbacks                 | `loginAlertEmail`     |
+| Alertas de seguridad (contraseña, `/2fa`, factor quitado) | `src/lib/auth/security-alerts.ts`   | `passwordChangedEmail`, `mfaFailuresAlertEmail`, `mfaFactorRemovedAlertEmail` |
 | Invite user                   | `src/lib/invites/`                               | `inviteUserEmail`     |
 | Invite accepted               | `src/lib/invites/`                               | `inviteAcceptedEmail` |
 | Notifications `email` channel | `src/lib/notifications/service.ts` → `notify()`  | `notificationEmail`   |
@@ -279,6 +307,8 @@ Cross-ref (NO re-documentar — apuntar al SSOT):
 | `process.env.EMAIL_FROM`                                                      | `getResendConfig().from` o `getSmtpConfig().from` (via Zod schema)                             |
 | `sendEmail()` sin guard de `isEmailReady()` en flows opcionales               | `if (isEmailReady()) await sendEmail(...)` — graceful degradation cuando `EMAIL_PROVIDER=none` |
 | Crear template inline con HTML crudo en el server action                      | Template en `src/lib/email/templates/{feature}.ts` + re-export en `index.ts`                   |
+| Interpolar `${userName}` / `${ipAddress}` / `${userAgent}` sin escapar         | `escapeHtml(...)`; IP y User-Agent vía `safeIpAddress` / `describeUserAgent` (§3.1)            |
+| Enviar una alerta de seguridad antes del commit, o dejar que lance            | Después del commit, con `isEmailReady()`, sin lanzar nunca (§3.1)                              |
 | Hardcodear colores/branding en el HTML del template                           | `defaultBranding` + `emailLayout({ branding: { ... } })`                                       |
 | `<a href="${url}" style="...">` custom sin `emailButton()`                    | `emailButton({ url, text })` — bulletproof para Outlook                                        |
 | `sendEmail()` para notificar al usuario algo que también debería verse in-app | `notify({ channels: ['email', 'in_app'], ... })` — respeta preferences del usuario             |

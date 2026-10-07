@@ -1,14 +1,14 @@
 ---
 name: fx-factory-tickets
-description: Factory-internal convention for factory-tickets, the derivative-to-Factory channel for reporting a kit gap: the single ticket shape, type slug and filename rule, per-type optional fields, the closed `Estado` vocabulary with the delivered-issue URL slot, and the rule that a ticket carries key names, never secret values. Invoke when opening, naming or triaging a factory-ticket — typically after finding a kit file has no extension point. Delivery → fx-factory-cli; customizing → fx-extension-points.
+description: Factory-internal convention for factory-tickets, the derivative-to-Factory channel for reporting a kit gap: the single ticket shape, type slug and filename rule, per-type optional fields, the draft lifecycle (the local file is a draft until `factory ticket push`; the GitHub issue holds the state), and the rule that a ticket carries key names, never secret values. Invoke when opening, naming or triaging a factory-ticket — typically after finding a kit file has no extension point. Delivery → fx-factory-cli; customizing → fx-extension-points.
 family: factory-internal
-last-verified: 2026-08-27
+last-verified: 2026-09-28
 user-invocable: false
 ---
 
 # fx-factory-tickets — Convención canónica de factory-tickets
 
-> **Propósito:** ser la **fuente única** de qué es un factory-ticket y cómo se escribe — el canal por el que un proyecto derivado (o un agente corriendo dentro de él) le reporta al Factory un defecto accionable del kit: tipo, nombre de archivo, shape, campos, estado y regla de higiene.
+> **Propósito:** ser la **fuente única** de qué es un factory-ticket y cómo se escribe — el canal por el que un proyecto derivado (o un agente corriendo dentro de él) le reporta al Factory un defecto accionable del kit: tipo, nombre de archivo, shape, campos, ciclo de vida y regla de higiene.
 >
 > **Ships to derivatives via the `fx-*` glob** — viaja en los dos perfiles (`full` y `core`). La convención es **del kit, no de un workflow**: cualquier agente, skill o workflow que encuentre un gap accionable emite con este shape, haya corrido `/discovery` o no.
 >
@@ -79,8 +79,6 @@ Un solo shape, para todos los tipos. El bloque de encabezado es de campos `**Cam
 
 **Project:** {project-slug}
 **Date:** {YYYY-MM-DD}
-**Estado:** abierto
-**GitHub issue:** —
 **Source agent:** {nombre del agente emisor | humano}
 **Trigger context:** {path del archivo / ubicación en `src/` / otro ancla verificable}
 
@@ -141,37 +139,18 @@ Un ticket automático se emite por una **condición verificable**, no porque el 
 
 ---
 
-## §6 Ciclo de vida — `Estado`, la URL, y quién manda
+## §6 Ciclo de vida — el archivo es un borrador; el issue es el estado
 
-### §6.1 El campo `Estado`
+1. **Nace** como archivo en `project/factory/` (lo emite un agente o un humano, §5) y se revisa ahí: abrir el archivo **es** revisar lo que se va a publicar.
+2. **Se commitea** en su propio commit `docs(factory): …` (`GIT.md §3.5.1`), para que el equipo lo vea antes de entregarlo.
+3. **Se entrega** con `factory ticket push` ([`fx-factory-cli`](../fx-factory-cli/SKILL.md)), que abre el issue en el repo del Factory y **borra el archivo local**. El borrado se commitea con otro `docs(factory): …`.
+4. **Desde ahí, el estado vive solo en el issue de GitHub** (abierto / cerrado, etiquetas, comentarios). No hay campo local que mantener.
 
-Vocabulario **cerrado**, en el bloque de encabezado, cuarta línea:
+🔴 **Por qué no hay `Estado` local.** Un campo de estado en el archivo no tiene flujo de vuelta: cuando el Factory cierra el issue, el archivo sigue diciendo "abierto" hasta que alguien lo edita a mano, y nadie lo hace — el directorio se pudre. Y mientras el archivo existe, un segundo `push` abre un issue duplicado. Borrar el borrador al entregarlo resuelve las dos cosas.
 
-| Valor        | Significa                                                                      |
-| ------------ | -------------------------------------------------------------------------------- |
-| `abierto`    | Recién emitido. **Es el valor con el que nace todo ticket**                      |
-| `triado`     | Alguien lo leyó y decidió que es trabajo real                                    |
-| `resuelto`   | El defecto ya no existe en el kit que el proyecto tiene                          |
-| `descartado` | Se decidió no actuar. La razón se escribe en el propio ticket, no se deja implícita |
-
-Fuera de estos cuatro valores no hay nada: un estado inventado hace ilegible el directorio para cualquier herramienta que lo lea.
-
-### §6.2 El slot de la URL — `**GitHub issue:**`
-
-Campo del bloque de encabezado, **inmediatamente después de `Estado`**. Nace con un guion largo (`—`) y es el **único campo que escribe una herramienta**: al entregar el ticket, `factory ticket push` reemplaza ese guion por la URL completa del issue creado en el repo del Factory ([`fx-factory-cli`](../fx-factory-cli/SKILL.md)).
-
-- Sin entregar → `—`. Nunca se borra el campo: su ausencia y su guion dicen cosas distintas para quien lo audita.
-- Estampar la URL **no cambia el `Estado`**. Entregar no es triar.
-- **En qué commit viaja el ticket** —el de su emisión y el del estampado— lo declara `GIT.md §3.5.1`, no esta skill: un commit propio `docs(factory): …`, separado del `docs(<wf>):` del run que lo emitió. Ahí vive el SSOT, aquí solo el puntero.
-
-### §6.3 Precedencia — el `Estado` local es la vista del derivado
-
-🔴 **El `Estado` local NO intenta espejar `open`/`closed` del issue de GitHub, en ninguna dirección.** No hay sincronización, y no se va a inventar una:
-
-- El **`Estado` local** responde *"¿esto sigue siendo un problema para este proyecto?"* — lo mantiene el equipo del derivado.
-- El **issue de GitHub** responde *"¿el Factory ya hizo el trabajo?"* — lo mantiene el Factory.
-
-Las dos respuestas divergen de forma legítima y permanente: el Factory puede cerrar el issue mientras el derivado sigue en la versión vieja del cerebro (para él sigue `abierto`), y un derivado puede marcar `descartado` algo que el Factory sí va a arreglar. **Ante divergencia, cada lado gana en su propia pregunta** — no hay conflicto que resolver, hay dos campos que miden cosas distintas.
+- Un ticket escrito antes de esta convención (con `**Estado:**` / `**GitHub issue:**` en el encabezado) se entrega igual: esas líneas viajan como parte del cuerpo y se borran con el archivo.
+- Si `push` no alcanza a leer la URL del issue o no puede borrar el archivo, lo avisa: bórralo a mano después de confirmar el issue — **no lo vuelvas a entregar**.
+- Un documento que enlazó el ticket por su path (el `07_SK_LEVERAGE` de `/discovery`, un `16_DESIGN`) conserva el enlace como registro histórico: después del push el archivo ya no existe y la referencia viva es el issue.
 
 ---
 
@@ -181,7 +160,6 @@ Las dos respuestas divergen de forma legítima y permanente: el Factory puede ce
 - [ ] Ya descarté que exista un punto de extensión — `fx-extension-points §5.1`
 - [ ] `{type}` en kebab-case y el filename lleva `{NNN}` (§3)
 - [ ] Las cuatro secciones del shape están, y las tres primeras tienen contenido real (§4)
-- [ ] `Estado: abierto` y `GitHub issue: —` presentes desde el nacimiento (§6)
 - [ ] Releí el `Context snippet` buscando **valores** de secreto y los redacté (§4.2)
 
 ---
@@ -191,7 +169,7 @@ Las dos respuestas divergen de forma legítima y permanente: el Factory puede ce
 | Si vas a…                                                              | Usa en su lugar…                                                        |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | **Entregar** el ticket al Factory (`factory ticket push`, credenciales) | [`fx-factory-cli`](../fx-factory-cli/SKILL.md)                            |
-| **Commitear** el ticket (en cuál commit viaja, con qué subject)        | `GIT.md §3.5.1` — commit propio `docs(factory): …`, nunca el del run      |
+| **Commitear** el ticket o su borrado tras el push (subject, qué commit) | `GIT.md §3.5.1` — commit propio `docs(factory): …`, nunca el del run      |
 | Averiguar si de verdad no hay punto de extensión antes de escribirlo   | [`fx-extension-points`](../fx-extension-points/SKILL.md)                   |
 | Subir un issue **del proyecto** al tablero de cara al cliente          | [`fx-backlog-central`](../fx-backlog-central/SKILL.md) — el otro canal derivado→remoto, con otro destino y otra audiencia |
 | Decidir si un archivo es tuyo o del kit                                | `CORE.md §5` — es la regla always-on; esta skill solo la instancia        |
